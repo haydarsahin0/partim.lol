@@ -107,6 +107,21 @@ export type LiveVote = {
   at: string;
 };
 
+/** Zaman tünelinin tek bir zaman kovası */
+export type HistoryBucket = {
+  /** Kovanın başlangıcı (ISO) */
+  at: string;
+  /** provinceId -> partyId -> o kovada eklenen oy */
+  delta: Record<string, Record<string, number>>;
+};
+
+export type VoteHistory = {
+  /** Sıfırıncı kare: açılış tablosu */
+  seed: Record<string, Record<string, number>>;
+  /** Zaman sırasına göre kovalar */
+  buckets: HistoryBucket[];
+};
+
 export type LeaderboardEntry = {
   user: AuthUser;
   xp: number;
@@ -191,6 +206,12 @@ export interface Backend {
   getSeatMarket(limit?: number): Promise<SeatMarketSummary>;
   /** Ülke genelinde en son kullanılan oylar (canlı akış şeridi için) */
   getLiveVotes(limit?: number): Promise<LiveVote[]>;
+  /**
+   * Zaman tüneli verisi: açılış tablosu + zamana göre gruplanmış oylar.
+   * Geçmiş ayrıca kaydedilmiyor; her oyun zamanı zaten kayıtlı olduğu için
+   * haritanın herhangi bir andaki hâli buradan yeniden kuruluyor.
+   */
+  getVoteHistory(bucket?: "minute" | "hour" | "day"): Promise<VoteHistory>;
   /** Profil alanlarını günceller (kullanıcı adı, görünen ad, X hesabı, avatar) */
   updateProfile(patch: ProfilePatch): Promise<ProfileUpdateResult>;
   /** Tarayıcı verisi silinmişse hesabı kurtarma koduyla geri alır */

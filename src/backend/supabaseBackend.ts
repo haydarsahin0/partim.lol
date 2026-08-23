@@ -25,6 +25,7 @@ import type {
   ProvinceDetail,
   LiveVote,
   ProvinceStanding,
+  VoteHistory,
   SeatMarketSummary,
   VoteResult,
 } from "./types";
@@ -406,6 +407,42 @@ export class SupabaseBackend implements Backend {
       partyId: row.party_id,
       at: row.created_at,
     }));
+  }
+
+  async getVoteHistory(bucket: "minute" | "hour" | "day" = "hour"): Promise<VoteHistory> {
+    const [seedRes, historyRes] = await Promise.all([
+      this.db.from("seed_snapshot").select("province_id,party_id,votes"),
+      this.db.rpc("vote_history", { p_bucket: bucket, p_since: null }),
+    ]);
+
+    const seed: VoteHistory["seed"] = {};
+    for (const row of (seedRes.data ?? []) as Array<{
+      province_id: string;
+      party_id: string;
+      votes: number;
+    }>) {
+      (seed[row.province_id] ??= {})[row.party_id] = row.votes;
+    }
+
+    const byBucket = new Map<string, VoteHistory["seed"]>();
+    for (const row of (historyRes.data ?? []) as Array<{
+      bucket: string;
+      province_id: string;
+      party_id: string;
+      votes: number;
+    }>) {
+      const at = new Date(row.bucket).toISOString();
+      const delta = byBucket.get(at) ?? {};
+      (delta[row.province_id] ??= {})[row.party_id] = row.votes;
+      byBucket.set(at, delta);
+    }
+
+    return {
+      seed,
+      buckets: [...byBucket.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([at, delta]) => ({ at, delta })),
+    };
   }
 
   async getLeaderboard(limit = 25): Promise<LeaderboardEntry[]> {

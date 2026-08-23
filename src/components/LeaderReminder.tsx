@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Crown, Sparkles, X } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import type { SeatMarketSummary } from "@/backend/types";
@@ -52,6 +52,14 @@ function yaz(key: string, value: string): void {
 export function LeaderReminder() {
   const { backend, profile, ready } = useGame();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  /*
+   * Hatırlatma sayfanın alt şeridini kaplıyor. Zaman tüneli sayfasında bu,
+   * tam da oynatma ve kayıt düğmelerinin üstüne geliyor — video çekerken
+   * araya giren bir pencere işi bozar. O sayfada susuyor.
+   */
+  const sayfaUygun = pathname !== "/zaman-tuneli";
   const [open, setOpen] = useState(false);
   const [market, setMarket] = useState<SeatMarketSummary | null>(null);
 
@@ -62,7 +70,7 @@ export function LeaderReminder() {
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !sayfaUygun) return;
     if (oku(KAPALI) === "1") return;
 
     const kalanSure = () => {
@@ -81,7 +89,7 @@ export function LeaderReminder() {
     };
     planla(kalanSure());
     return () => window.clearTimeout(timer);
-  }, [ready]);
+  }, [ready, sayfaUygun]);
 
   // Pencere açılırken taze veri: hangi koltuklar boş, en ucuzu kaç para.
   useEffect(() => {
@@ -102,7 +110,7 @@ export function LeaderReminder() {
     return buyukler.find((id) => PROVINCE_BY_ID[id]) ?? PROVINCES[0].id;
   }, []);
 
-  if (!open || !profile) return null;
+  if (!open || !profile || !sayfaUygun) return null;
 
   const bosKoltuk = market ? Math.max(0, 81 * Object.keys(PARTY_BY_ID).length - market.held) : null;
 

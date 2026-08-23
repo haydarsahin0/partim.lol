@@ -14,6 +14,7 @@ import {
   type DeviceIdentity,
 } from "@/lib/device";
 import { pick, seededRng } from "@/lib/rng";
+import { syntheticHistory } from "@/lib/timelapse";
 import {
   LEADER_BASE_PRICE,
   VOTE_COOLDOWN_MS,
@@ -49,6 +50,7 @@ import type {
   ProvinceDetail,
   LiveVote,
   ProvinceStanding,
+  VoteHistory,
   SeatMarketSummary,
   VoteResult,
 } from "./types";
@@ -402,6 +404,15 @@ export class DemoBackend implements Backend {
     return [...this.state.recent, ...uydurma]
       .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
       .slice(0, limit);
+  }
+
+  /**
+   * Demo modda gerçek bir geçmiş yok; zaman tüneli örnek akışla besleniyor.
+   * Açılış tablosu yine tohumun kendisi, yani video haritanın gerçek
+   * başlangıç hâlinden yola çıkıyor.
+   */
+  async getVoteHistory(): Promise<VoteHistory> {
+    return { ...syntheticHistory(), seed: this.seed.votes };
   }
 
   async getProvinceDetail(provinceId: string): Promise<ProvinceDetail> {
