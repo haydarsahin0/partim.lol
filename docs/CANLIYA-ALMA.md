@@ -93,6 +93,14 @@ taslaktır — özellikle iade koşullarını kendi kararına göre yaz.
 Ardından **API Key** ve **API Secret Key**'i alıp Supabase'de
 **Authentication → Providers → Twitter**'a gir ve sağlayıcıyı etkinleştir.
 
+> **Panelden Save işe yaramazsa** — giriş denemesinde ısrarla
+> `Unsupported provider: provider is not enabled` görüyorsanız — Consumer
+> Key/Secret'ı depo Secrets'ına `X_CONSUMER_KEY` ve `X_CONSUMER_SECRET` olarak
+> ekleyip **Actions → "Supabase'e uygula" → hedef `twitter-auth`** ile
+> çalıştırın. Sağlayıcıyı Supabase Yönetim API'si üzerinden doğrudan açar ve
+> sonucu iş özetinde raporlar. Yalnızca mevcut durumu görmek için hedef
+> `durum` yeterlidir; hiçbir şeyi değiştirmez.
+
 > İki uyarı:
 > - Supabase'in Twitter sağlayıcısı OAuth 1.0a kullanır; X panelinde OAuth 2.0
 >   değil, **OAuth 1.0a** anahtarlarını istediğine dikkat et (alan adları
