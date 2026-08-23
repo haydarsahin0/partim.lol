@@ -105,10 +105,19 @@ const sql = `-- ================================================================
 -- yüzdeleri tam tutturulur; bölgesel eğilim yalnızca illere dağılımı değiştirir.
 -- Toplam ${grand.toLocaleString("tr")} oy, ${rows.length} satır.
 --
--- Bu tohum GERÇEK OYLARDAN AYRI tutulur (public.seed_tallies). Migration
--- yeniden çalıştırıldığında önce eski tohum province_tallies'ten düşülür,
--- sonra yenisi eklenir — böylece oyuncuların gerçek oyları hiç bozulmaz ve
--- yüzdeler her seferinde yeniden hedefe oturur.
+-- SAYAÇ SIFIRDAN KURULUR, eskisinden çıkarma yapılmaz.
+--
+-- Önce "önceki tohumu düş, yenisini ekle" yapıyorduk. Bu, province_tallies'e
+-- yalnızca tohum üzerinden dokunulduğunu varsayıyordu — ve varsayım yanlıştı:
+-- eski bir migration (bot koltukları) tabloya doğrudan ~1.900 oy yazmıştı,
+-- hiçbir yerde kayıtlı olmadığı için de hiçbir zaman düşülmedi. Sonuç: toplam
+-- oy hedeflenenin çok üstünde kaldı ve sıralamanın başı yanlış partide takıldı.
+--
+-- Artık sayaç iki doğrulanabilir kaynaktan yeniden kuruluyor:
+--   public.votes        oyuncuların gerçekten kullandığı her oy
+--   public.seed_tallies aşağıdaki açılış tablosu
+-- Aradan ne geçmiş olursa olsun sonuç aynı yere oturur; migration kaç kez
+-- çalışırsa çalışsın fark etmez.
 -- =============================================================================
 
 create table if not exists public.seed_tallies (
@@ -121,21 +130,21 @@ create table if not exists public.seed_tallies (
 alter table public.seed_tallies enable row level security;
 -- Politika yok: istemci okumaz, yalnızca migration yazar.
 
--- 1) Önceki tohumu geri al
-update public.province_tallies pt
-   set votes = greatest(0, pt.votes - st.votes)
-  from public.seed_tallies st
- where st.province_id = pt.province_id and st.party_id = pt.party_id;
-
-delete from public.province_tallies where votes = 0;
+-- 1) Açılış tablosunu yenisiyle değiştir
 delete from public.seed_tallies;
-
--- 2) Yeni tohum
 insert into public.seed_tallies (province_id, party_id, votes) values
 ${rows.join(",\n")}
 on conflict (province_id, party_id) do update set votes = excluded.votes;
 
--- 3) Tohumu gerçek sayaçların üstüne ekle
+-- 2) Sayacı sıfırdan kur: önce gerçek oylar
+delete from public.province_tallies;
+
+insert into public.province_tallies (province_id, party_id, votes)
+select province_id, party_id, count(*)::int
+from public.votes
+group by province_id, party_id;
+
+-- 3) Üstüne açılış tablosu
 insert into public.province_tallies (province_id, party_id, votes)
 select province_id, party_id, votes from public.seed_tallies
 on conflict (province_id, party_id)
@@ -179,6 +188,27 @@ const eskiler = mevcut.filter((f) => f.endsWith("_seed_tallies.sql"));
 
 const out = join(dir, `${version}_seed_tallies.sql`);
 writeFileSync(out, sql);
+
+/*
+ * Beklenen sonucu da yazıyoruz. İş akışı dağıtımdan sonra veritabanından
+ * okuduğu gerçek değerle bunu yan yana basıyor: "uyguladım" demek yetmiyor,
+ * uygulanan şeyin doğru olduğu da görünmeli.
+ */
+const lider = Object.entries(totals).sort((a, b) => b[1] - a[1])[0];
+writeFileSync(
+  join(root, "supabase/seed-expected.json"),
+  JSON.stringify(
+    {
+      version,
+      toplam_oy: grand,
+      birinci_parti: lider[0],
+      birinci_yuzde: Number(((lider[1] / grand) * 100).toFixed(1)),
+      oyu_olan_il: Object.values(tallies).filter((row) => Object.keys(row).length > 0).length,
+    },
+    null,
+    2,
+  ) + "\n",
+);
 console.log(`Yazıldı: ${out} (${rows.length} satır)`);
 if (eskiler.length > 0) {
   console.log(

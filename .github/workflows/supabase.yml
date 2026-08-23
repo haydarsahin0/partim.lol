@@ -134,6 +134,14 @@ jobs:
           {
             echo "### Veritabanı denetimi"
             echo
+            echo "**Beklenen açılış tablosu** (supabase/seed-expected.json):"
+            echo
+            echo '```json'
+            cat supabase/seed-expected.json
+            echo '```'
+            echo
+            echo "**Veritabanında gerçekte ne var:**"
+            echo
             echo '```json'
             oku "select sum(votes) as toplam_oy, count(distinct province_id) as oyu_olan_il from public.province_tallies"
             echo
@@ -141,6 +149,9 @@ jobs:
             echo
             oku "select version from supabase_migrations.schema_migrations order by version desc limit 5"
             echo '```'
+            echo
+            echo "Toplam oy, beklenenden yalnızca oyuncuların gerçek oyları kadar fazla"
+            echo "olmalı. Aradaki fark büyükse migration uygulanmamış demektir."
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Özet
