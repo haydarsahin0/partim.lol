@@ -123,7 +123,7 @@ export default function Home() {
           )}
         </div>
 
-        <div className="glass-flat relative min-h-[46vh] flex-1 overflow-hidden lg:aspect-[2.05/1] lg:min-h-0 lg:flex-none">
+        <div className="glass-flat relative min-h-[34vh] flex-1 overflow-hidden lg:aspect-[2.05/1] lg:min-h-0 lg:flex-none">
           <TurkeyMap standings={standings} selectedId={selected} onSelect={select} />
         </div>
 

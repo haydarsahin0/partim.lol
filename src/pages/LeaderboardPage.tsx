@@ -67,11 +67,7 @@ export default function LeaderboardPage() {
                     <div className="truncate text-sm font-bold">
                       {row.user.displayName}
                       {mine && <span className="ml-1.5 text-xs text-primary">(sen)</span>}
-                      {row.user.isBot && (
-                        <span className="ml-1.5 align-middle text-[10px] font-semibold text-muted-foreground">
-                          bot
-                        </span>
-                      )}
+
                     </div>
                     <div className="truncate text-xs text-muted-foreground">
                       @{row.user.handle} · Sv.{row.level} {levelTitle(row.level)}

@@ -153,23 +153,25 @@
   font-weight: 650;
 }
 
+/* --map-k artık toplam ekran ölçeği (sığdırma oranı x yakınlaştırma), bu yüzden
+   buradaki piksel değerleri EKRANDA görülen boyutun kendisi. */
 .map-label-name {
-  font-size: calc(13.5px / var(--map-k));
-  stroke-width: calc(3px / var(--map-k));
+  font-size: calc(15px / var(--map-k));
+  stroke-width: calc(3.4px / var(--map-k));
   letter-spacing: -0.01em;
 }
 
 .map-label-plate {
-  font-size: calc(12px / var(--map-k));
-  stroke-width: calc(2.6px / var(--map-k));
+  font-size: calc(14px / var(--map-k));
+  stroke-width: calc(3px / var(--map-k));
   letter-spacing: 0.02em;
 }
 
 .map-label[data-compact="true"].map-label-name {
-  font-size: calc(12px / var(--map-k));
+  font-size: calc(13.5px / var(--map-k));
 }
 .map-label[data-compact="true"].map-label-plate {
-  font-size: calc(11px / var(--map-k));
+  font-size: calc(13px / var(--map-k));
 }
 
 /* Harita etkileşimi */

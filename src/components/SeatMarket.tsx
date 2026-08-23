@@ -9,6 +9,7 @@ import { LEADER_BASE_PRICE, formatUsd } from "@/lib/game";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { BotDot } from "@/components/BotDot";
 import { PartyMark } from "@/components/PartyMark";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -115,7 +116,7 @@ export function SeatMarket({
                             size={14}
                           />
                           <span className="truncate">@{seat.holder.handle}</span>
-                          {seat.holder.isBot && <span className="opacity-60">· bot</span>}
+                          {seat.holder.isBot && <BotDot />}
                         </>
                       ) : (
                         "boş"

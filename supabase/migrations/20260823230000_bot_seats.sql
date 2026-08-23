@@ -96,17 +96,5 @@ update public.profiles p
  where s.user_id = p.id
    and p.leader_count <> s.n;
 
--- Botlara oy da yazalım ki durdukları iller boş görünmesin
-insert into public.province_tallies (province_id, party_id, votes)
-select v.province_id, v.party_id, v.oy
-from (values
-  ('istanbul', 'chp', 180), ('istanbul', 'akp', 165), ('istanbul', 'iyi', 74),
-  ('istanbul', 'dem', 96),  ('istanbul', 'mhp', 58),
-  ('ankara',   'akp', 152), ('ankara',   'chp', 148), ('ankara',   'mhp', 71),
-  ('ankara',   'iyi', 49),
-  ('izmir',    'chp', 194), ('izmir',    'akp', 96),  ('izmir',    'memleket', 44),
-  ('izmir',    'iyi', 52),
-  ('bursa',    'akp', 121), ('bursa',    'mhp', 63),  ('bursa',    'chp', 88),
-  ('antalya',  'chp', 134), ('antalya',  'iyi', 57),  ('antalya',  'akp', 92)
-) as v(province_id, party_id, oy)
-on conflict (province_id, party_id) do nothing;
+-- Oy tablosu ayrı bir migration'da üretiliyor (20260824010000_seed_tallies.sql):
+-- ülke geneli yüzdeleri tam tutturmak il il elle yazmakla olmuyor.

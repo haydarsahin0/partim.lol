@@ -86,6 +86,15 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
 
   const fitScale = box.width > 0 ? Math.min(box.width / W, box.height / H) : 0;
 
+  /**
+   * SVG'nin kendi ölçeği. viewBox 1000 birim genişken kutu 400 piksel ise her
+   * kullanıcı birimi 0,4 piksel ediyor; etiket boyutu bunu hesaba katmazsa
+   * telefonda 12 piksellik yazı ekranda 5 piksel çıkıyordu. paint() her karede
+   * okuduğu için ref'te tutuluyor.
+   */
+  const fitRef = useRef(0);
+  fitRef.current = fitScale;
+
   /* --------------------- dönüşümü doğrudan DOM'a yaz ---------------------- */
 
   const paint = useCallback(() => {
@@ -96,8 +105,11 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
       "transform",
       `translate(${CX} ${CY}) scale(${k}) translate(${-CX + x} ${-CY + y})`,
     );
-    // Yazı boyutu ve kontur kalınlığı CSS'te bu değişkenden türetiliyor.
-    scene.style.setProperty("--map-k", String(k));
+    // Etiketler EKRANDA sabit piksel boyutunda kalsın diye CSS bu değişkene
+    // bölüyor. Değer yakınlaştırma çarpanı DEĞİL, toplam ekran ölçeği:
+    // viewBox'ın kutuya sığdırılma oranı da içinde.
+    const screenScale = (fitRef.current || 1) * k;
+    scene.style.setProperty("--map-k", String(screenScale));
   }, []);
 
   const tick = useCallback(() => {
@@ -352,17 +364,23 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
    * boyutunda kalıyor. Burada yalnızca "ada mı plakaya mı yer var" kararı
    * veriliyor ve bu karar kaba kademelerle değiştiği için nadiren çiziliyor.
    */
+  // Kutu boyutu değişince --map-k'yi yeniden yaz; yoksa yeni fitScale bir
+  // sonraki kareye kadar uygulanmıyor ve etiketler bir an yanlış boyda kalıyor.
+  useEffect(() => {
+    paint();
+  }, [fitScale, paint]);
+
   const labels = useMemo(() => {
     if (!fitScale) return null;
     const k = ZOOM_STEPS[zoomStep] ?? 1;
     const screenScale = fitScale * k;
     const compact = box.width < 520;
-    const namePx = compact ? 12 : 13.5;
+    const namePx = compact ? 13.5 : 15;
 
     return PROVINCES.map((province) => {
       const across = Math.sqrt(province.area) * screenScale;
       const showName = across > province.name.length * namePx * 0.53 + 8;
-      const showPlate = !showName && across > 22;
+      const showPlate = !showName && across > 26;
       if (!showName && !showPlate) return null;
 
       return (

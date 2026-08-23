@@ -391,6 +391,8 @@ export class SupabaseBackend implements Backend {
     const { data, error } = await this.db
       .from("profiles")
       .select("id,handle,display_name,avatar_url,x_handle,is_bot,xp,vote_count,leader_count")
+      // Oyunun kendi hesapları sıralamada yer almaz: liste gerçek oyuncular içindir.
+      .eq("is_bot", false)
       .order("xp", { ascending: false })
       .limit(limit);
     if (error) throw error;
