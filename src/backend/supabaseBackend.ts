@@ -1,7 +1,7 @@
 /**
  * Gerçek arka uç: Supabase (Twitter/X OAuth + Postgres) ve Stripe Checkout.
  *
- * Şema ve sunucu tarafı kurallar `supabase/schema.sql` içindedir; oy soğuma süresi,
+ * Şema ve sunucu tarafı kurallar `supabase/migrations/20260823120000_init.sql` içindedir; oy soğuma süresi,
  * XP ve koltuk fiyatı orada da doğrulanır — istemciye güvenilmez.
  */
 import type { Session, User } from "@supabase/supabase-js";

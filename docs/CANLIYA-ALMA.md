@@ -8,6 +8,21 @@ Tavsiye: önce Faz 1'i bitirip oyunu ücretsiz olarak yayına alın, oyuncu akı
 gerçek veriyle görün; ödemeleri (Faz 2) ondan sonra açın. Stripe'ın işletme
 doğrulaması günler sürebilir ve oyunun geri kalanını bekletmesi için sebep yok.
 
+### Bilgisayarın yoksa
+
+Hepsi telefondan yapılabilir. Terminal, Docker veya Supabase CLI kurmana gerek
+yok: şemayı uygulamak ve edge fonksiyonlarını yüklemek için depoda
+**Actions → "Supabase'e uygula" → Run workflow** düğmesi var; CLI'yi GitHub'ın
+sunucusu senin yerine koşturuyor.
+
+İki pratik not:
+
+- **GitHub uygulamasını değil, tarayıcıyı kullan.** Mobil uygulamada depo
+  ayarları (Secrets/Variables) ve "Run workflow" yok. `github.com` adresini
+  tarayıcıdan aç; menü dar gelirse "Masaüstü site" seçeneğini işaretle.
+- **Anahtarları kimseye, hiçbir sohbete yapıştırma.** Hepsi doğrudan
+  GitHub Secrets'a girilir; oradan Supabase'e iş akışı taşır.
+
 ---
 
 ## Faz 1 — Giriş ve oylama canlı (ücretsiz kısım)
@@ -15,7 +30,9 @@ doğrulaması günler sürebilir ve oyunun geri kalanını bekletmesi için sebe
 ### 1.1 İşletmeci bilgilerini doldur
 
 `src/lib/site.ts` içindeki köşeli parantezli alanları gerçek bilgilerle değiştir:
-işletmeci adı, iletişim e-postası, sicil/vergi bilgisi. Doldurulmadığı sürece
+işletmeci adı, iletişim e-postası, sicil/vergi bilgisi. (Telefondan: GitHub'da
+dosyayı aç, sağ üstteki kalem simgesine bas, düzenle ve "Commit changes" de —
+site kendiliğinden yeniden yayınlanır.) Doldurulmadığı sürece
 Kullanım Koşulları ve Gizlilik sayfalarının başında uyarı görünür.
 
 Sonra `/kosullar` ve `/gizlilik` sayfalarını okuyup kendi durumuna göre gözden
@@ -25,10 +42,32 @@ taslaktır — özellikle iade koşullarını kendi kararına göre yaz.
 ### 1.2 Supabase projesi
 
 1. [supabase.com](https://supabase.com) → yeni proje. Bölge olarak Türkiye'ye en
-   yakın olanı seç (genelde `eu-central-1` / Frankfurt).
-2. **SQL Editor** → `supabase/schema.sql` dosyasının tamamını yapıştır ve çalıştır.
-   Bu; illeri ve partileri, oy/koltuk tablolarını, RLS politikalarını ve kuralları
-   doğrulayan fonksiyonları kurar.
+   yakın olanı seç (genelde `eu-central-1` / Frankfurt). Kurulumda belirlediğin
+   **veritabanı parolasını bir yere kaydet**, birazdan lazım olacak.
+
+2. Şemayı uygula. İki yol var, ikisi de telefondan yapılabilir:
+
+   **Yol A — iş akışıyla (önerilen, kopyala-yapıştır yok):**
+
+   1. [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)
+      → yeni **access token** üret.
+   2. Depo → Settings → Secrets and variables → Actions:
+      - **Variables**: `SUPABASE_PROJECT_REF` = proje adresindeki ref
+        (`https://supabase.com/dashboard/project/`**`<ref>`**)
+      - **Secrets**: `SUPABASE_ACCESS_TOKEN` ve `SUPABASE_DB_PASSWORD`
+   3. Depo → **Actions → "Supabase'e uygula" → Run workflow** → hedef `veritabani`.
+
+   İş akışı `supabase/migrations/` altındaki dosyaları uygular; tekrar
+   çalıştırmak güvenlidir, uygulanmış migration atlanır.
+
+   **Yol B — elle:** GitHub'da
+   [`supabase/migrations/20260823120000_init.sql`](../supabase/migrations/20260823120000_init.sql)
+   dosyasını aç, **"Copy raw file"** düğmesine bas, Supabase'de **SQL Editor**'a
+   yapıştır ve çalıştır.
+
+   Hangi yolu seçersen seç sonuç aynı: iller ve partiler, oy/koltuk tabloları,
+   RLS politikaları ve kuralları doğrulayan fonksiyonlar kurulur.
+
 3. **Database → Extensions** → `pg_cron`'u aç, sonra SQL Editor'da:
 
    ```sql
@@ -97,30 +136,21 @@ Sonra **Actions → GitHub Pages'e dağıt → Run workflow** ile yeniden yayın
 ### 2.1 Önce test modunda
 
 1. Stripe hesabı aç. Panelin sağ üstündeki **Test mode** açıkken devam et.
-2. Supabase CLI ile gizli anahtarları ve fonksiyonları gönder:
+2. Stripe'ın **Developers → API keys** sayfasından gizli anahtarı al ve depo
+   Secrets'ına `STRIPE_SECRET_KEY` olarak ekle.
 
-   ```bash
-   supabase login
-   supabase link --project-ref <proje-ref>
-   supabase secrets set STRIPE_SECRET_KEY=sk_test_...
-   supabase functions deploy create-checkout
-   supabase functions deploy stripe-webhook --no-verify-jwt
-   ```
+3. Depo → **Actions → "Supabase'e uygula" → Run workflow** → hedef
+   `fonksiyonlar`. İş akışı anahtarı Supabase'e aktarır ve iki edge fonksiyonunu
+   yükler (`stripe-webhook` doğru şekilde JWT doğrulaması kapalı yüklenir).
+   Yükleme sunucuda derlenir; Docker gerekmez.
 
-   CLI kurmak istemezsen aynı iki fonksiyonu Supabase panelinde
-   **Edge Functions → Deploy a new function** ile kod yapıştırarak da
-   oluşturabilirsin; `stripe-webhook` için "Verify JWT" kapalı olmalı.
-
-3. Stripe → **Developers → Webhooks → Add endpoint**:
+4. Stripe → **Developers → Webhooks → Add endpoint**:
    - URL: `https://<proje>.supabase.co/functions/v1/stripe-webhook`
    - Olay: `checkout.session.completed`
-   - Signing secret'ı al ve gir:
+   - Signing secret'ı (`whsec_...`) al, depo Secrets'ına `STRIPE_WEBHOOK_SECRET`
+     olarak ekle ve iş akışını `fonksiyonlar` hedefiyle bir kez daha çalıştır.
 
-     ```bash
-     supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
-     ```
-
-4. Test kartı `4242 4242 4242 4242` ile bir koltuk satın al. Beklenen: ödemeden
+5. Test kartı `4242 4242 4242 4242` ile bir koltuk satın al. Beklenen: ödemeden
    sonra siteye dönünce "Ödemen alındı, koltuk devrediliyor…" görünür ve birkaç
    saniye içinde koltuk sana geçer.
 
@@ -128,9 +158,10 @@ Sonra **Actions → GitHub Pages'e dağıt → Run workflow** ile yeniden yayın
 
 1. Stripe'ta işletme bilgilerini tamamla (kimlik/işletme doğrulaması, banka
    hesabı). Onay birkaç gün sürebilir.
-2. Test modunu kapat, **canlı** anahtarlarla aynı iki gizli değeri güncelle
-   (`sk_live_...` ve canlı webhook'un `whsec_...` değeri) — webhook uç noktasını
-   canlı modda **yeniden oluşturman** gerekir, test webhook'u canlıda çalışmaz.
+2. Test modunu kapat, depo Secrets'ındaki `STRIPE_SECRET_KEY` ve
+   `STRIPE_WEBHOOK_SECRET` değerlerini canlı karşılıklarıyla değiştir, sonra
+   iş akışını `fonksiyonlar` hedefiyle çalıştır. Webhook uç noktasını canlı modda
+   **yeniden oluşturman** gerekir; test webhook'u canlıda çalışmaz.
 3. Küçük bir gerçek ödemeyle ($1) uçtan uca dene.
 
 ### 2.3 Bilinen boşluk
@@ -182,4 +213,4 @@ select * from seat_purchases where status = 'stale' order by created_at desc;
   eklenebilir.
 - **Oylar herkese açık**: `votes` tablosu ve "son oylar" akışı kimin neye oy
   verdiğini gösterir. Bu bilinçli bir tercih; değiştirmek istersen
-  `supabase/schema.sql` içindeki `votes` select politikasını daralt.
+  `supabase/migrations/20260823120000_init.sql` içindeki `votes` select politikasını daralt.

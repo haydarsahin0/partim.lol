@@ -24,7 +24,7 @@ bir ildeki bir partinin **il başkanlığı** koltuğunu satın alır.
 Her **il × parti** ikilisi için tek bir başkanlık koltuğu vardır; yani 81 × 15 =
 1215 koltuk. Koltuğun sahibi, o ilin panelinde partinin yanında X kullanıcı adıyla
 görünür. Tüm bu sabitler tek yerde — [`src/lib/game.ts`](src/lib/game.ts) — tanımlı
-ve sunucu tarafında [`supabase/schema.sql`](supabase/schema.sql) içinde aynen
+ve sunucu tarafında [`supabase/migrations/20260823120000_init.sql`](supabase/migrations/20260823120000_init.sql) içinde aynen
 tekrarlanır.
 
 ## Çalıştırma
@@ -76,9 +76,12 @@ anahtarlar tanımsızken Supabase istemcisi paketten tamamen elenir (~220 KB).
 
 ### 1. Supabase
 
-1. Yeni bir proje açın, **SQL Editor**'a [`supabase/schema.sql`](supabase/schema.sql)
-   dosyasının tamamını yapıştırıp çalıştırın. Bu; illeri/partileri, oy ve koltuk
-   tablolarını, RLS politikalarını ve kuralların doğrulandığı fonksiyonları kurar.
+1. Yeni bir proje açın ve şemayı uygulayın. Yerelde Supabase CLI varsa
+   `supabase db push` yeterli; yoksa depodaki **Actions → "Supabase'e uygula"**
+   iş akışı aynı işi tarayıcıdan yapar (bilgisayar gerekmez). Şema
+   [`supabase/migrations/20260823120000_init.sql`](supabase/migrations/20260823120000_init.sql)
+   içindedir ve illeri/partileri, oy ve koltuk tablolarını, RLS politikalarını ve
+   kuralların doğrulandığı fonksiyonları kurar.
 2. **Authentication → Providers → Twitter**'ı açın; X Developer Portal'da
    oluşturduğunuz uygulamanın anahtarlarını girin. Callback adresi olarak
    Supabase'in verdiği `https://<proje>.supabase.co/auth/v1/callback` adresini
@@ -105,6 +108,10 @@ supabase secrets set STRIPE_SECRET_KEY=sk_live_...
 supabase functions deploy create-checkout
 supabase functions deploy stripe-webhook --no-verify-jwt
 ```
+
+CLI kuramıyorsanız aynı üç adımı **Actions → "Supabase'e uygula"** iş akışı
+`fonksiyonlar` hedefiyle yapar; Stripe anahtarlarını depo Secrets'ına koymanız
+yeterlidir.
 
 Stripe panelinde `checkout.session.completed` olayı için bir webhook uç noktası
 oluşturun (`https://<proje>.supabase.co/functions/v1/stripe-webhook`), imza
@@ -167,7 +174,7 @@ npm run gen:provinces
 edilen partileri ve kurumsal renklerine yakın tonları içerir. Parti listesi
 değiştiğinde yalnızca bu dosyayı düzenlemek yeterlidir: pusula, harita boyaması,
 koltuklar, renk anahtarı ve sıralamalar bu diziden türetilir. Gerçek modda
-`supabase/schema.sql` içindeki `parties` tablosunu da güncelleyin.
+`supabase/migrations/20260823120000_init.sql` içindeki `parties` tablosunu da güncelleyin.
 
 Renkler ve adlar yalnızca tanınırlık amacıyla kullanılmıştır; hiçbir parti bu
 projeyi onaylamamıştır.

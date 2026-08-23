@@ -1,6 +1,6 @@
 /**
  * Oyun kuralları tek yerde. İstemci ve (Supabase kurulumunda) sunucu aynı sabitleri
- * kullanır; sunucu tarafı SQL kopyası `supabase/schema.sql` içinde yorumla işaretlidir.
+ * kullanır; sunucu tarafı SQL kopyası `supabase/migrations/20260823120000_init.sql` içinde yorumla işaretlidir.
  */
 
 /** İki oy arasındaki bekleme süresi */

@@ -1,0 +1,100 @@
+name: Supabase'e uygula
+
+# Bilgisayar gerektirmez: bu iş akışı GitHub'ın "Run workflow" düğmesinden
+# (telefon tarayıcısı dâhil) elle çalıştırılır ve Supabase CLI'yi sizin yerinize
+# koşturur. Şemayı uygular, edge fonksiyonlarını yükler, Stripe anahtarlarını
+# Supabase'e aktarır.
+#
+# Gereken ayarlar — Settings → Secrets and variables → Actions:
+#   Variables: SUPABASE_PROJECT_REF   (proje adresindeki <ref> değeri)
+#   Secrets:   SUPABASE_ACCESS_TOKEN  (supabase.com/dashboard/account/tokens)
+#              SUPABASE_DB_PASSWORD   (proje kurulurken belirlediğiniz parola)
+#   Secrets (Faz 2, isteğe bağlı): STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+
+on:
+  workflow_dispatch:
+    inputs:
+      hedef:
+        description: "Ne uygulansın?"
+        type: choice
+        default: hepsi
+        options:
+          - hepsi
+          - veritabani
+          - fonksiyonlar
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ayarları kontrol et
+        # Eksik ayarı iş akışının ortasında anlaşılmaz bir CLI hatasıyla değil,
+        # burada açık bir mesajla bildirelim.
+        run: |
+          eksik=""
+          [ -z "$PROJECT_REF" ] && eksik="$eksik SUPABASE_PROJECT_REF(variable)"
+          [ -z "$SUPABASE_ACCESS_TOKEN" ] && eksik="$eksik SUPABASE_ACCESS_TOKEN(secret)"
+          if [ "${{ inputs.hedef }}" != "fonksiyonlar" ] && [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            eksik="$eksik SUPABASE_DB_PASSWORD(secret)"
+          fi
+          if [ -n "$eksik" ]; then
+            echo "::error::Şu ayarlar eksik:$eksik — Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "Proje: $PROJECT_REF"
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Şemayı uygula
+        if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'veritabani' }}
+        # supabase/migrations altındaki, henüz uygulanmamış dosyaları çalıştırır.
+        # Tekrar çalıştırmak güvenlidir: uygulanmış migration atlanır.
+        # link yalnızca burada gerekiyor; fonksiyon adımları --project-ref ile çalışır.
+        run: |
+          supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Stripe anahtarlarını Supabase'e aktar
+        if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' }}
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+        run: |
+          if [ -n "$STRIPE_SECRET_KEY" ]; then
+            supabase secrets set "STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY" --project-ref "$PROJECT_REF"
+            echo "STRIPE_SECRET_KEY aktarıldı."
+          else
+            echo "STRIPE_SECRET_KEY tanımlı değil — ödeme adımı atlanıyor (Faz 1 için normal)."
+          fi
+          if [ -n "$STRIPE_WEBHOOK_SECRET" ]; then
+            supabase secrets set "STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET" --project-ref "$PROJECT_REF"
+            echo "STRIPE_WEBHOOK_SECRET aktarıldı."
+          fi
+
+      - name: Edge fonksiyonlarını yükle
+        if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' }}
+        # Yükleme sunucu tarafında derlenir; Docker gerekmez.
+        run: |
+          supabase functions deploy create-checkout --project-ref "$PROJECT_REF"
+          supabase functions deploy stripe-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
+
+      - name: Özet
+        run: |
+          echo "### Supabase'e uygulandı" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Hedef: \`${{ inputs.hedef }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Proje: \`$PROJECT_REF\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Sırada: Authentication → Providers → Twitter'ı açmak ve" >> $GITHUB_STEP_SUMMARY
+          echo "\`VITE_SUPABASE_URL\` / \`VITE_SUPABASE_ANON_KEY\` ile siteyi yeniden yayınlamak." >> $GITHUB_STEP_SUMMARY
