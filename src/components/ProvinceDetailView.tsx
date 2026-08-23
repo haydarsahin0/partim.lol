@@ -5,6 +5,8 @@ import { PROVINCE_BY_ID } from "@/data/provinces";
 import { PARTY_BY_ID, partyColor } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
 import { useProvinceDetail } from "@/hooks/useProvinceDetail";
+import type { LeaderSeat } from "@/backend/types";
+import { Avatar } from "@/components/ui/avatar";
 import { usePaymentReturn } from "@/hooks/usePaymentReturn";
 import { ResultsBoard } from "@/components/ResultsBoard";
 import { SeatList } from "@/components/SeatList";
@@ -154,9 +156,8 @@ export function ProvinceDetailView({
             <TabsTrigger value="sonuclar" className="flex-1">
               Sonuçlar
             </TabsTrigger>
-            <TabsTrigger value="oy" className="flex-1">
-              Oy ver
-            </TabsTrigger>
+            {/* Başkanlar, "Oy ver"den önce: oyunun ücretli ve en çekişmeli
+                kısmı üçüncü sekmede saklı kalmamalı. */}
             <TabsTrigger value="baskanlar" className="flex-1 gap-1.5">
               Başkanlar
               {heldSeats > 0 && (
@@ -164,6 +165,9 @@ export function ProvinceDetailView({
                   {heldSeats}
                 </span>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="oy" className="flex-1">
+              Oy ver
             </TabsTrigger>
           </TabsList>
 
@@ -173,6 +177,17 @@ export function ProvinceDetailView({
             ) : (
               <Skeleton className="h-40 w-full" />
             )}
+
+            {/* Oy oranından hemen sonra: il başkanlığı. */}
+            <SeatCallout
+              seats={detail?.seats ?? null}
+              provinceName={province.name}
+              onOpen={() => {
+                const nextParams = new URLSearchParams(params);
+                nextParams.set("sekme", "baskanlar");
+                setParams(nextParams, { replace: true });
+              }}
+            />
 
             {detail && detail.recentVotes.length > 0 && (
               <div>
@@ -222,5 +237,76 @@ export function ProvinceDetailView({
         </Tabs>
       </div>
     </div>
+  );
+}
+
+/**
+ * İl başkanlığı çağrısı.
+ *
+ * Sonuç sekmesinde, oy oranlarının hemen altında duruyor. Başkanlık oyunun
+ * para kazandıran ve en çok merak uyandıran kısmı ama sekmenin arkasında
+ * kalınca kimse görmüyordu; burada boş koltuk sayısı, en ucuz fiyat ve
+ * koltukları tutan kişiler tek bakışta okunuyor.
+ */
+function SeatCallout({
+  seats,
+  provinceName,
+  onOpen,
+}: {
+  seats: LeaderSeat[] | null;
+  provinceName: string;
+  onOpen: () => void;
+}) {
+  if (!seats) return <Skeleton className="h-24 w-full" />;
+
+  const dolu = seats.filter((seat) => seat.holder);
+  const bos = seats.length - dolu.length;
+  const enUcuz = Math.min(...seats.map((seat) => seat.nextPrice));
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group relative w-full overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.14] via-primary/[0.06] to-transparent p-4 text-left transition-colors hover:border-primary/45"
+    >
+      <div className="flex items-center gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+          <Crown className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="font-display text-sm font-bold">
+            {provinceName} il başkanı ol
+          </div>
+          <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">
+            {dolu.length > 0
+              ? `${dolu.length} koltuk dolu, ${bos} koltuk boş. Adın ve X hesabın bu sayfada partinin yanında görünür.`
+              : `${bos} koltuğun hepsi boş. İlk başkan sen ol; adın bu sayfada partinin yanında görünür.`}
+          </div>
+        </div>
+        <span className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-transform group-hover:scale-105">
+          {formatUsd(enUcuz)}&apos;dan
+        </span>
+      </div>
+
+      {dolu.length > 0 && (
+        <div className="mt-3 flex items-center gap-2 border-t border-white/[0.08] pt-2.5">
+          <div className="flex -space-x-1.5">
+            {dolu.slice(0, 5).map((seat) => (
+              <Avatar
+                key={`${seat.provinceId}-${seat.partyId}`}
+                src={seat.holder!.avatarUrl}
+                handle={seat.holder!.handle}
+                size={20}
+                className="ring-2 ring-[hsl(225_45%_6%)]"
+              />
+            ))}
+          </div>
+          <span className="truncate text-[11px] text-muted-foreground">
+            @{dolu[0].holder!.handle}
+            {dolu.length > 1 && ` ve ${dolu.length - 1} kişi daha başkan`}
+          </span>
+        </div>
+      )}
+    </button>
   );
 }

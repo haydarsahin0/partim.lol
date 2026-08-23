@@ -20,8 +20,8 @@ import { PROVINCES } from "@/data/provinces";
 
 /** Ülke geneli hedef yüzdeler. Toplamı 100. */
 export const NATIONAL_SHARES: Record<string, number> = {
-  akp: 31.8,
-  yeni: 21.0,
+  yeni: 31.8,
+  akp: 21.0,
   mhp: 8.4,
   iyi: 6.1,
   yrp: 4.6,

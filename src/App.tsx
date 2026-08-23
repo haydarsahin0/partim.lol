@@ -3,6 +3,7 @@ import { HashRouter, Link, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { GameProvider } from "@/backend/GameProvider";
 import { Header } from "@/components/Header";
+import { LeaderReminder } from "@/components/LeaderReminder";
 import { NeuroNoise } from "@/components/ui/neuro-noise";
 import { Skeleton } from "@/components/ui/skeleton";
 import Home from "@/pages/Home";
@@ -77,6 +78,9 @@ export default function App() {
           </main>
           <Footer />
         </div>
+
+        {/* Saat başı il başkanlığı hatırlatması */}
+        <LeaderReminder />
 
         <Toaster
           theme="dark"

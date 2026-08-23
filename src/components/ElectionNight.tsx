@@ -32,14 +32,14 @@ export function ElectionNight({
 }) {
   const { national, totalVotes, standings, loading } = useGame();
 
-  const acilan = useMemo(
+  const oyVerilen = useMemo(
     () => PROVINCES.filter((p) => (standings[p.id]?.totalVotes ?? 0) > 0).length,
     [standings],
   );
-  const oran = (acilan / PROVINCES.length) * 100;
 
   const sayilanOy = useCountUp(totalVotes, 900);
-  const sayilanIl = useCountUp(acilan, 900);
+  const sayilanIl = useCountUp(oyVerilen, 900);
+  const yarisanParti = national.filter((row) => row.votes > 0).length;
 
   const lider = national[0];
   const ikinci = national[1];
@@ -68,23 +68,16 @@ export function ElectionNight({
         </span>
       </div>
 
-      {/* Açılan sandık oranı */}
-      <div className="mt-4">
-        <div className="flex items-baseline justify-between">
-          <span className="stat-label">Açılan il</span>
-          <span className="font-mono text-xs tabular-nums text-muted-foreground">
-            {sayilanIl} / {PROVINCES.length}
-          </span>
-        </div>
-        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-[width] duration-700 ease-out"
-            style={{ width: `${Math.max(1.5, oran)}%` }}
-          />
-        </div>
-        <div className="mt-1 font-mono text-[11px] tabular-nums text-muted-foreground">
-          %{oran.toFixed(1)} açıldı · {formatNumber(sayilanOy)} oy sayıldı
-        </div>
+      {/*
+        Burada bir "açılma oranı" YOK ve olmamalı: oy kullanımı sınırsız,
+        yani sayımın biteceği bir toplam da yok. İlerleme çubuğu koymak
+        "şu kadarı tamamlandı" gibi yanlış bir şey söylerdi. Onun yerine
+        sayım sürerken anlamı olan üç rakam duruyor.
+      */}
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <Stat label="sayılan oy" value={formatNumber(sayilanOy)} />
+        <Stat label="oy verilen il" value={`${sayilanIl}/${PROVINCES.length}`} />
+        <Stat label="yarışan parti" value={String(yarisanParti)} />
       </div>
 
       {/* Önde giden */}
@@ -126,6 +119,15 @@ export function ElectionNight({
       <TightRaces onSelectProvince={onSelectProvince} />
       <LiveTicker />
     </Card>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-2 py-2 text-center">
+      <div className="font-mono text-sm font-bold tabular-nums">{value}</div>
+      <div className="stat-label mt-0.5">{label}</div>
+    </div>
   );
 }
 
