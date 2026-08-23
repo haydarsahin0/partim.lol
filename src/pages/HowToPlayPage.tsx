@@ -1,5 +1,6 @@
-import { Crown, MousePointerClick, Sparkles, Vote } from "lucide-react";
+import { Crown, MousePointerClick, Plug, Sparkles, Vote } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
+import { supabaseHost } from "@/backend/supabaseClient";
 import { Card } from "@/components/ui/card";
 import {
   LEADER_BASE_PRICE,
@@ -86,6 +87,28 @@ export default function HowToPlayPage() {
             </>
           )}
         </p>
+      </Card>
+
+      <Card className="p-5">
+        <h2 className="mb-3 flex items-center gap-2 font-display text-base font-bold">
+          <Plug className="size-4 text-primary" />
+          Bağlantı durumu
+        </h2>
+        {/* Telefondan hata ayıklarken tarayıcı konsolu açmak zor; bağlantının
+            nereye kurulduğunu burada okunur şekilde gösteriyoruz. */}
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+          <dt className="text-muted-foreground">Mod</dt>
+          <dd className="font-semibold">{isDemo ? "Demo (sunucusuz)" : "Gerçek (Supabase)"}</dd>
+          <dt className="text-muted-foreground">Sunucu</dt>
+          <dd className="break-all font-mono text-xs">{supabaseHost ?? "—"}</dd>
+        </dl>
+        {!isDemo && supabaseHost && !/^[a-z0-9]+\.supabase\.co$/i.test(supabaseHost) && (
+          <p className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/10 p-3 text-xs text-amber-200">
+            Sunucu adresi beklenen biçimde değil. <code>VITE_SUPABASE_URL</code> değişkeni
+            <code> https://&lt;ref&gt;.supabase.co</code> olmalı; sonuna <code>/rest/v1</code> gibi
+            bir ek gelmemeli.
+          </p>
+        )}
       </Card>
 
       <Card className="p-5">
