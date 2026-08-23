@@ -9,7 +9,15 @@ name: Supabase'e uygula
 #   Variables: SUPABASE_PROJECT_REF   (proje adresindeki <ref> değeri)
 #   Secrets:   SUPABASE_ACCESS_TOKEN  (supabase.com/dashboard/account/tokens)
 #              SUPABASE_DB_PASSWORD   (proje kurulurken belirlediğiniz parola)
-#   Secrets (Faz 2, isteğe bağlı): STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+#   Secrets (X girişi için):        X_CONSUMER_KEY, X_CONSUMER_SECRET
+#   Secrets (Faz 2, isteğe bağlı):  STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+#
+# Hedefler:
+#   veritabani   şemayı uygular
+#   fonksiyonlar edge fonksiyonlarını ve Stripe anahtarlarını yükler
+#   twitter-auth X (Twitter) girişini Yönetim API'siyle açar (panelden Save
+#                sessizce başarısız olduğunda güvenilir yol budur)
+#   durum        hiçbir şeyi değiştirmez, yalnızca auth ayarlarını raporlar
 
 on:
   workflow_dispatch:
@@ -22,6 +30,8 @@ on:
           - hepsi
           - veritabani
           - fonksiyonlar
+          - twitter-auth
+          - durum
 
 permissions:
   contents: read
@@ -43,9 +53,11 @@ jobs:
           eksik=""
           [ -z "$PROJECT_REF" ] && eksik="$eksik SUPABASE_PROJECT_REF(variable)"
           [ -z "$SUPABASE_ACCESS_TOKEN" ] && eksik="$eksik SUPABASE_ACCESS_TOKEN(secret)"
-          if [ "${{ inputs.hedef }}" != "fonksiyonlar" ] && [ -z "$SUPABASE_DB_PASSWORD" ]; then
-            eksik="$eksik SUPABASE_DB_PASSWORD(secret)"
-          fi
+          case "${{ inputs.hedef }}" in
+            hepsi|veritabani)
+              [ -z "$SUPABASE_DB_PASSWORD" ] && eksik="$eksik SUPABASE_DB_PASSWORD(secret)"
+              ;;
+          esac
           if [ -n "$eksik" ]; then
             echo "::error::Şu ayarlar eksik:$eksik — Settings → Secrets and variables → Actions"
             exit 1
@@ -55,6 +67,21 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+
+      - name: X (Twitter) girişini aç
+        if: ${{ inputs.hedef == 'twitter-auth' }}
+        env:
+          X_CONSUMER_KEY: ${{ secrets.X_CONSUMER_KEY }}
+          X_CONSUMER_SECRET: ${{ secrets.X_CONSUMER_SECRET }}
+        run: python3 scripts/enable-twitter-auth.py
+
+      - name: Auth durumunu oku
+        # Her hedefte çalışır; gerçek durumu Supabase'in kendisinden okur.
+        run: |
+          curl -sS -f -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" -o auth.json
+          python3 scripts/auth-status.py auth.json | tee -a "$GITHUB_STEP_SUMMARY"
+          rm -f auth.json
 
       - name: Şemayı uygula
         if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'veritabani' }}
