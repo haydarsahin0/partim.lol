@@ -24,6 +24,11 @@ export type Profile = AuthUser & {
   leaderCount: number;
   /** Bir sonraki oyun açılacağı an (ISO). null ise hemen oy kullanılabilir. */
   nextVoteAt: string | null;
+  /**
+   * Bekleme süresinden muaf mı? Sunucuda tutulur ve cast_vote orada da
+   * denetler; buradaki değer yalnızca arayüzü doğru göstermek için.
+   */
+  unlimitedVotes: boolean;
   createdAt: string;
 };
 
@@ -137,6 +142,12 @@ export interface Backend {
   getUser(): Promise<AuthUser | null>;
   /** Oturum değişimlerini dinler, aboneliği iptal eden fonksiyon döner */
   onAuthChange(cb: (user: AuthUser | null) => void): () => void;
+  /**
+   * Sahip kodunu doğrular ve bu hesaba sınırsız oy hakkı verir. Kod uygulamada
+   * değil veritabanında durur (bkz. set_owner_code); pakete gömülseydi kodu
+   * okuyan herkes hakkı alırdı.
+   */
+  claimUnlimited(code: string): Promise<ProfileUpdateResult>;
   /** Profil alanlarını günceller (kullanıcı adı, görünen ad, X hesabı, avatar) */
   updateProfile(patch: ProfilePatch): Promise<ProfileUpdateResult>;
   /** Tarayıcı verisi silinmişse hesabı kurtarma koduyla geri alır */

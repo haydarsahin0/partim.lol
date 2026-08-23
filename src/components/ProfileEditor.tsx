@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, ImagePlus, KeyRound, Loader2, RotateCcw, ShieldQuestion } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ImagePlus,
+  Infinity as InfinityIcon,
+  KeyRound,
+  Loader2,
+  RotateCcw,
+  ShieldQuestion,
+} from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import { fileToSquareDataUrl } from "@/lib/image";
 import { Avatar } from "@/components/ui/avatar";
@@ -11,7 +20,7 @@ import { XLogo } from "@/components/XLogo";
 
 /** Profil düzenleme: kullanıcı adı, görünen ad, X hesabı ve avatar. */
 export function ProfileEditor() {
-  const { profile, updateProfile, getRecoveryCode, restoreAccount } = useGame();
+  const { profile, updateProfile, getRecoveryCode, restoreAccount, claimUnlimited } = useGame();
 
   const [handle, setHandle] = useState(profile?.handle ?? "");
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "");
@@ -159,6 +168,7 @@ export function ProfileEditor() {
       </div>
 
       <RecoverySection getRecoveryCode={getRecoveryCode} restoreAccount={restoreAccount} />
+      <OwnerSection unlimited={profile.unlimitedVotes} claimUnlimited={claimUnlimited} />
     </Card>
   );
 }
@@ -259,6 +269,74 @@ function RecoverySection({
             Geri yükle
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sahip kodu.
+ *
+ * Sınırsız oy hakkı oyunun dengesini doğrudan etkilediği için kod pakete
+ * gömülmez — paket herkese açık, gömülü kodu okuyan herkes hakkı alırdı.
+ * Kod veritabanında durur (bkz. set_owner_code) ve sunucuda doğrulanır;
+ * burası yalnızca giriş alanı.
+ */
+function OwnerSection({
+  unlimited,
+  claimUnlimited,
+}: {
+  unlimited: boolean;
+  claimUnlimited: (code: string) => Promise<{ ok: boolean }>;
+}) {
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  if (unlimited) {
+    return (
+      <div className="glass-soft flex items-center gap-2 p-4">
+        <InfinityIcon className="size-4 text-primary" />
+        <h3 className="text-sm font-semibold">Sınırsız oy hakkı</h3>
+        <Badge variant="success">etkin</Badge>
+        <span className="ml-auto text-[13px] text-muted-foreground">Bekleme süresi yok.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-soft space-y-3 p-4">
+      <div className="flex items-center gap-2">
+        <InfinityIcon className="size-4 text-primary" />
+        <h3 className="text-sm font-semibold">Sahip kodu</h3>
+      </div>
+      <p className="text-[13px] leading-relaxed text-muted-foreground">
+        Site sahibinin belirlediği kod. Doğru girilirse bu hesap oy bekleme süresinden muaf olur.
+        Hak kullanıcı adına değil hesaba tanımlanır; kullanıcı adını değiştirsen de kalır.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Input
+          type="password"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Sahip kodu"
+          className="w-full sm:w-56"
+        />
+        <Button
+          variant="secondary"
+          disabled={input.trim().length < 8 || busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const result = await claimUnlimited(input);
+              if (result.ok) setInput("");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? <Loader2 className="animate-spin" /> : <InfinityIcon />}
+          Doğrula
+        </Button>
       </div>
     </div>
   );

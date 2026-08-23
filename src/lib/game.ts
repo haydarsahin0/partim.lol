@@ -9,17 +9,21 @@ export const VOTE_COOLDOWN_MS = 5 * 60 * 1000;
 /**
  * Bekleme süresi uygulanmayan kullanıcı adları.
  *
- * Ayrıcalıklı bir liste; oyunun dengesini doğrudan etkiler. Bu yüzden tek
- * yerde duruyor ve gerçek modda SUNUCUDA da denetleniyor (bkz. cast_vote):
- * yalnızca istemcide kalsaydı, isteğini elle atan herkes sınırsız oy
- * kullanabilirdi.
- *
- * Kullanıcı adı değiştirilebildiği için eşleşme küçük harfe indirgenmiş
- * kullanıcı adı üzerinden yapılır.
+ * Eski yöntem; kullanıcı adı değiştirilebildiği için hak kaybolabiliyordu.
+ * Artık asıl kaynak profilin kendisi (`unlimitedVotes`), bu liste yalnızca
+ * geriye dönük uyumluluk için duruyor. İkisi de gerçek modda SUNUCUDA
+ * denetlenir (bkz. cast_vote): yalnızca istemcide kalsaydı, isteğini elle
+ * atan herkes sınırsız oy kullanabilirdi.
  */
 export const UNLIMITED_VOTE_HANDLES = ["oyuncu47172"] as const;
 
-export function hasUnlimitedVotes(handle: string | null | undefined): boolean {
+/** Sınırsız oy hakkı taşıyan bir profil mi? */
+export function hasUnlimitedVotes(
+  profile: { handle?: string | null; unlimitedVotes?: boolean } | null | undefined,
+): boolean {
+  if (!profile) return false;
+  if (profile.unlimitedVotes) return true;
+  const handle = profile.handle;
   if (!handle) return false;
   const normalized = handle.trim().toLocaleLowerCase("tr");
   return UNLIMITED_VOTE_HANDLES.some((h) => h === normalized);

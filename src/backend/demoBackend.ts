@@ -74,6 +74,8 @@ type DemoState = {
   recoveryCode: string | null;
   /** Hesabın bağlı olduğu cihaz kimliği */
   deviceId: string | null;
+  /** Sahip kodu girilmiş mi? Demo modda veri zaten yalnızca bu tarayıcıda. */
+  unlimitedVotes: boolean;
   recent: Array<{ provinceId: string; handle: string; partyId: string; at: string }>;
 };
 
@@ -91,6 +93,7 @@ function emptyState(): DemoState {
     customParties: [],
     recoveryCode: null,
     deviceId: null,
+    unlimitedVotes: false,
     recent: [],
   };
 }
@@ -158,6 +161,22 @@ export class DemoBackend implements Backend {
       this.emit();
     }
     return this.getProfile();
+  }
+
+  /**
+   * Demo modda paylaşılan veri yok — her şey bu tarayıcıda duruyor — bu yüzden
+   * doğrulanacak bir sunucu kodu da yok. Alanın gerçek modda nasıl davrandığını
+   * göstermek için makul uzunlukta her kod kabul edilir.
+   */
+  async claimUnlimited(code: string): Promise<ProfileUpdateResult> {
+    if (!this.state.user) return { ok: false, message: "Hesap bulunamadı." };
+    if (code.trim().length < 8) return { ok: false, message: "Kod hatalı." };
+    this.state.unlimitedVotes = true;
+    this.state.nextVoteAt = null;
+    save(this.state);
+    this.emit();
+    const profile = await this.getProfile();
+    return profile ? { ok: true, profile } : { ok: false, message: "Profil okunamadı." };
   }
 
   /** Çakışmayan, okunabilir bir başlangıç kullanıcı adı üretir. */
@@ -370,6 +389,7 @@ export class DemoBackend implements Backend {
       voteCount: this.state.voteCount,
       leaderCount,
       nextVoteAt: this.state.nextVoteAt,
+      unlimitedVotes: this.state.unlimitedVotes ?? false,
       createdAt: this.state.createdAt,
     };
   }
@@ -416,7 +436,10 @@ export class DemoBackend implements Backend {
     if (!PARTY_IDS.includes(partyId)) return { ok: false, message: "Böyle bir parti yok." };
 
     const now = Date.now();
-    const unlimited = hasUnlimitedVotes(this.state.user.handle);
+    const unlimited = hasUnlimitedVotes({
+      handle: this.state.user.handle,
+      unlimitedVotes: this.state.unlimitedVotes,
+    });
     const next = this.state.nextVoteAt ? Date.parse(this.state.nextVoteAt) : 0;
     if (!unlimited && next > now) {
       return { ok: false, message: "Oy hakkın henüz dolmadı." };

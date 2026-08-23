@@ -52,6 +52,7 @@ type ProfileRow = {
   vote_count: number;
   leader_count: number;
   next_vote_at: string | null;
+  unlimited_votes?: boolean | null;
   created_at: string;
 };
 
@@ -192,6 +193,17 @@ export class SupabaseBackend implements Backend {
     return profile ? { ok: true, profile } : { ok: false, message: "Profil okunamadı." };
   }
 
+  async claimUnlimited(code: string): Promise<ProfileUpdateResult> {
+    const { data, error } = await this.db.rpc("claim_unlimited", { p_code: code.trim() });
+    if (error) return { ok: false, message: error.message };
+    const res = data as { ok: boolean; message?: string } | null;
+    if (!res?.ok) return { ok: false, message: res?.message ?? "Kod doğrulanamadı." };
+
+    this.cachedProfile = null;
+    const profile = await this.getProfile();
+    return profile ? { ok: true, profile } : { ok: false, message: "Profil okunamadı." };
+  }
+
   async getRecoveryCode(): Promise<string | null> {
     const { data, error } = await this.db.rpc("get_recovery_code");
     if (error) return null;
@@ -226,7 +238,7 @@ export class SupabaseBackend implements Backend {
     const { data, error } = await this.db
       .from("profiles")
       .select(
-        "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at,created_at",
+        "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at,unlimited_votes,created_at",
       )
       .eq("auth_user_id", sessionData.session.user.id)
       .maybeSingle();
@@ -242,6 +254,7 @@ export class SupabaseBackend implements Backend {
       voteCount: row.vote_count,
       leaderCount: row.leader_count ?? 0,
       nextVoteAt: row.next_vote_at,
+      unlimitedVotes: row.unlimited_votes ?? false,
       createdAt: row.created_at,
     };
     return this.cachedProfile;

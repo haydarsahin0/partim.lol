@@ -20,7 +20,7 @@ export function VoteBallot({
   const { profile, vote, parties } = useGame();
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const unlimited = hasUnlimitedVotes(profile?.handle);
+  const unlimited = hasUnlimitedVotes(profile);
   const cooldown = useCountdown(unlimited ? null : profile?.nextVoteAt);
 
   const locked = !unlimited && cooldown > 0;

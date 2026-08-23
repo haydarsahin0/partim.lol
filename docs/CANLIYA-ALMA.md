@@ -214,15 +214,43 @@ mevcut partilerden algısal olarak yeterince uzak değilse ödeme başlatılmaz.
 
 ---
 
+## Sınırsız oy hakkı (site sahibi)
+
+Bekleme süresinden muaf hesap, kullanıcı adına değil **hesabın kendisine**
+tanımlanır — kullanıcı adı değişse de hak kalır.
+
+1. Supabase → **SQL Editor** → bir kez çalıştır (kodu kendin belirle, en az 8
+   karakter):
+
+   ```sql
+   select public.set_owner_code('BURAYA-UZUN-BIR-KOD-YAZ');
+   ```
+
+   Kod veritabanına düz metin olarak değil özeti (SHA-256) olarak yazılır ve
+   hiçbir istemci `app_secrets` tablosunu okuyamaz.
+
+2. Sitede **Profil → Sahip kodu** alanına aynı kodu gir. O hesabın bekleme
+   süresi kalkar, üstte "SINIRSIZ" rozeti çıkar.
+
+Kodu paketin içine gömmedik: paket herkese açık, gömülü kodu okuyan herkes
+sınırsız oy alırdı. Aynı kodu birden fazla hesapta kullanabilirsin; kodu
+değiştirmek için `set_owner_code`'u yeni kodla tekrar çalıştır (verilmiş
+haklar geri alınmaz — onları `update public.profiles set unlimited_votes =
+false where handle = '...'` ile kaldırırsın).
+
 ## Yayın sonrası
 
 - **Supabase ücretsiz katmanı** iki haftalık hareketsizlikte projeyi duraklatır;
   oyun canlıysa sorun olmaz ama sessiz dönemlerde kontrol et.
 - **Yedek**: Supabase → Database → Backups. Ücretsiz katmanda günlük yedek yok,
   önemli hâle gelirse ücretli plana geç.
-- **Kötüye kullanım**: saatlik oy sınırı sunucuda uygulanır, ama çok hesap açmayı
-  engelleyen bir şey yok. Sorun büyürse IP başına sınır veya X hesap yaşı şartı
-  eklenebilir.
+- **Kötüye kullanım**: 5 dakikalık oy sınırı sunucuda uygulanır, ama çok hesap
+  açmayı engelleyen bir şey yok. Sorun büyürse IP başına sınır eklenebilir.
+- **Hesabın hatırlanması**: cihaz kimliği hem `localStorage`'da hem
+  `.partim.lol` kapsamlı bir çerezde tutulur; biri silinirse diğerinden onarılır
+  ve `www.partim.lol` ile `partim.lol` aynı hesabı görür. İkisi birden
+  silinirse (tarayıcı verisini temizleme, farklı tarayıcı) hesap yalnızca
+  kurtarma koduyla geri gelir.
 - **Oylar herkese açık**: `votes` tablosu ve "son oylar" akışı kimin neye oy
   verdiğini gösterir. Bu bilinçli bir tercih; değiştirmek istersen
   `supabase/migrations/20260823120000_init.sql` içindeki `votes` select politikasını daralt.

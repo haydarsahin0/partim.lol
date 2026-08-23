@@ -16,7 +16,7 @@ const NAV = [
 
 export function Header() {
   const { user, profile, isDemo, totalVotes } = useGame();
-  const unlimited = hasUnlimitedVotes(profile?.handle);
+  const unlimited = hasUnlimitedVotes(profile);
   const cooldown = useCountdown(unlimited ? null : profile?.nextVoteAt);
 
   return (

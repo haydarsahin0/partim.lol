@@ -46,6 +46,7 @@ type GameContextValue = {
   ready: boolean;
   updateProfile: (patch: ProfilePatch) => Promise<ProfileUpdateResult>;
   restoreAccount: (code: string) => Promise<ProfileUpdateResult>;
+  claimUnlimited: (code: string) => Promise<ProfileUpdateResult>;
   getRecoveryCode: () => Promise<string | null>;
   vote: (provinceId: string, partyId: string) => Promise<boolean>;
   claimSeat: (provinceId: string, partyId: string) => Promise<LeaderSeat | null>;
@@ -212,6 +213,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [backend, refresh, refreshParties],
   );
 
+  const claimUnlimited = useCallback(
+    async (code: string) => {
+      const result = await backend.claimUnlimited(code);
+      if (!result.ok) {
+        toast.error(result.message);
+        return result;
+      }
+      setProfile(result.profile);
+      toast.success("Sınırsız oy hakkı bu hesaba tanımlandı.");
+      return result;
+    },
+    [backend],
+  );
+
   const getRecoveryCode = useCallback(() => backend.getRecoveryCode(), [backend]);
 
   const vote = useCallback(
@@ -318,6 +333,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     refreshProfile,
     updateProfile,
     restoreAccount,
+    claimUnlimited,
     getRecoveryCode,
     vote,
     claimSeat,

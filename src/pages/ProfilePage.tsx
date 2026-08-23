@@ -47,7 +47,7 @@ export default function ProfilePage() {
   const { backend, user, profile } = useGame();
   const [seats, setSeats] = useState<LeaderSeat[]>([]);
   const [partyOpen, setPartyOpen] = useState(false);
-  const unlimited = hasUnlimitedVotes(profile?.handle);
+  const unlimited = hasUnlimitedVotes(profile);
   const cooldown = useCountdown(unlimited ? null : profile?.nextVoteAt);
 
   useEffect(() => {
