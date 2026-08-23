@@ -46,6 +46,17 @@ Deno.serve(async (req) => {
   const user = userData?.user;
   if (userError || !user) return json({ error: "Giriş gerekli." }, 401);
 
+  // Oyun verisi auth kimliğine değil profil kimliğine bağlı (bkz. cihaz
+  // hesapları göçü): metadata'ya profil kimliği yazılmalı, yoksa webhook
+  // koltuğu/partiyi yanlış satıra bağlar.
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  const profileId = profileRow?.id as string | undefined;
+  if (!profileId) return json({ error: "Hesap bulunamadı." }, 401);
+
   let body: { provinceId?: string; partyId?: string; successUrl?: string; cancelUrl?: string };
   try {
     body = await req.json();
@@ -71,7 +82,7 @@ Deno.serve(async (req) => {
     .eq("province_id", provinceId)
     .eq("party_id", partyId)
     .maybeSingle();
-  if (seat?.user_id === user.id) return json({ error: "Bu koltuk zaten senin." }, 409);
+  if (seat?.user_id === profileId) return json({ error: "Bu koltuk zaten senin." }, 409);
 
   const { data: priceData, error: priceError } = await supabase.rpc("next_seat_price", {
     p_province_id: provinceId,
@@ -86,7 +97,7 @@ Deno.serve(async (req) => {
     mode: "payment",
     success_url: successUrl,
     cancel_url: cancelUrl,
-    client_reference_id: user.id,
+    client_reference_id: profileId,
     // Koltuk fiyatı her devirde değiştiği için sabit Price nesnesi yerine anlık fiyat.
     line_items: [
       {
@@ -102,7 +113,7 @@ Deno.serve(async (req) => {
       },
     ],
     metadata: {
-      user_id: user.id,
+      user_id: profileId,
       province_id: provinceId,
       party_id: partyId,
       price: String(price),

@@ -84,6 +84,17 @@ Deno.serve(async (req) => {
   const user = userData?.user;
   if (userError || !user) return json({ error: "Giriş gerekli." }, 401);
 
+  // Oyun verisi auth kimliğine değil profil kimliğine bağlı (bkz. cihaz
+  // hesapları göçü): metadata'ya profil kimliği yazılmalı, yoksa webhook
+  // koltuğu/partiyi yanlış satıra bağlar.
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  const profileId = profileRow?.id as string | undefined;
+  if (!profileId) return json({ error: "Hesap bulunamadı." }, 401);
+
   let body: {
     name?: string;
     shortName?: string;
@@ -135,7 +146,7 @@ Deno.serve(async (req) => {
     mode: "subscription",
     success_url: body.successUrl,
     cancel_url: body.cancelUrl,
-    client_reference_id: user.id,
+    client_reference_id: profileId,
     line_items: [
       {
         quantity: 1,
@@ -154,7 +165,7 @@ Deno.serve(async (req) => {
     subscription_data: {
       metadata: {
         kind: "custom_party",
-        user_id: user.id,
+        user_id: profileId,
         party_name: name,
         party_short: shortName,
         party_color: color,
@@ -162,7 +173,7 @@ Deno.serve(async (req) => {
     },
     metadata: {
       kind: "custom_party",
-      user_id: user.id,
+      user_id: profileId,
       party_name: name,
       party_short: shortName,
       party_color: color,

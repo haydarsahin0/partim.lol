@@ -11,13 +11,15 @@ import {
 import { toast } from "sonner";
 import { PARTIES, partyName, setCustomParties, type Party } from "@/data/parties";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
+import { getDeviceIdentity } from "@/lib/device";
 import { getBackend } from "./index";
-import { DemoBackend } from "./demoBackend";
 import type {
   AuthUser,
   Backend,
   CreatePartyResult,
   CustomPartyInput,
+  ProfilePatch,
+  ProfileUpdateResult,
   LeaderSeat,
   Profile,
   ProvinceStanding,
@@ -40,8 +42,11 @@ type GameContextValue = {
   error: string | null;
   refresh: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  signIn: (handle?: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  /** Hesabın hazır olup olmadığı; açılışta kısa süre false olur */
+  ready: boolean;
+  updateProfile: (patch: ProfilePatch) => Promise<ProfileUpdateResult>;
+  restoreAccount: (code: string) => Promise<ProfileUpdateResult>;
+  getRecoveryCode: () => Promise<string | null>;
   vote: (provinceId: string, partyId: string) => Promise<boolean>;
   claimSeat: (provinceId: string, partyId: string) => Promise<LeaderSeat | null>;
   createParty: (input: CustomPartyInput) => Promise<CreatePartyResult>;
@@ -59,6 +64,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [parties, setParties] = useState<Party[]>(PARTIES);
   const [stats, setStats] = useState<SiteStats>({ online: 0, total: 0 });
   const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
 
@@ -115,9 +121,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const current = await backend.getUser();
-      if (!cancelled) setUser(current);
-      // Partiler önce yüklensin: harita boyaması onlara bağlı.
+      // Giriş ekranı yok: hesap cihaz kimliğinden kendiliğinden açılır ya da
+      // önceki ziyaretten devam eder.
+      try {
+        const profile = await backend.ensureSession(getDeviceIdentity());
+        if (!cancelled && profile) {
+          setProfile(profile);
+          setUser({
+            id: profile.id,
+            handle: profile.handle,
+            displayName: profile.displayName,
+            avatarUrl: profile.avatarUrl,
+            xHandle: profile.xHandle,
+          });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Hesap açılamadı.");
+        }
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+
       await refreshParties();
       await Promise.all([refresh(), refreshProfile(), refreshStats()]);
     })();
@@ -144,25 +169,50 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(id);
   }, [refreshStats]);
 
-  const signIn = useCallback(
-    async (handle?: string) => {
-      try {
-        if (backend instanceof DemoBackend) {
-          await backend.demoSignIn(handle ?? "");
-        } else {
-          await backend.signInWithTwitter();
-        }
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Giriş yapılamadı.");
+  const updateProfile = useCallback(
+    async (patch: ProfilePatch) => {
+      const result = await backend.updateProfile(patch);
+      if (!result.ok) {
+        toast.error(result.message);
+        return result;
       }
+      setProfile(result.profile);
+      setUser({
+        id: result.profile.id,
+        handle: result.profile.handle,
+        displayName: result.profile.displayName,
+        avatarUrl: result.profile.avatarUrl,
+        xHandle: result.profile.xHandle,
+      });
+      toast.success("Profilin güncellendi.");
+      return result;
     },
     [backend],
   );
 
-  const signOut = useCallback(async () => {
-    await backend.signOut();
-    setProfile(null);
-  }, [backend]);
+  const restoreAccount = useCallback(
+    async (code: string) => {
+      const result = await backend.restoreAccount(code, getDeviceIdentity());
+      if (!result.ok) {
+        toast.error(result.message);
+        return result;
+      }
+      setProfile(result.profile);
+      setUser({
+        id: result.profile.id,
+        handle: result.profile.handle,
+        displayName: result.profile.displayName,
+        avatarUrl: result.profile.avatarUrl,
+        xHandle: result.profile.xHandle,
+      });
+      await Promise.all([refresh(), refreshParties()]);
+      toast.success("Hesabın bu cihaza geri yüklendi.");
+      return result;
+    },
+    [backend, refresh, refreshParties],
+  );
+
+  const getRecoveryCode = useCallback(() => backend.getRecoveryCode(), [backend]);
 
   const vote = useCallback(
     async (provinceId: string, partyId: string) => {
@@ -262,11 +312,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     national,
     totalVotes,
     loading,
+    ready,
     error,
     refresh,
     refreshProfile,
-    signIn,
-    signOut,
+    updateProfile,
+    restoreAccount,
+    getRecoveryCode,
     vote,
     claimSeat,
     createParty,

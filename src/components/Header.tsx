@@ -1,14 +1,10 @@
-import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { Crown, LogOut, Map as MapIcon, Trophy, User } from "lucide-react";
+import { Crown, Map as MapIcon, Trophy, User } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { LevelBadge } from "@/components/LevelBadge";
-import { SignInDialog } from "@/components/SignInDialog";
-import { XLogo } from "@/components/XLogo";
 import { formatDuration, formatNumber } from "@/lib/game";
 import { cn } from "@/lib/utils";
 
@@ -19,8 +15,7 @@ const NAV = [
 ];
 
 export function Header() {
-  const { user, profile, isDemo, signOut, totalVotes } = useGame();
-  const [signInOpen, setSignInOpen] = useState(false);
+  const { user, profile, isDemo, totalVotes } = useGame();
   const cooldown = useCountdown(profile?.nextVoteAt);
 
   return (
@@ -79,21 +74,11 @@ export function Header() {
             </>
           )}
 
-          {user ? (
-            <div className="flex items-center gap-2">
-              <Link to="/profil" className="flex items-center gap-2">
-                <Avatar src={user.avatarUrl} handle={user.handle} size={34} />
-                <span className="hidden text-sm font-semibold sm:block">@{user.handle}</span>
-              </Link>
-              <Button variant="ghost" size="icon" aria-label="Çıkış yap" onClick={() => void signOut()}>
-                <LogOut />
-              </Button>
-            </div>
-          ) : (
-            <Button aria-label="Giriş yap" onClick={() => setSignInOpen(true)}>
-              <XLogo />
-              <span className="hidden sm:inline">Giriş yap</span>
-            </Button>
+          {user && (
+            <Link to="/profil" className="flex items-center gap-2">
+              <Avatar src={user.avatarUrl} handle={user.handle} size={34} />
+              <span className="hidden text-sm font-semibold sm:block">@{user.handle}</span>
+            </Link>
           )}
         </div>
       </div>
@@ -107,7 +92,6 @@ export function Header() {
         </div>
       )}
 
-      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
     </header>
   );
 }

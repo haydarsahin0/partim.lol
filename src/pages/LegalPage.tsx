@@ -67,7 +67,8 @@ const PRIVACY: Section[] = [
   {
     title: "1. Hangi verileri işliyoruz?",
     body: [
-      "X (Twitter) ile giriş yaptığınızda sağlayıcıdan gelen kullanıcı adınız, görünen adınız, profil görseliniz ve hesap kimliğiniz saklanır. E-posta adresiniz talep edilmez.",
+      "Hesap açılışında tarayıcınızda rastgele bir cihaz kimliği oluşturulur ve saklanır; hesabınız buna bağlanır. Ayrıca ekran boyutu, saat dilimi ve dil gibi kaba özelliklerden türetilen zayıf bir imza tutulur — bu imza kimlik olarak kullanılmaz, yalnızca aynı tarayıcıdan kısa sürede çok sayıda hesap açılmasını sınırlamaya yarar.",
+      "Profilinizde girdiğiniz kullanıcı adı, görünen ad, profil görseli ve (isterseniz) X kullanıcı adınız saklanır. E-posta veya parola istenmez.",
       "Oyun verisi olarak: kullandığınız oylar (hangi ilde hangi partiye, ne zaman), XP ve seviyeniz, sahip olduğunuz il başkanlığı koltukları ve satın alma kayıtlarınız tutulur.",
       "Kart bilgileriniz bize hiç ulaşmaz; ödeme Stripe tarafından yürütülür ve bizde yalnızca ödemenin tutarı ile Stripe oturum kimliği kalır.",
     ],

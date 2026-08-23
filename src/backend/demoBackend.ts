@@ -9,6 +9,12 @@ import { PARTIES, PARTY_IDS, setCustomParties, takenColors } from "@/data/partie
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { fallbackAvatar, hashString } from "@/lib/avatar";
 import {
+  generateRecoveryCode,
+  normalizeRecoveryCode,
+  type DeviceIdentity,
+} from "@/lib/device";
+import { pick, seededRng } from "@/lib/rng";
+import {
   LEADER_BASE_PRICE,
   VOTE_COOLDOWN_MS,
   XP_PER_LEADER_HOUR,
@@ -20,13 +26,21 @@ import { readableTextTone } from "@/data/parties";
 import type { Party } from "@/data/parties";
 import { PARTY_SHORT_MAX, PARTY_SHORT_MIN } from "@/lib/game";
 import { checkPartyColor, describeColorCheck } from "@/lib/color";
-import { buildRivals, buildSeed, type SeedSeats, type SeedVotes } from "./demoSeed";
+import {
+  HANDLE_STEMS,
+  buildRivals,
+  buildSeed,
+  type SeedSeats,
+  type SeedVotes,
+} from "./demoSeed";
 import type {
   AuthUser,
   Backend,
   CheckoutResult,
   CreatePartyResult,
   CustomPartyInput,
+  ProfilePatch,
+  ProfileUpdateResult,
   SiteStats,
   LeaderSeat,
   LeaderboardEntry,
@@ -55,6 +69,10 @@ type DemoState = {
   releasedSeats: Record<string, string[]>;
   /** Kullanıcının kurduğu partiler */
   customParties: Party[];
+  /** Tarayıcı verisi silinirse hesabı geri almaya yarayan kod */
+  recoveryCode: string | null;
+  /** Hesabın bağlı olduğu cihaz kimliği */
+  deviceId: string | null;
   recent: Array<{ provinceId: string; handle: string; partyId: string; at: string }>;
 };
 
@@ -70,6 +88,8 @@ function emptyState(): DemoState {
     mySeats: {},
     releasedSeats: {},
     customParties: [],
+    recoveryCode: null,
+    deviceId: null,
     recent: [],
   };
 }
@@ -112,36 +132,98 @@ export class DemoBackend implements Backend {
     return this.state.user;
   }
 
-  async signInWithTwitter(): Promise<void> {
-    // Demo modda gerçek OAuth yok; arayüz kullanıcı adını sorup demoSignIn çağırır.
-    await this.demoSignIn("");
-  }
-
-  /** Demo moda özel: kullanıcı adını alıp yerel bir oyuncu profili açar. */
-  async demoSignIn(rawHandle: string): Promise<void> {
-    const handle =
-      (rawHandle || "").replace(/^@/, "").trim() ||
-      `oyuncu${Math.floor(Math.random() * 9000 + 1000)}`;
-    const user: AuthUser = {
-      id: `demo:${hashString(handle)}`,
-      handle,
-      displayName: handle,
-      avatarUrl: fallbackAvatar(handle),
-    };
-    // Kullanıcı değiştiyse ilerleme sıfırlansın
-    if (this.state.user && this.state.user.handle !== handle) {
-      this.state = { ...emptyState(), user };
-    } else {
-      this.state.user = user;
+  /**
+   * Giriş ekranı yok: ilk açılışta hesap kendiliğinden açılır, sonraki
+   * ziyaretlerde cihazdaki kimlikten devam eder.
+   */
+  async ensureSession(device: DeviceIdentity): Promise<Profile | null> {
+    if (!this.state.user || this.state.deviceId !== device.deviceId) {
+      // Cihaz kimliği yoksa ya da değiştiyse (tarayıcı verisi silinmiş) yeni
+      // hesap açılır; eskisi kurtarma koduyla geri alınabilir.
+      const handle = this.generateHandle();
+      this.state = {
+        ...emptyState(),
+        user: {
+          id: `cihaz:${hashString(device.deviceId)}`,
+          handle,
+          displayName: handle,
+          avatarUrl: fallbackAvatar(handle),
+          xHandle: null,
+        },
+        deviceId: device.deviceId,
+        recoveryCode: generateRecoveryCode(),
+      };
+      save(this.state);
+      this.emit();
     }
-    save(this.state);
-    this.emit();
+    return this.getProfile();
   }
 
-  async signOut(): Promise<void> {
-    this.state.user = null;
+  /** Çakışmayan, okunabilir bir başlangıç kullanıcı adı üretir. */
+  private generateHandle(): string {
+    const rng = seededRng(`handle:${Date.now()}:${Math.random()}`);
+    return `${pick(rng, HANDLE_STEMS)}${Math.floor(rng() * 9000 + 1000)}`;
+  }
+
+  async updateProfile(patch: ProfilePatch): Promise<ProfileUpdateResult> {
+    const user = this.state.user;
+    if (!user) return { ok: false, message: "Hesap bulunamadı." };
+
+    if (patch.handle !== undefined) {
+      const handle = patch.handle.trim().replace(/^@/, "");
+      if (!/^[A-Za-z0-9_]{3,20}$/.test(handle)) {
+        return {
+          ok: false,
+          message: "Kullanıcı adı 3–20 karakter olmalı; harf, rakam ve alt çizgi.",
+        };
+      }
+      user.handle = handle;
+    }
+
+    if (patch.displayName !== undefined) {
+      const displayName = patch.displayName.trim();
+      if (displayName.length < 1 || displayName.length > 40) {
+        return { ok: false, message: "Görünen ad 1–40 karakter olmalı." };
+      }
+      user.displayName = displayName;
+    }
+
+    if (patch.xHandle !== undefined) {
+      const raw = (patch.xHandle ?? "").trim().replace(/^@/, "");
+      if (raw && !/^[A-Za-z0-9_]{1,15}$/.test(raw)) {
+        return { ok: false, message: "X kullanıcı adı en fazla 15 karakter olabilir." };
+      }
+      user.xHandle = raw || null;
+    }
+
+    if (patch.avatarUrl !== undefined) {
+      user.avatarUrl = patch.avatarUrl || fallbackAvatar(user.handle);
+    }
+
     save(this.state);
     this.emit();
+    const profile = await this.getProfile();
+    return profile ? { ok: true, profile } : { ok: false, message: "Profil okunamadı." };
+  }
+
+  async getRecoveryCode(): Promise<string | null> {
+    if (!this.state.user) return null;
+    if (!this.state.recoveryCode) {
+      this.state.recoveryCode = generateRecoveryCode();
+      save(this.state);
+    }
+    return this.state.recoveryCode;
+  }
+
+  async restoreAccount(code: string): Promise<ProfileUpdateResult> {
+    // Demo modda veriler yalnızca bu tarayıcıda durduğu için kod ancak
+    // buradaki hesaba aitse işe yarar. Gerçek modda sunucudaki hesabı bağlar.
+    const stored = this.state.recoveryCode ? normalizeRecoveryCode(this.state.recoveryCode) : null;
+    if (!stored || normalizeRecoveryCode(code) !== stored) {
+      return { ok: false, message: "Kod bu tarayıcıdaki hesaba ait değil." };
+    }
+    const profile = await this.getProfile();
+    return profile ? { ok: true, profile } : { ok: false, message: "Hesap bulunamadı." };
   }
 
   onAuthChange(cb: (user: AuthUser | null) => void): () => void {
@@ -212,6 +294,7 @@ export class DemoBackend implements Backend {
           handle: seeded.handle,
           displayName: seeded.displayName,
           avatarUrl: fallbackAvatar(seeded.handle),
+          xHandle: null,
         },
         price: seeded.price,
         nextPrice: nextLeaderPrice(seeded.price),
@@ -297,6 +380,7 @@ export class DemoBackend implements Backend {
         handle: r.handle,
         displayName: r.displayName,
         avatarUrl: fallbackAvatar(r.handle),
+        xHandle: null,
       },
       xp: r.xp,
       level: levelFromXp(r.xp),
@@ -307,7 +391,13 @@ export class DemoBackend implements Backend {
     const me = await this.getProfile();
     if (me) {
       rivals.push({
-        user: { id: me.id, handle: me.handle, displayName: me.displayName, avatarUrl: me.avatarUrl },
+        user: {
+          id: me.id,
+          handle: me.handle,
+          displayName: me.displayName,
+          avatarUrl: me.avatarUrl,
+          xHandle: me.xHandle,
+        },
         xp: me.xp,
         level: me.level,
         voteCount: me.voteCount,

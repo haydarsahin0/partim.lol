@@ -4,17 +4,20 @@
  * Şema ve sunucu tarafı kurallar `supabase/migrations/20260823120000_init.sql` içindedir; oy soğuma süresi,
  * XP ve koltuk fiyatı orada da doğrulanır — istemciye güvenilmez.
  */
-import type { Session, User } from "@supabase/supabase-js";
+import type { Session } from "@supabase/supabase-js";
 import { PARTY_IDS, readableTextTone, type Party } from "@/data/parties";
 import { fallbackAvatar } from "@/lib/avatar";
 import { LEADER_BASE_PRICE, levelFromXp, nextLeaderPrice } from "@/lib/game";
 import { getSupabase } from "./supabaseClient";
+import { normalizeRecoveryCode, type DeviceIdentity } from "@/lib/device";
 import type {
   AuthUser,
   Backend,
   CheckoutResult,
   CreatePartyResult,
   CustomPartyInput,
+  ProfilePatch,
+  ProfileUpdateResult,
   SiteStats,
   LeaderSeat,
   LeaderboardEntry,
@@ -31,13 +34,20 @@ type SeatRow = {
   price: number | string;
   held_since: string | null;
   takeovers: number;
-  holder: { id: string; handle: string; display_name: string; avatar_url: string | null } | null;
+  holder: {
+    id: string;
+    handle: string;
+    display_name: string;
+    avatar_url: string | null;
+    x_handle?: string | null;
+  } | null;
 };
 type ProfileRow = {
   id: string;
   handle: string;
   display_name: string;
   avatar_url: string | null;
+  x_handle?: string | null;
   xp: number;
   vote_count: number;
   leader_count: number;
@@ -45,20 +55,14 @@ type ProfileRow = {
   created_at: string;
 };
 
-function userFromSession(user: User | null | undefined): AuthUser | null {
-  if (!user) return null;
-  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const handle =
-    (meta.user_name as string) ||
-    (meta.preferred_username as string) ||
-    (meta.screen_name as string) ||
-    user.email?.split("@")[0] ||
-    user.id.slice(0, 8);
+/** profiles satırından oyun içi kimliğe */
+function authUserFromProfileRow(row: ProfileRow): AuthUser {
   return {
-    id: user.id,
-    handle,
-    displayName: (meta.full_name as string) || (meta.name as string) || handle,
-    avatarUrl: (meta.avatar_url as string) || fallbackAvatar(handle),
+    id: row.id,
+    handle: row.handle,
+    displayName: row.display_name || row.handle,
+    avatarUrl: row.avatar_url ?? fallbackAvatar(row.handle),
+    xHandle: row.x_handle ?? null,
   };
 }
 
@@ -69,6 +73,7 @@ function authUserFromRow(row: SeatRow["holder"]): AuthUser | null {
     handle: row.handle,
     displayName: row.display_name || row.handle,
     avatarUrl: row.avatar_url ?? fallbackAvatar(row.handle),
+    xHandle: row.x_handle ?? null,
   };
 }
 
@@ -121,59 +126,117 @@ export class SupabaseBackend implements Backend {
 
   /* ---------------- kimlik ---------------- */
 
-  async getUser(): Promise<AuthUser | null> {
-    const { data } = await this.db.auth.getSession();
-    return userFromSession(data.session?.user);
-  }
+  /** Son okunan profil; her istekte tabloya gitmemek için. */
+  private cachedProfile: Profile | null = null;
 
-  async signInWithTwitter(): Promise<void> {
-    const { error } = await this.db.auth.signInWithOAuth({
-      provider: "twitter",
-      options: { redirectTo: window.location.origin + window.location.pathname },
+  /**
+   * Giriş ekranı yok. Supabase'in anonim oturumu açılır — JWT tarayıcıda kalır,
+   * kullanıcı geri geldiğinde aynı hesaba düşer — sonra ensure_profile ile
+   * profil oluşturulur veya bulunur.
+   */
+  async ensureSession(device: DeviceIdentity): Promise<Profile | null> {
+    const { data: sessionData } = await this.db.auth.getSession();
+    if (!sessionData.session) {
+      const { error } = await this.db.auth.signInAnonymously();
+      if (error) throw error;
+    }
+
+    const { data, error } = await this.db.rpc("ensure_profile", {
+      p_device_id: device.deviceId,
+      p_device_hash: device.deviceHash,
     });
     if (error) throw error;
+    const res = data as { ok: boolean; message?: string } | null;
+    if (!res?.ok) throw new Error(res?.message ?? "Hesap açılamadı.");
+
+    this.cachedProfile = null;
+    return this.getProfile();
   }
 
-  async signOut(): Promise<void> {
-    await this.db.auth.signOut();
+  async getUser(): Promise<AuthUser | null> {
+    const profile = this.cachedProfile ?? (await this.getProfile());
+    if (!profile) return null;
+    return {
+      id: profile.id,
+      handle: profile.handle,
+      displayName: profile.displayName,
+      avatarUrl: profile.avatarUrl,
+      xHandle: profile.xHandle,
+    };
   }
 
   onAuthChange(cb: (user: AuthUser | null) => void): () => void {
-    const { data } = this.db.auth.onAuthStateChange((_event: string, session: Session | null) => {
-      cb(userFromSession(session?.user));
-    });
+    const { data } = this.db.auth.onAuthStateChange(
+      async (_event: string, session: Session | null) => {
+        this.cachedProfile = null;
+        cb(session ? await this.getUser() : null);
+      },
+    );
     return () => data.subscription.unsubscribe();
+  }
+
+  async updateProfile(patch: ProfilePatch): Promise<ProfileUpdateResult> {
+    const { data, error } = await this.db.rpc("update_profile", {
+      p_handle: patch.handle ?? null,
+      p_display_name: patch.displayName ?? null,
+      // "dokunma" ile "temizle" farklı: null = değiştirme, boş dize = sil.
+      p_x_handle: patch.xHandle === undefined ? null : (patch.xHandle ?? ""),
+      p_avatar_url: patch.avatarUrl === undefined ? null : (patch.avatarUrl ?? ""),
+    });
+    if (error) return { ok: false, message: error.message };
+    const res = data as { ok: boolean; message?: string } | null;
+    if (!res?.ok) return { ok: false, message: res?.message ?? "Profil güncellenemedi." };
+
+    this.cachedProfile = null;
+    const profile = await this.getProfile();
+    return profile ? { ok: true, profile } : { ok: false, message: "Profil okunamadı." };
+  }
+
+  async getRecoveryCode(): Promise<string | null> {
+    const { data, error } = await this.db.rpc("get_recovery_code");
+    if (error) return null;
+    return (data as string | null) ?? null;
+  }
+
+  async restoreAccount(code: string, device: DeviceIdentity): Promise<ProfileUpdateResult> {
+    const { data: sessionData } = await this.db.auth.getSession();
+    if (!sessionData.session) {
+      const { error } = await this.db.auth.signInAnonymously();
+      if (error) return { ok: false, message: error.message };
+    }
+    const { data, error } = await this.db.rpc("restore_account", {
+      p_code: normalizeRecoveryCode(code),
+      p_device_id: device.deviceId,
+    });
+    if (error) return { ok: false, message: error.message };
+    const res = data as { ok: boolean; message?: string } | null;
+    if (!res?.ok) return { ok: false, message: res?.message ?? "Hesap geri alınamadı." };
+
+    this.cachedProfile = null;
+    const profile = await this.getProfile();
+    return profile ? { ok: true, profile } : { ok: false, message: "Profil okunamadı." };
   }
 
   /* ---------------- okuma ---------------- */
 
   async getProfile(): Promise<Profile | null> {
-    const user = await this.getUser();
-    if (!user) return null;
+    const { data: sessionData } = await this.db.auth.getSession();
+    if (!sessionData.session) return null;
+
     const { data, error } = await this.db
       .from("profiles")
-      .select("id,handle,display_name,avatar_url,xp,vote_count,leader_count,next_vote_at,created_at")
-      .eq("id", user.id)
+      .select(
+        "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at,created_at",
+      )
+      .eq("auth_user_id", sessionData.session.user.id)
       .maybeSingle();
     if (error) throw error;
+
     const row = data as ProfileRow | null;
-    if (!row) {
-      // Profil tetikleyicisi henüz çalışmadıysa oturum bilgisiyle idare et
-      return {
-        ...user,
-        xp: 0,
-        level: 1,
-        voteCount: 0,
-        leaderCount: 0,
-        nextVoteAt: null,
-        createdAt: new Date().toISOString(),
-      };
-    }
-    return {
-      id: row.id,
-      handle: row.handle,
-      displayName: row.display_name || row.handle,
-      avatarUrl: row.avatar_url ?? fallbackAvatar(row.handle),
+    if (!row) return null;
+
+    this.cachedProfile = {
+      ...authUserFromProfileRow(row),
       xp: row.xp,
       level: levelFromXp(row.xp),
       voteCount: row.vote_count,
@@ -181,6 +244,7 @@ export class SupabaseBackend implements Backend {
       nextVoteAt: row.next_vote_at,
       createdAt: row.created_at,
     };
+    return this.cachedProfile;
   }
 
   async getStandings(): Promise<Record<string, ProvinceStanding>> {
@@ -230,7 +294,7 @@ export class SupabaseBackend implements Backend {
   }
 
   async getMySeats(): Promise<LeaderSeat[]> {
-    const user = await this.getUser();
+    const user = this.cachedProfile ?? (await this.getProfile());
     if (!user) return [];
     const { data, error } = await this.db
       .from("leader_seats")
@@ -244,17 +308,12 @@ export class SupabaseBackend implements Backend {
   async getLeaderboard(limit = 25): Promise<LeaderboardEntry[]> {
     const { data, error } = await this.db
       .from("profiles")
-      .select("id,handle,display_name,avatar_url,xp,vote_count,leader_count")
+      .select("id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count")
       .order("xp", { ascending: false })
       .limit(limit);
     if (error) throw error;
     return ((data ?? []) as ProfileRow[]).map((row) => ({
-      user: {
-        id: row.id,
-        handle: row.handle,
-        displayName: row.display_name || row.handle,
-        avatarUrl: row.avatar_url ?? fallbackAvatar(row.handle),
-      },
+      user: authUserFromProfileRow(row),
       xp: row.xp,
       level: levelFromXp(row.xp),
       voteCount: row.vote_count,

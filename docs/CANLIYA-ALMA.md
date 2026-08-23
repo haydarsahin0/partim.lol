@@ -76,44 +76,23 @@ taslaktır — özellikle iade koşullarını kendi kararına göre yaz.
 
    Bu olmadan il başkanlarının saatlik 20 XP'si hiç işlenmez.
 
-### 1.3 X (Twitter) uygulaması
+### 1.3 Anonim girişi aç
 
-[developer.x.com](https://developer.x.com) → Developer Portal → yeni App.
-**User authentication settings** altında:
+Oyunda giriş/kayıt ekranı yok: kullanıcı siteyi açtığında hesabı kendiliğinden
+oluşuyor ve cihazında hatırlanıyor. Bunun için Supabase'de **Authentication →
+Sign In / Providers → Anonymous sign-ins** açık olmalı.
 
-| Alan | Değer |
-| --- | --- |
-| App permissions | Read |
-| Type of App | Web App |
-| Callback URI | `https://<proje>.supabase.co/auth/v1/callback` — **`/auth/v1/callback` ekini unutmayın** |
-| Website URL | `https://partim.lol` |
-| Terms of service | `https://partim.lol/kosullar` |
-| Privacy policy | `https://partim.lol/gizlilik` |
+X (Twitter) sağlayıcısına **artık gerek yok**; açık bıraktıysanız kapatabilirsiniz.
+Profildeki X kullanıcı adı yalnızca kullanıcının beyanıdır, doğrulanmaz.
 
-> **En sık yapılan hata:** Callback URI alanına çıplak proje adresini
-> (`https://<proje>.supabase.co`) yapıştırmak. O adres `VITE_SUPABASE_URL` için;
-> X'in geri dönüş adresi değil. Böyle olursa X onayı verir, ama dönüşte
-> `{"error":"requested path is invalid"}` görürsünüz — adres çubuğunda yol
-> kısmının boş olması bu hatanın imzasıdır.
-
-Ardından **API Key** ve **API Secret Key**'i alıp Supabase'de
-**Authentication → Providers → Twitter**'a gir ve sağlayıcıyı etkinleştir.
-
-> **Panelden Save işe yaramazsa** — giriş denemesinde ısrarla
-> `Unsupported provider: provider is not enabled` görüyorsanız — Consumer
-> Key/Secret'ı depo Secrets'ına `X_CONSUMER_KEY` ve `X_CONSUMER_SECRET` olarak
-> ekleyip **Actions → "Supabase'e uygula" → hedef `twitter-auth`** ile
-> çalıştırın. Sağlayıcıyı Supabase Yönetim API'si üzerinden doğrudan açar ve
-> sonucu iş özetinde raporlar. Yalnızca mevcut durumu görmek için hedef
-> `durum` yeterlidir; hiçbir şeyi değiştirmez.
-
-> İki uyarı:
-> - Supabase'in Twitter sağlayıcısı OAuth 1.0a kullanır; X panelinde OAuth 2.0
->   değil, **OAuth 1.0a** anahtarlarını istediğine dikkat et (alan adları
->   "API Key / API Secret Key").
-> - X'in ücretsiz geliştirici katmanının oturum açmayı kapsayıp kapsamadığı
->   zaman zaman değişiyor. Portal ücretli plan istiyorsa Faz 1 burada takılır;
->   sürprizle karşılaşmamak için bu adımı erken dene.
+> **Bilerek verilmiş bir taviz:** "tek cihaz = tek hesap" web'de kesin olarak
+> uygulanamaz. Hesap, tarayıcıda saklanan rastgele bir cihaz kimliğine bağlanır;
+> kullanıcı site verisini silerse o kimlik de gider. Sert bir engel koymak
+> (ör. kaba cihaz imzasını kimlik saymak) telefonunu değiştiren dürüst
+> kullanıcıyı oyundan tamamen dışlar, üstelik aynı model cihazı kullanan iki
+> yabancıyı aynı hesaba düşürebilirdi. Bunun yerine aynı imzadan **24 saatte en
+> fazla 3 hesap** açılmasına izin veriliyor; sınırı `ensure_profile` içinde
+> değiştirebilirsiniz. Hesabını kaybedenler için kurtarma kodu var.
 
 ### 1.4 Supabase yönlendirme adresleri
 

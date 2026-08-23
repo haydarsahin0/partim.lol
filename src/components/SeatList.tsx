@@ -14,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SignInDialog } from "@/components/SignInDialog";
 import { XP_PER_LEADER_HOUR, formatSince, formatUsd } from "@/lib/game";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +30,6 @@ export function SeatList({
   const { user, isDemo, claimSeat } = useGame();
   const [target, setTarget] = useState<LeaderSeat | null>(null);
   const [busy, setBusy] = useState(false);
-  const [signInOpen, setSignInOpen] = useState(false);
 
   const confirm = async () => {
     if (!target) return;
@@ -122,7 +120,7 @@ export function SeatList({
                   <Button
                     size="sm"
                     variant={seat.holder ? "outline" : "default"}
-                    onClick={() => (user ? setTarget(seat) : setSignInOpen(true))}
+                    onClick={() => setTarget(seat)}
                   >
                     {seat.holder ? "Devral" : "Kap"} {formatUsd(seat.nextPrice)}
                   </Button>
@@ -186,7 +184,6 @@ export function SeatList({
         </DialogContent>
       </Dialog>
 
-      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
     </div>
   );
 }

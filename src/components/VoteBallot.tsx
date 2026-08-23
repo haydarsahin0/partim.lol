@@ -4,7 +4,6 @@ import { partyColor, partyTextColor } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Button } from "@/components/ui/button";
-import { SignInDialog } from "@/components/SignInDialog";
 import { XP_PER_VOTE, formatDuration } from "@/lib/game";
 import { cn } from "@/lib/utils";
 
@@ -18,10 +17,9 @@ export function VoteBallot({
   provinceName: string;
   onVoted?: () => void;
 }) {
-  const { user, profile, vote, parties } = useGame();
+  const { profile, vote, parties } = useGame();
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [signInOpen, setSignInOpen] = useState(false);
   const cooldown = useCountdown(profile?.nextVoteAt);
 
   const locked = cooldown > 0;
@@ -85,36 +83,30 @@ export function VoteBallot({
         })}
       </div>
 
-      {!user ? (
-        <Button className="w-full" size="lg" onClick={() => setSignInOpen(true)}>
-          Oy vermek için giriş yap
-        </Button>
-      ) : (
-        <Button
-          className="w-full"
-          size="lg"
-          disabled={!selected || locked || busy}
-          onClick={() => void submit()}
-          style={
-            selected && !locked
-              ? { background: partyColor(selected), color: partyTextColor(selected) }
-              : undefined
-          }
-        >
-          {busy ? (
-            <Loader2 className="animate-spin" />
-          ) : locked ? (
-            <>Sonraki oy: {formatDuration(cooldown)}</>
-          ) : (
-            <>
-              <Vote />
-              {selected ? `${provinceName} için oy ver` : "Bir parti seç"}
-            </>
-          )}
-        </Button>
-      )}
+      <Button
+        className="w-full"
+        size="lg"
+        variant={selected && !locked ? "primary" : "default"}
+        disabled={!selected || locked || busy}
+        onClick={() => void submit()}
+        style={
+          selected && !locked
+            ? { background: partyColor(selected), color: partyTextColor(selected) }
+            : undefined
+        }
+      >
+        {busy ? (
+          <Loader2 className="animate-spin" />
+        ) : locked ? (
+          <>Sonraki oy: {formatDuration(cooldown)}</>
+        ) : (
+          <>
+            <Vote />
+            {selected ? `${provinceName} için oy ver` : "Bir parti seç"}
+          </>
+        )}
+      </Button>
 
-      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
     </div>
   );
 }

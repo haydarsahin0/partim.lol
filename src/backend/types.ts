@@ -1,11 +1,18 @@
 import type { Party } from "@/data/parties";
+import type { DeviceIdentity } from "@/lib/device";
 
 export type AuthUser = {
   id: string;
-  /** @ olmadan Twitter/X kullanıcı adı */
+  /** Oyun içi benzersiz kullanıcı adı (@ olmadan) */
   handle: string;
   displayName: string;
   avatarUrl: string | null;
+  /**
+   * Kullanıcının kendi beyan ettiği X hesabı. DOĞRULANMAMIŞTIR — hesaplar
+   * cihazla açıldığı için X sahipliği kanıtlanmıyor. Arayüzde de böyle
+   * etiketlenmeli, yoksa taklit kapısı açılır.
+   */
+  xHandle: string | null;
 };
 
 export type Profile = AuthUser & {
@@ -104,17 +111,38 @@ export type CreatePartyResult =
   | { kind: "done"; partyId: string }
   | { kind: "error"; message: string };
 
+/** Profilde düzenlenebilen alanlar */
+export type ProfilePatch = {
+  handle?: string;
+  displayName?: string;
+  xHandle?: string | null;
+  avatarUrl?: string | null;
+};
+
+export type ProfileUpdateResult =
+  | { ok: true; profile: Profile }
+  | { ok: false; message: string };
+
 export type BackendMode = "demo" | "supabase";
 
 export interface Backend {
   readonly mode: BackendMode;
 
   /* --- kimlik --- */
+  /**
+   * Cihaz kimliğinden oturumu kurar: hesap yoksa açar, varsa devam ettirir.
+   * Giriş ekranı yok; uygulama açılışta bunu bir kez çağırır.
+   */
+  ensureSession(device: DeviceIdentity): Promise<Profile | null>;
   getUser(): Promise<AuthUser | null>;
-  signInWithTwitter(): Promise<void>;
-  signOut(): Promise<void>;
   /** Oturum değişimlerini dinler, aboneliği iptal eden fonksiyon döner */
   onAuthChange(cb: (user: AuthUser | null) => void): () => void;
+  /** Profil alanlarını günceller (kullanıcı adı, görünen ad, X hesabı, avatar) */
+  updateProfile(patch: ProfilePatch): Promise<ProfileUpdateResult>;
+  /** Tarayıcı verisi silinmişse hesabı kurtarma koduyla geri alır */
+  restoreAccount(code: string, device: DeviceIdentity): Promise<ProfileUpdateResult>;
+  /** Kullanıcıya gösterilecek kurtarma kodu */
+  getRecoveryCode(): Promise<string | null>;
 
   /* --- oyun verisi --- */
   getProfile(): Promise<Profile | null>;

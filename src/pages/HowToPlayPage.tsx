@@ -20,7 +20,7 @@ const RULES = [
   {
     icon: Vote,
     title: "Saat başı 1 oy",
-    body: `Giriş yaptıktan sonra istediğin ilde istediğin partiye oy verebilirsin. Her oy +${XP_PER_VOTE} XP getirir ve bir sonraki oy hakkın 1 saat sonra açılır.`,
+    body: `Hesabın siteyi açtığın anda kendiliğinden oluşur — giriş ekranı yok. İstediğin ilde istediğin partiye oy verebilirsin; her oy +${XP_PER_VOTE} XP getirir ve bir sonraki oy hakkın 1 saat sonra açılır.`,
   },
   {
     icon: Crown,

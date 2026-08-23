@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Crown, Sparkles, Timer, Vote } from "lucide-react";
 import { CreatePartyDialog } from "@/components/CreatePartyDialog";
+import { ProfileEditor } from "@/components/ProfileEditor";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import type { LeaderSeat } from "@/backend/types";
@@ -10,9 +11,8 @@ import { PROVINCE_BY_ID } from "@/data/provinces";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { LevelBadge } from "@/components/LevelBadge";
-import { SignInDialog } from "@/components/SignInDialog";
-import { XLogo } from "@/components/XLogo";
 import {
   PARTY_WEEKLY_PRICE,
   XP_PER_LEADER_HOUR,
@@ -45,7 +45,6 @@ function Stat({
 export default function ProfilePage() {
   const { backend, user, profile } = useGame();
   const [seats, setSeats] = useState<LeaderSeat[]>([]);
-  const [signInOpen, setSignInOpen] = useState(false);
   const [partyOpen, setPartyOpen] = useState(false);
   const cooldown = useCountdown(profile?.nextVoteAt);
 
@@ -63,20 +62,12 @@ export default function ProfilePage() {
     };
   }, [backend, user, profile?.leaderCount]);
 
+  // Hesap açılışta kendiliğinden oluşuyor; kısa bir an boş kalabilir.
   if (!user || !profile) {
     return (
-      <div className="mx-auto w-full max-w-md p-6">
-        <Card className="p-8 text-center">
-          <h1 className="font-display text-xl font-bold">Profil</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            İlerlemeni görmek için X hesabınla giriş yap.
-          </p>
-          <Button className="mt-5 w-full" onClick={() => setSignInOpen(true)}>
-            <XLogo />
-            Giriş yap
-          </Button>
-        </Card>
-        <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
+      <div className="mx-auto w-full max-w-3xl space-y-4 p-3 sm:p-5">
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-24 w-full" />
       </div>
     );
   }
@@ -92,14 +83,7 @@ export default function ProfilePage() {
             <h1 className="truncate font-display text-2xl font-extrabold tracking-tight">
               {profile.displayName}
             </h1>
-            <a
-              href={`https://x.com/${user.handle}`}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <XLogo className="size-3" />@{user.handle}
-            </a>
+            <span className="text-sm text-muted-foreground">@{user.handle}</span>
           </div>
         </div>
         <LevelBadge xp={profile.xp} className="mt-5" />
@@ -115,6 +99,8 @@ export default function ProfilePage() {
           value={cooldown > 0 ? formatDuration(cooldown) : "hazır"}
         />
       </div>
+
+      <ProfileEditor />
 
       <Card className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">

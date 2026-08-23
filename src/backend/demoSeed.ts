@@ -26,7 +26,7 @@ const POP_BOOST: Record<string, number> = {
   balikesir: 1.1, "kahramanmaras": 1.05, "van": 1.05, aydin: 1.05, denizli: 1.0,
 };
 
-const HANDLE_STEMS = [
+export const HANDLE_STEMS = [
   "anadolu", "sancak", "meydan", "kalem", "boga", "poyraz", "lodos", "sahaf",
   "cinar", "kervan", "yildiz", "safak", "deniz", "kartal", "efe", "zeybek",
   "gurbet", "pusula", "mecra", "sokak", "vira", "berkin", "kule", "arsiv",

@@ -8,7 +8,6 @@ import { ProvinceSearch } from "@/components/ProvinceSearch";
 import { PartyLegend } from "@/components/PartyLegend";
 import { StatsPill } from "@/components/StatsPill";
 import { CreatePartyDialog } from "@/components/CreatePartyDialog";
-import { SignInDialog } from "@/components/SignInDialog";
 import { Button } from "@/components/ui/button";
 import { PARTY_WEEKLY_PRICE, formatUsd } from "@/lib/game";
 import { useGame } from "@/backend/GameProvider";
@@ -16,7 +15,7 @@ import { PROVINCE_BY_ID } from "@/data/provinces";
 import { Card } from "@/components/ui/card";
 
 export default function Home() {
-  const { standings, user } = useGame();
+  const { standings } = useGame();
   const [params, setParams] = useSearchParams();
   const selected = params.get("il");
 
@@ -49,7 +48,6 @@ export default function Home() {
 
   const province = selected ? PROVINCE_BY_ID[selected] : null;
   const [partyOpen, setPartyOpen] = useState(false);
-  const [signInOpen, setSignInOpen] = useState(false);
 
   return (
     <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-3 p-3 sm:p-4">
@@ -73,7 +71,7 @@ export default function Home() {
           <Button
             variant="primary"
             className="mt-3.5 w-full"
-            onClick={() => (user ? setPartyOpen(true) : setSignInOpen(true))}
+            onClick={() => setPartyOpen(true)}
           >
             <Sparkles />
             Parti kur
@@ -141,7 +139,6 @@ export default function Home() {
       </div>
 
       <CreatePartyDialog open={partyOpen} onOpenChange={setPartyOpen} />
-      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
     </div>
   );
 }
