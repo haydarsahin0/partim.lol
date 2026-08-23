@@ -43,6 +43,34 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
+      - name: Yayın tanılaması
+        # Hata ayıklarken en çok ihtiyaç duyulan bilgi: derlemeye NE gömüldü.
+        # VITE_ değişkenleri zaten paketin içinde açıkça duruyor, gizli değil;
+        # anahtarın yalnızca önekini ve uzunluğunu basıyoruz.
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          {
+            echo "### Yayın tanılaması"
+            echo
+            echo "| Ne | Değer |"
+            echo "| --- | --- |"
+            echo "| \`vars.VITE_SUPABASE_URL\` | \`${VITE_SUPABASE_URL:-(tanımsız)}\` |"
+            if [ -n "${VITE_SUPABASE_ANON_KEY:-}" ]; then
+              echo "| Anon anahtar | ${#VITE_SUPABASE_ANON_KEY} karakter, \`$(printf '%s' "$VITE_SUPABASE_ANON_KEY" | cut -c1-18)…\` |"
+            else
+              echo "| Anon anahtar | **tanımsız** |"
+            fi
+            echo
+            echo "Pakete gömülen Supabase adresleri:"
+            echo
+            echo '```'
+            grep -ohE 'https://[a-zA-Z0-9.-]+\.supabase\.(co|in)[^"'"'"'`]*' dist/assets/*.js \
+              | sort -u | head -20 || echo "(hiç bulunamadı — demo modda derlenmiş)"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Özel alan adı (varsa)
         if: ${{ vars.CUSTOM_DOMAIN != '' }}
         run: echo "${{ vars.CUSTOM_DOMAIN }}" > dist/CNAME
