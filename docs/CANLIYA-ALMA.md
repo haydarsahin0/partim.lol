@@ -85,10 +85,16 @@ taslaktır — özellikle iade koşullarını kendi kararına göre yaz.
 | --- | --- |
 | App permissions | Read |
 | Type of App | Web App |
-| Callback URI | `https://<proje>.supabase.co/auth/v1/callback` |
+| Callback URI | `https://<proje>.supabase.co/auth/v1/callback` — **`/auth/v1/callback` ekini unutmayın** |
 | Website URL | `https://partim.lol` |
 | Terms of service | `https://partim.lol/kosullar` |
 | Privacy policy | `https://partim.lol/gizlilik` |
+
+> **En sık yapılan hata:** Callback URI alanına çıplak proje adresini
+> (`https://<proje>.supabase.co`) yapıştırmak. O adres `VITE_SUPABASE_URL` için;
+> X'in geri dönüş adresi değil. Böyle olursa X onayı verir, ama dönüşte
+> `{"error":"requested path is invalid"}` görürsünüz — adres çubuğunda yol
+> kısmının boş olması bu hatanın imzasıdır.
 
 Ardından **API Key** ve **API Secret Key**'i alıp Supabase'de
 **Authentication → Providers → Twitter**'a gir ve sağlayıcıyı etkinleştir.
