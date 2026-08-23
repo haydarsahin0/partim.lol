@@ -39,18 +39,24 @@ export const NATIONAL_SHARES: Record<string, number> = {
   hudapar: 1.0,
 };
 
-/** Toplam açılış oyu. Gerçek oylar bunun üstüne eklenir. */
-export const SEED_TOTAL_VOTES = 128_000;
+/**
+ * Toplam açılış oyu. Gerçek oylar bunun üstüne eklenir.
+ *
+ * Küçük tutuluyor: yeni açılmış bir oyunda yüz binlerce oy görmek inandırıcı
+ * değil. Bunun bedeli yuvarlamada: 365 oyda bir oy %0,27 ettiği için parti
+ * yüzdeleri hedeflerine en fazla yarım oy (~0,14 puan) uzaklıkta oturabilir.
+ */
+export const SEED_TOTAL_VOTES = 365;
 
 /**
  * Bölgesel eğilim çarpanları. Yalnızca oyun ülke içindeki dağılımını
  * değiştirir; ülke yüzdesini değil.
  */
 const REGION_TILT: Record<string, Record<string, number>> = {
-  Marmara: { chp: 2.4, iyi: 1.7, zafer: 1.8, memleket: 1.3, dem: 0.7, hudapar: 0.2, mhp: 0.7, akp: 0.85, yeni: 1.1 },
-  Ege: { chp: 5.2, iyi: 2.2, memleket: 2.0, tip: 1.8, zafer: 1.3, dem: 0.2, hudapar: 0.1, akp: 0.62, yeni: 0.9 },
-  Akdeniz: { chp: 2.2, mhp: 2.1, iyi: 1.6, memleket: 1.2, dem: 0.7, hudapar: 0.3, akp: 0.8, yeni: 1.0 },
-  "İç Anadolu": { mhp: 2.3, sp: 1.6, bbp: 1.7, yeni: 1.45, dem: 0.25, hudapar: 0.2, chp: 0.5, iyi: 0.8 },
+  Marmara: { chp: 3.6, iyi: 2.2, zafer: 1.8, memleket: 1.3, dem: 0.7, hudapar: 0.2, mhp: 0.7, akp: 0.85, yeni: 1.1 },
+  Ege: { chp: 8.0, iyi: 3.2, memleket: 2.0, tip: 1.8, zafer: 1.3, dem: 0.2, hudapar: 0.1, akp: 0.62, yeni: 0.9 },
+  Akdeniz: { chp: 3.0, mhp: 3.0, iyi: 1.6, memleket: 1.2, dem: 0.7, hudapar: 0.3, akp: 0.8, yeni: 1.0 },
+  "İç Anadolu": { mhp: 3.2, sp: 1.6, bbp: 1.7, yeni: 1.45, dem: 0.25, hudapar: 0.2, chp: 0.5, iyi: 0.8 },
   Karadeniz: { yeni: 1.6, bbp: 1.8, dp: 1.6, mhp: 1.4, dem: 0.15, hudapar: 0.15, chp: 0.45, tip: 0.5 },
   "Doğu Anadolu": { dem: 6.5, hudapar: 4.0, sp: 1.5, yeni: 0.9, chp: 0.35, iyi: 0.5, akp: 0.9 },
   "Güneydoğu Anadolu": { dem: 15.0, hudapar: 6.5, yrp: 1.6, sp: 1.7, chp: 0.25, iyi: 0.3, mhp: 0.25, akp: 0.75, yeni: 0.7 },
@@ -72,11 +78,23 @@ function jitter(provinceId: string, partyId: string): number {
     h ^= input.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
-  // 0.40 – 1.90 arası. Geniş tutuluyor: aralık dar kaldığında en büyük parti
-  // 81 ilin neredeyse hepsinde önde bitiyor ve harita tek renge dönüyordu.
-  // Ülke yüzdelerini bozmuyor — dağıtım en büyük kalan yöntemiyle yapılıyor.
-  return 0.4 + ((h >>> 0) % 1000) / 1000 * 1.5;
+  // 0.25 – 2.55 arası. Bilerek çok geniş: aralık dar kaldığında en büyük parti
+  // neredeyse her ilde önde bitiyor ve harita tek renge dönüyor. Ülke
+  // yüzdelerini bozmuyor — dağıtım en büyük kalan yöntemiyle yapıldığı için
+  // her partinin ülke toplamı sabit kalır, yalnızca illere dağılımı değişir.
+  return 0.25 + ((h >>> 0) % 1000) / 1000 * 2.3;
 }
+
+/**
+ * Açılış oyunun dağıtılacağı il sayısı.
+ *
+ * 365 oyu 81 ile bölünce il başına 4 oy düşüyor ve "önde olan parti" tek bir
+ * oyla belirleniyordu: en büyük parti 74 ili kazanıp harita tek renge
+ * dönüyordu. Oyu daha az ile toplayınca o illerde gerçek bir yarış oluşuyor,
+ * kalanlar ise dürüstçe boş kalıyor — yeni açılmış bir oyunda zaten böyle
+ * görünmesi gerekir ve boş iller ilk oyu vermek için davetiye.
+ */
+export const SEED_ACTIVE_PROVINCES = 26;
 
 export type SeedTallies = Record<string, Record<string, number>>;
 
@@ -91,23 +109,50 @@ export function buildSeedTallies(total = SEED_TOTAL_VOTES): SeedTallies {
   const out: SeedTallies = {};
   for (const province of PROVINCES) out[province.id] = {};
 
+  // Oy hangi illere dağıtılacak? Nüfusu büyük iller öne çıkar, gürültü
+  // sıralamayı biraz karıştırır ki liste hep aynı klişe illerden ibaret olmasın.
+  const active = [...PROVINCES]
+    .map((province) => ({
+      province,
+      w: (POP_WEIGHT[province.id] ?? 1) * jitter(province.id, "aktiflik"),
+    }))
+    .sort((a, b) => b.w - a.w)
+    .slice(0, Math.min(SEED_ACTIVE_PROVINCES, PROVINCES.length))
+    .map((row) => row.province);
+
   const partyIds = Object.keys(NATIONAL_SHARES);
 
-  // 1) Parti başına ülke toplamı — yuvarlama artığı en büyük partiye eklenir.
+  // 1) Parti başına ülke toplamı — burada da en büyük kalan yöntemi.
+  //
+  // Önce yuvarlayıp artığı tek bir partiye yüklemek yanlıştı: 365 oyda tek tek
+  // yuvarlamalar toplamı aştığında fark en büyük partiden düşüyor ve AK Parti
+  // %31,8 yerine %31,2 çıkıyordu. Bu yöntemde her parti kendi tam payına en
+  // fazla bir oy uzakta kalır.
   const counts: Record<string, number> = {};
+  const exactCounts: Record<string, number> = {};
   let assigned = 0;
   for (const partyId of partyIds) {
-    counts[partyId] = Math.round((NATIONAL_SHARES[partyId] / 100) * total);
+    exactCounts[partyId] = (NATIONAL_SHARES[partyId] / 100) * total;
+    counts[partyId] = Math.floor(exactCounts[partyId]);
     assigned += counts[partyId];
   }
-  const biggest = partyIds.reduce((a, b) => (counts[a] >= counts[b] ? a : b));
-  counts[biggest] += total - assigned;
+  const byFraction = [...partyIds].sort(
+    (a, b) =>
+      exactCounts[b] - Math.floor(exactCounts[b]) - (exactCounts[a] - Math.floor(exactCounts[a])),
+  );
+  for (let i = 0; assigned < total; i++) {
+    counts[byFraction[i % byFraction.length]] += 1;
+    assigned += 1;
+  }
 
   // 2) Her partinin toplamını illere böl (en büyük kalan yöntemi).
   for (const partyId of partyIds) {
-    const weights = PROVINCES.map((province) => {
+    const weights = active.map((province) => {
       const tilt = REGION_TILT[province.region]?.[partyId] ?? 1;
-      return (POP_WEIGHT[province.id] ?? 1) * tilt * jitter(province.id, partyId);
+      // Nüfus ağırlığının karekökü: 365 oyda ham çarpanla İstanbul tek başına
+      // payın çoğunu alıp Anadolu'nun yarısı boş kalıyordu.
+      const pop = Math.sqrt(POP_WEIGHT[province.id] ?? 1);
+      return pop * tilt * jitter(province.id, partyId);
     });
     const sum = weights.reduce((a, b) => a + b, 0);
 
@@ -124,7 +169,7 @@ export function buildSeedTallies(total = SEED_TOTAL_VOTES): SeedTallies {
       remaining -= 1;
     }
 
-    PROVINCES.forEach((province, index) => {
+    active.forEach((province, index) => {
       if (floors[index] > 0) out[province.id][partyId] = floors[index];
     });
   }

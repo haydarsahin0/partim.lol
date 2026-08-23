@@ -51,9 +51,14 @@ for (const [partyId, hedef] of Object.entries(NATIONAL_SHARES)) {
     `  ${partyId.padEnd(9)} hedef %${hedef.toFixed(1).padStart(4)} → gerçek %${gercek.toFixed(2)}`,
   );
 }
-console.log(`En büyük sapma: ${sapma.toFixed(3)} puan`);
-if (sapma > 0.02) {
-  console.error("Sapma çok büyük, migration yazılmadı.");
+// Kaçınılmaz yuvarlama payı: tek bir oy 100/total puan ettiği için hiçbir
+// parti hedefine yarım oydan daha yakın oturamaz.
+// En büyük kalan yöntemi her partiyi tam payına en fazla BİR oy uzakta
+// bırakır; bir oyun puan karşılığı da 100/toplam.
+const tolerans = 100 / grand + 0.001;
+console.log(`En büyük sapma: ${sapma.toFixed(3)} puan (tolerans ${tolerans.toFixed(3)})`);
+if (sapma > tolerans) {
+  console.error("Sapma yuvarlama payını aşıyor, migration yazılmadı.");
   process.exit(1);
 }
 
