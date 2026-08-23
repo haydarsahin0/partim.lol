@@ -1,9 +1,11 @@
+import { useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ExternalLink, MapPin, Users, X } from "lucide-react";
 import { PROVINCE_BY_ID } from "@/data/provinces";
 import { PARTY_BY_ID, partyColor } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
 import { useProvinceDetail } from "@/hooks/useProvinceDetail";
+import { usePaymentReturn } from "@/hooks/usePaymentReturn";
 import { ResultsBoard } from "@/components/ResultsBoard";
 import { SeatList } from "@/components/SeatList";
 import { VoteBallot } from "@/components/VoteBallot";
@@ -33,6 +35,14 @@ export function ProvinceDetailView({
   const tab = params.get("sekme") ?? "sonuclar";
   const { detail, loading, reload } = useProvinceDetail(provinceId);
 
+  const afterAction = useCallback(() => {
+    void reload();
+    void refresh();
+  }, [reload, refresh]);
+
+  // Stripe Checkout dönüşünde koltuk devredilene kadar yokla.
+  usePaymentReturn(provinceId, afterAction);
+
   if (!province) {
     return <p className="p-4 text-sm text-muted-foreground">İl bulunamadı.</p>;
   }
@@ -40,11 +50,6 @@ export function ProvinceDetailView({
   // Panel açılır açılmaz boş görünmesin diye önce haritadaki özet kullanılır.
   const standing = detail?.standing ?? standings[provinceId];
   const leading = standing?.leadingPartyId ?? null;
-
-  const afterAction = () => {
-    void reload();
-    void refresh();
-  };
 
   return (
     <div className={cn("flex h-full flex-col", className)}>

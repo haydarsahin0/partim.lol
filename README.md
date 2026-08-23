@@ -70,6 +70,10 @@ anahtarlar tanımsızken Supabase istemcisi paketten tamamen elenir (~220 KB).
 
 ## Gerçek moda geçiş
 
+> Adım adım kontrol listesi: [`docs/CANLIYA-ALMA.md`](docs/CANLIYA-ALMA.md).
+> Aşağısı özet; oradaki liste sırayı, doğrulama adımlarını ve bilinen boşlukları
+> da içerir.
+
 ### 1. Supabase
 
 1. Yeni bir proje açın, **SQL Editor**'a [`supabase/schema.sql`](supabase/schema.sql)
@@ -137,6 +141,10 @@ ikincisi silinebilir); **Actions** sekmesinden elle de tetiklenebilir.
 
 Vite `base: "./"` kullandığı için site hem `kullanici.github.io/partim.lol/`
 alt yolunda hem de kök alan adında ek ayar gerektirmeden çalışır.
+
+Rotalama HashRouter ile yapılır, ama `public/404.html` düz adresleri de karşılar:
+`partim.lol/kosullar` isteği `#/kosullar`'a yönlenir. Bu, X ve Stripe gibi `#`
+içeren adresleri kabul etmeyen doğrulayıcılar için gerekli.
 
 ## Harita verisini yeniden üretme
 

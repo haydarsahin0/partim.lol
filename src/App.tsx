@@ -12,6 +12,7 @@ const ProvincePage = lazy(() => import("@/pages/ProvincePage"));
 const LeaderboardPage = lazy(() => import("@/pages/LeaderboardPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const HowToPlayPage = lazy(() => import("@/pages/HowToPlayPage"));
+const LegalPage = lazy(() => import("@/pages/LegalPage"));
 
 function PageFallback() {
   return (
@@ -32,6 +33,12 @@ function Footer() {
         </span>
         <Link to="/nasil-oynanir" className="underline underline-offset-2 hover:text-foreground">
           Nasıl oynanır
+        </Link>
+        <Link to="/kosullar" className="underline underline-offset-2 hover:text-foreground">
+          Kullanım Koşulları
+        </Link>
+        <Link to="/gizlilik" className="underline underline-offset-2 hover:text-foreground">
+          Gizlilik
         </Link>
         <span className="opacity-70">
           Gerçek seçim sonucu değildir; hiçbir partiyle bağlantısı yoktur.
@@ -61,6 +68,8 @@ export default function App() {
                 <Route path="/siralama" element={<LeaderboardPage />} />
                 <Route path="/profil" element={<ProfilePage />} />
                 <Route path="/nasil-oynanir" element={<HowToPlayPage />} />
+                <Route path="/kosullar" element={<LegalPage />} />
+                <Route path="/gizlilik" element={<LegalPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>

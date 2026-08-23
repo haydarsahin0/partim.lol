@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="robots" content="noindex" />
+    <title>partim.lol</title>
+    <script>
+      // GitHub Pages statik sunucudur: /kosullar gibi bir yol için 404 döner ve
+      // bu sayfayı gösterir. Burada yolu HashRouter adresine çevirip uygulamaya
+      // yönlendiriyoruz, böylece paylaşılabilir düz adresler de çalışır.
+      // (X ve Stripe gibi doğrulayıcılar "#" içeren adresleri kabul etmeyebiliyor.)
+      (function () {
+        var path = window.location.pathname;
+        var search = window.location.search;
+
+        // Proje sitesi (kullanici.github.io/depo/) ile kök alan adını ayır.
+        var root = "/";
+        if (/\.github\.io$/i.test(window.location.hostname)) {
+          var first = path.split("/")[1];
+          if (first) root = "/" + first + "/";
+        }
+
+        var route = path.indexOf(root) === 0 ? path.slice(root.length) : path.replace(/^\//, "");
+        route = route.replace(/\/+$/, "");
+
+        window.location.replace(root + (route ? "#/" + route + search : "" + search));
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>
+      <p>Bu sayfayı görüntülemek için JavaScript gerekiyor.</p>
+      <p><a href="/">partim.lol ana sayfasına dön</a></p>
+    </noscript>
+  </body>
+</html>
