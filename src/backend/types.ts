@@ -99,6 +99,14 @@ export type SeatMarketSummary = {
   hot: SeatMarketRow[];
 };
 
+/** Canlı oy akışı satırı — seçim gecesi şeridi bunu gösterir. */
+export type LiveVote = {
+  handle: string;
+  provinceId: string;
+  partyId: string;
+  at: string;
+};
+
 export type LeaderboardEntry = {
   user: AuthUser;
   xp: number;
@@ -181,6 +189,8 @@ export interface Backend {
    * Oyunun para kazandıran kısmı bu; ana sayfada görünür olması gerekiyor.
    */
   getSeatMarket(limit?: number): Promise<SeatMarketSummary>;
+  /** Ülke genelinde en son kullanılan oylar (canlı akış şeridi için) */
+  getLiveVotes(limit?: number): Promise<LiveVote[]>;
   /** Profil alanlarını günceller (kullanıcı adı, görünen ad, X hesabı, avatar) */
   updateProfile(patch: ProfilePatch): Promise<ProfileUpdateResult>;
   /** Tarayıcı verisi silinmişse hesabı kurtarma koduyla geri alır */

@@ -23,6 +23,7 @@ import type {
   LeaderboardEntry,
   Profile,
   ProvinceDetail,
+  LiveVote,
   ProvinceStanding,
   SeatMarketSummary,
   VoteResult,
@@ -385,6 +386,26 @@ export class SupabaseBackend implements Backend {
       volume: prices.reduce((a, b) => a + b, 0),
       hot: ((hotRes.data ?? []) as unknown as SeatRow[]).map(seatFromRow),
     };
+  }
+
+  async getLiveVotes(limit = 14): Promise<LiveVote[]> {
+    const { data, error } = await this.db
+      .from("recent_votes")
+      .select("handle,province_id,party_id,created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) return [];
+    return ((data ?? []) as Array<{
+      handle: string;
+      province_id: string;
+      party_id: string;
+      created_at: string;
+    }>).map((row) => ({
+      handle: row.handle,
+      provinceId: row.province_id,
+      partyId: row.party_id,
+      at: row.created_at,
+    }));
   }
 
   async getLeaderboard(limit = 25): Promise<LeaderboardEntry[]> {

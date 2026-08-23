@@ -120,6 +120,29 @@ jobs:
           # Webhook'u Stripe çağırır, kullanıcı JWT'si taşımaz.
           supabase functions deploy stripe-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
 
+      - name: Veritabanı denetimi
+        # `db push` yeşil dönse bile ne uygulandığını söylemiyor: uygulanmış bir
+        # sürüm numarası sessizce atlanabiliyor (bir kez başımıza geldi, oy
+        # sayısı eski hâlinde kaldı). Dağıtımdan sonra gerçek durumu okuyup
+        # iş özetine yazıyoruz. Sorgu başarısız olursa iş düşmesin.
+        if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'veritabani' }}
+        continue-on-error: true
+        run: |
+          oku() {
+            scripts/supabase-query.sh "$1" 2>/dev/null || echo "[]"
+          }
+          {
+            echo "### Veritabanı denetimi"
+            echo
+            echo '```json'
+            oku "select sum(votes) as toplam_oy, count(distinct province_id) as oyu_olan_il from public.province_tallies"
+            echo
+            oku "select p.name, t.oy, round(100.0*t.oy/nullif((select sum(votes) from public.province_tallies),0),1) as yuzde from (select party_id, sum(votes) oy from public.province_tallies group by party_id) t join public.parties p on p.id=t.party_id order by t.oy desc limit 5"
+            echo
+            oku "select version from supabase_migrations.schema_migrations order by version desc limit 5"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Özet
         run: |
           echo "### Supabase'e uygulandı" >> $GITHUB_STEP_SUMMARY

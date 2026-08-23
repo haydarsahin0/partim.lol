@@ -47,6 +47,7 @@ import type {
   LeaderboardEntry,
   Profile,
   ProvinceDetail,
+  LiveVote,
   ProvinceStanding,
   SeatMarketSummary,
   VoteResult,
@@ -358,6 +359,49 @@ export class DemoBackend implements Backend {
       volume: rows.reduce((a, r) => a + r.price, 0),
       hot: rows.slice(0, limit),
     };
+  }
+
+  /**
+   * Canlı oy akışı.
+   *
+   * Demo modda başka oyuncu yok, ama şerit boş dururken "seçim gecesi" hissi
+   * de olmuyor. Kullanıcının kendi oylarının arasına, illerin mevcut oy
+   * dağılımına göre ağırlıklandırılmış sahte oylar karıştırılıyor — yani akış
+   * haritayla tutarlı: AK Parti'nin önde olduğu ilde daha çok AK Parti oyu
+   * geçiyor. Her çağrıda yeniden üretiliyor, bu yüzden şerit gerçekten akıyor.
+   */
+  async getLiveVotes(limit = 14): Promise<LiveVote[]> {
+    const now = Date.now();
+    const iller = Object.keys(this.seed.votes).filter(
+      (id) => Object.keys(this.seed.votes[id] ?? {}).length > 0,
+    );
+
+    const uydurma: LiveVote[] = [];
+    for (let i = 0; i < limit && iller.length > 0; i++) {
+      const provinceId = iller[Math.floor(Math.random() * iller.length)];
+      const row = this.seed.votes[provinceId] ?? {};
+      const toplam = Object.values(row).reduce((a, b) => a + b, 0);
+      let hedef = Math.random() * toplam;
+      let partyId = Object.keys(row)[0];
+      for (const [id, n] of Object.entries(row)) {
+        hedef -= n;
+        if (hedef <= 0) {
+          partyId = id;
+          break;
+        }
+      }
+      uydurma.push({
+        handle: `${pick(Math.random, HANDLE_STEMS)}${Math.floor(Math.random() * 9000 + 1000)}`,
+        provinceId,
+        partyId,
+        // Son 6 dakikaya yayılıyor; şerit hep "az önce" gösteriyor.
+        at: new Date(now - Math.floor(Math.random() * 360_000)).toISOString(),
+      });
+    }
+
+    return [...this.state.recent, ...uydurma]
+      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+      .slice(0, limit);
   }
 
   async getProvinceDetail(provinceId: string): Promise<ProvinceDetail> {

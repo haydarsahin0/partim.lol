@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Crown, Info, Sparkles, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { TurkeyMap, focusProvinceOnMap } from "@/components/TurkeyMap";
-import { NationalPanel } from "@/components/NationalPanel";
+import { ElectionNight } from "@/components/ElectionNight";
 import { ProvinceDetailView } from "@/components/ProvinceDetailView";
 import { ProvinceSearch } from "@/components/ProvinceSearch";
 import { PartyLegend } from "@/components/PartyLegend";
@@ -67,16 +67,15 @@ export default function Home() {
         yoksa grid onu ikinci sütuna atıyor.
       */}
       <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[268px_minmax(0,1fr)_344px] lg:grid-rows-[auto_minmax(0,1fr)]">
-      <SeatMarket
+      {/* Seçim gecesi tablosu en üstte: gecenin nabzı (açılan il oranı, parti
+          yarışı, akan oylar) sayfayı açar açmaz görünsün. */}
+      <ElectionNight
         onSelectProvince={selectAndFocus}
         className="order-2 lg:order-none lg:col-start-1 lg:row-start-1"
       />
 
-      {/* Sol: ülke geneli */}
       <aside className="order-4 space-y-4 lg:order-none lg:col-start-1 lg:row-start-2">
-        <Card className="p-5">
-          <NationalPanel onSelectProvince={selectAndFocus} />
-        </Card>
+        <SeatMarket onSelectProvince={selectAndFocus} />
         <Card className="p-5">
           <h3 className="font-display text-base font-semibold tracking-[-0.02em]">
             Kendi partini kur

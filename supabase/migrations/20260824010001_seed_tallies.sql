@@ -1,6 +1,3 @@
--- NOT: Bu tohum GEÇERSİZ — daha yeni bir *_seed_tallies.sql dosyası onun
--- üzerine yazıyor. Dosya silinmiyor çünkü uzak taraf bu sürümü uygulanmış
--- olarak kaydetti; silmek geçmiş uyuşmazlığı yaratır.
 -- =============================================================================
 -- Açılış oy tablosu  —  ÜRETİLMİŞ DOSYA, ELLE DÜZENLEMEYİN
 --

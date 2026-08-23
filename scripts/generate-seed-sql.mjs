@@ -6,9 +6,22 @@
  * ile canlı veritabanı zamanla birbirinden ayrılırdı.
  *
  *   node scripts/generate-seed-sql.mjs
+ *
+ * HER ÇAĞRI YENİ BİR DOSYA YAZAR, eskisinin üzerine değil.
+ *
+ * Sebebi acı bir tecrübe: `supabase db push` bir sürümü bir kez uygular ve
+ * uygulanmış sürümleri (supabase_migrations.schema_migrations) bir daha
+ * çalıştırmaz. Aynı dosyayı yeni sayılarla güncelleyince push "bu sürüm zaten
+ * uygulanmış" deyip sessizce atlıyor; veritabanında eski sayılar kalıyor,
+ * iş akışı da yeşil görünüyordu. Yeni sürüm numarası bunu imkânsız kılar.
+ *
+ * Eski tohum dosyaları SİLİNMEZ: uzak taraf onları uygulanmış olarak
+ * kaydetti, yerelden kaldırmak geçmiş uyuşmazlığı yaratır. Zaten her tohum
+ * migration'ı önce bir öncekini geri alıp yenisini yazdığı için sıralı
+ * çalıştıklarında sonuç hep en sonuncunun verisidir.
  */
 import { build } from "esbuild";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -129,6 +142,47 @@ on conflict (province_id, party_id)
   do update set votes = public.province_tallies.votes + excluded.votes;
 `;
 
-const out = join(root, "supabase/migrations/20260824010000_seed_tallies.sql");
+/*
+ * Sürüm numarası: UTC zaman damgası — ama var olan EN BÜYÜK sürümden kesinlikle
+ * büyük olmalı. Bu makinenin saati geride kalabiliyor; küçük bir numara
+ * üretirsek migration sıraya geriden girer ve Supabase onu geçmiş uyuşmazlığı
+ * sayar. O yüzden gerekirse en büyüğün bir saniye üstüne çıkıyoruz.
+ */
+const dir = join(root, "supabase/migrations");
+const mevcut = readdirSync(dir).filter((f) => /^\d{14}_.*\.sql$/.test(f));
+const enBuyuk = mevcut.reduce((a, f) => {
+  const v = f.slice(0, 14);
+  return v > a ? v : a;
+}, "00000000000000");
+
+const pad = (n, w = 2) => String(n).padStart(w, "0");
+const stamp = (d) =>
+  `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}` +
+  `${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`;
+const parse = (v) =>
+  Date.UTC(
+    +v.slice(0, 4),
+    +v.slice(4, 6) - 1,
+    +v.slice(6, 8),
+    +v.slice(8, 10),
+    +v.slice(10, 12),
+    +v.slice(12, 14),
+  );
+
+let version = stamp(new Date());
+if (version <= enBuyuk) {
+  version = stamp(new Date(parse(enBuyuk) + 1000));
+  console.log(`Saat geride (${enBuyuk} zaten var), sürüm ${version} yapıldı.`);
+}
+
+const eskiler = mevcut.filter((f) => f.endsWith("_seed_tallies.sql"));
+
+const out = join(dir, `${version}_seed_tallies.sql`);
 writeFileSync(out, sql);
 console.log(`Yazıldı: ${out} (${rows.length} satır)`);
+if (eskiler.length > 0) {
+  console.log(
+    `Önceki tohum migration'ları duruyor (silinmemeli): ${eskiler.join(", ")}\n` +
+      "Sırayla çalıştıklarında sonuç en sonuncunun verisidir.",
+  );
+}
