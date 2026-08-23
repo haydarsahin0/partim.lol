@@ -3,7 +3,7 @@ import { Crown, Info, Sparkles, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { TurkeyMap, focusProvinceOnMap } from "@/components/TurkeyMap";
 import { ElectionNight } from "@/components/ElectionNight";
-import { ProvinceDetailView } from "@/components/ProvinceDetailView";
+import { ProvinceDialog } from "@/components/ProvinceDialog";
 import { ProvinceSearch } from "@/components/ProvinceSearch";
 import { PartyLegend } from "@/components/PartyLegend";
 import { StatsPill } from "@/components/StatsPill";
@@ -131,19 +131,10 @@ export default function Home() {
         </Card>
       </section>
 
-      {/* Sağ: seçili il */}
-      <aside className="order-3 lg:order-none lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)]">
-        {province ? (
-          <Card className="flex flex-col p-0 lg:h-full lg:max-h-[min(78vh,calc(100vh-6rem))] lg:overflow-hidden">
-            <ProvinceDetailView
-              provinceId={province.id}
-              showLink
-              className="min-h-0"
-              onClose={() => setParams({}, { replace: true })}
-            />
-          </Card>
-        ) : (
-          <Card className="p-6 text-center">
+      {/* Sağ sütun: il artık burada değil, ekranın ortasındaki pencerede
+          açılıyor; bu sütun her zaman başkanlık çağrısını gösteriyor. */}
+      <aside className="order-3 lg:order-none lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-20">
+        <Card className="p-6 text-center">
             <Crown className="mx-auto size-7 text-primary" />
             <h2 className="mt-2 font-display text-lg font-bold">İl başkanı ol</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -154,10 +145,14 @@ export default function Home() {
               Boş koltuk {formatUsd(LEADER_BASE_PRICE)}. Dolu koltuğu devralmak {formatUsd(2)},
               sonra {formatUsd(3)}, {formatUsd(4)}… Elinde tuttuğun her saat +{XP_PER_LEADER_HOUR} XP.
             </p>
-          </Card>
-        )}
+        </Card>
       </aside>
       </div>
+
+      <ProvinceDialog
+        provinceId={province?.id ?? null}
+        onClose={() => setParams({}, { replace: true })}
+      />
 
       <CreatePartyDialog open={partyOpen} onOpenChange={setPartyOpen} />
     </div>

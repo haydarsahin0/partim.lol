@@ -221,16 +221,38 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
     return Math.hypot(a.x - b.x, a.y - b.y);
   };
 
+  /**
+   * İşaretçi yakalamayı BURADA YAPMIYORUZ — bilerek.
+   *
+   * `setPointerCapture` bir kez çağrıldığında tarayıcı yalnızca işaretçi
+   * olaylarını değil, onların uyumluluk karşılıklarını da (mousedown/mouseup
+   * ve dolayısıyla `click`) yakalayan elemana yönlendiriyor. Yakalama SVG
+   * kökünde olduğu için illerin üzerindeki `onClick` hiç çalışmıyor ve
+   * haritaya tıklamak sessizce hiçbir şey yapmıyordu.
+   *
+   * Yakalama yalnızca gerçekten sürükleme başladığında (eşik aşıldığında) ya
+   * da ikinci parmak değdiğinde alınıyor; ikisinde de artık tıklama beklentisi
+   * yok, ama parmak/fare elemanın dışına çıktığında hareketin kopmaması için
+   * yakalama şart.
+   */
+  const yakala = (target: SVGSVGElement, pointerId: number) => {
+    try {
+      if (!target.hasPointerCapture(pointerId)) target.setPointerCapture(pointerId);
+    } catch {
+      /* işaretçi çoktan bırakılmış olabilir; sürükleme yine de çalışır */
+    }
+  };
+
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    e.currentTarget.setPointerCapture(e.pointerId);
 
     if (pointers.current.size === 1) {
       draggedRef.current = false;
       grab.current = { world: toWorld(toLocal(e.clientX, e.clientY), viewRef.current), moved: false };
       pinch.current = null;
     } else if (pointers.current.size === 2) {
+      yakala(e.currentTarget, e.pointerId);
       const mid = midpoint();
       grab.current = null;
       pinch.current = {
@@ -268,6 +290,8 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
       if (moved < 4) return;
       held.moved = true;
       draggedRef.current = true;
+      // Sürükleme kesinleşti: artık yakalayabiliriz (bkz. onPointerDown).
+      yakala(e.currentTarget, e.pointerId);
     }
     applyView({ k: viewRef.current.k, ...offsetFor(local, held.world, viewRef.current.k) }, true);
   };
