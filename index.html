@@ -25,7 +25,47 @@
     />
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      #root'un içi React ilk çizimde temizlenir. Buradaki iskelet yalnızca
+      uygulama açılana kadar görünür; açılamazsa da beyaz ekran yerine sebebini
+      söyleyen bir mesaj kalır (en sık sebep: Pages'in kaynak koddan yayınlanması).
+    -->
+    <div id="root">
+      <div id="boot" style="
+        position: fixed; inset: 0; display: grid; place-items: center;
+        gap: 14px; align-content: center; text-align: center; padding: 24px;
+        background: #05070f; color: #e2e8f0;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      ">
+        <div style="
+          width: 44px; height: 44px; border-radius: 14px;
+          background: linear-gradient(135deg, #22d3ee, #8b5cf6);
+          display: grid; place-items: center;
+          font-weight: 800; font-size: 20px; color: #05070f;
+        ">p</div>
+        <div style="font-size: 15px; font-weight: 600; opacity: 0.75">
+          partim.lol yükleniyor…
+        </div>
+        <div id="boot-error" hidden style="max-width: 34rem; line-height: 1.6">
+          <div style="font-size: 15px; font-weight: 700; color: #fbbf24">
+            Uygulama yüklenemedi
+          </div>
+          <p style="margin: 8px 0 0; font-size: 13px; opacity: 0.75">
+            Site derlenmiş çıktı yerine kaynak kodundan yayınlanmış olabilir.
+            GitHub deposunda <strong>Settings → Pages → Source</strong> ayarını
+            <strong>GitHub Actions</strong> yapıp yeniden dağıtın.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script>
+      // Modül yüklenmediyse (ör. .tsx dosyası düz metin olarak sunuluyorsa)
+      // hiçbir hata görünmez; birkaç saniye sonra sebebini yazalım.
+      setTimeout(function () {
+        var el = document.getElementById("boot-error");
+        if (el) el.hidden = false;
+      }, 5000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

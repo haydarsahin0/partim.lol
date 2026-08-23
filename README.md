@@ -119,9 +119,16 @@ kaydedilir (iade operatörün kararına bırakılmıştır — otomatik iade ekl
 
 ### 3. GitHub Pages
 
-`main` dalına yapılan her itmede [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
-derleyip yayınlar. Depo ayarlarında **Settings → Pages → Source: GitHub Actions**
-seçili olmalı.
+> **Önce bunu ayarlayın:** depo ayarlarında **Settings → Pages → Source** mutlaka
+> **GitHub Actions** olmalı. Varsayılan olan "Deploy from a branch" seçeneği depo
+> kökünü olduğu gibi yayınlar; kökteki `index.html` ise `/src/main.tsx` dosyasına
+> bakar. Tarayıcı TypeScript çalıştıramadığı için sonuç **beyaz ekran** olur.
+> Belirti buysa hata sizde değil, bu ayardadır.
+
+Doğru kaynak seçildikten sonra [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
+her itmede projeyi derleyip `dist/` çıktısını yayınlar. İş akışı `main` dalını ve
+geliştirme dalı `claude/partim-lol-game-dev-j6jwzx`'i dinler (`main` açıldığında
+ikincisi silinebilir); **Actions** sekmesinden elle de tetiklenebilir.
 
 - `vars.VITE_SUPABASE_URL` ve `secrets.VITE_SUPABASE_ANON_KEY` tanımlıysa gerçek
   modda derlenir; tanımsızsa demo modda yayınlanır.

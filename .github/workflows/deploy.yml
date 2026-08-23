@@ -2,7 +2,11 @@ name: GitHub Pages'e dağıt
 
 on:
   push:
-    branches: [main]
+    branches:
+      # main henüz yok; geliştirme dalı da yayına gitsin ki Pages boş kalmasın.
+      # main açıldığında ikinci satır silinebilir.
+      - main
+      - claude/partim-lol-game-dev-j6jwzx
   workflow_dispatch:
 
 permissions:

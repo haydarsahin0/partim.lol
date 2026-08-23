@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # Yayına giden dallarda deploy iş akışı zaten derliyor; burada tekrarlamayalım.
   push:
-    branches-ignore: [main]
+    branches-ignore: [main, claude/partim-lol-game-dev-j6jwzx]
   pull_request:
 
 jobs:
