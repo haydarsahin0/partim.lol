@@ -17,6 +17,7 @@ import { pick, seededRng } from "@/lib/rng";
 import {
   LEADER_BASE_PRICE,
   VOTE_COOLDOWN_MS,
+  hasUnlimitedVotes,
   XP_PER_LEADER_HOUR,
   XP_PER_VOTE,
   levelFromXp,
@@ -415,8 +416,9 @@ export class DemoBackend implements Backend {
     if (!PARTY_IDS.includes(partyId)) return { ok: false, message: "Böyle bir parti yok." };
 
     const now = Date.now();
+    const unlimited = hasUnlimitedVotes(this.state.user.handle);
     const next = this.state.nextVoteAt ? Date.parse(this.state.nextVoteAt) : 0;
-    if (next > now) {
+    if (!unlimited && next > now) {
       return { ok: false, message: "Oy hakkın henüz dolmadı." };
     }
 
@@ -424,7 +426,7 @@ export class DemoBackend implements Backend {
     provinceVotes[partyId] = (provinceVotes[partyId] ?? 0) + 1;
     this.state.voteCount += 1;
     this.state.xp += XP_PER_VOTE;
-    this.state.nextVoteAt = new Date(now + VOTE_COOLDOWN_MS).toISOString();
+    this.state.nextVoteAt = unlimited ? null : new Date(now + VOTE_COOLDOWN_MS).toISOString();
     this.state.recent.unshift({
       provinceId,
       partyId,

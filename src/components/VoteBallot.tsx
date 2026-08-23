@@ -4,7 +4,7 @@ import { partyColor, partyTextColor } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Button } from "@/components/ui/button";
-import { XP_PER_VOTE, formatDuration } from "@/lib/game";
+import { XP_PER_VOTE, formatDuration, hasUnlimitedVotes } from "@/lib/game";
 import { cn } from "@/lib/utils";
 
 /** Bir il için oy pusulası: parti seç, saatte bir oy kullan. */
@@ -20,9 +20,10 @@ export function VoteBallot({
   const { profile, vote, parties } = useGame();
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const cooldown = useCountdown(profile?.nextVoteAt);
+  const unlimited = hasUnlimitedVotes(profile?.handle);
+  const cooldown = useCountdown(unlimited ? null : profile?.nextVoteAt);
 
-  const locked = cooldown > 0;
+  const locked = !unlimited && cooldown > 0;
 
   const submit = async () => {
     if (!selected) return;
@@ -43,7 +44,7 @@ export function VoteBallot({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-base font-bold">Oy pusulası</h3>
         <span className="text-xs text-muted-foreground">
-          Saatte 1 oy · oy başına +{XP_PER_VOTE} XP
+          {unlimited ? "Sınırsız oy hakkı" : "5 dakikada 1 oy"} · oy başına +{XP_PER_VOTE} XP
         </span>
       </div>
 

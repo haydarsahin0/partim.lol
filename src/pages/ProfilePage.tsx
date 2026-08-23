@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { LevelBadge } from "@/components/LevelBadge";
 import {
   PARTY_WEEKLY_PRICE,
+  hasUnlimitedVotes,
   XP_PER_LEADER_HOUR,
   formatDuration,
   formatNumber,
@@ -46,7 +47,8 @@ export default function ProfilePage() {
   const { backend, user, profile } = useGame();
   const [seats, setSeats] = useState<LeaderSeat[]>([]);
   const [partyOpen, setPartyOpen] = useState(false);
-  const cooldown = useCountdown(profile?.nextVoteAt);
+  const unlimited = hasUnlimitedVotes(profile?.handle);
+  const cooldown = useCountdown(unlimited ? null : profile?.nextVoteAt);
 
   useEffect(() => {
     if (!user) {
@@ -96,7 +98,7 @@ export default function ProfilePage() {
         <Stat
           icon={Timer}
           label="Sonraki oy"
-          value={cooldown > 0 ? formatDuration(cooldown) : "hazır"}
+          value={unlimited ? "sınırsız" : cooldown > 0 ? formatDuration(cooldown) : "hazır"}
         />
       </div>
 

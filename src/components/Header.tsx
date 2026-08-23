@@ -5,7 +5,7 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { LevelBadge } from "@/components/LevelBadge";
-import { formatDuration, formatNumber } from "@/lib/game";
+import { formatDuration, formatNumber, hasUnlimitedVotes } from "@/lib/game";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -16,7 +16,8 @@ const NAV = [
 
 export function Header() {
   const { user, profile, isDemo, totalVotes } = useGame();
-  const cooldown = useCountdown(profile?.nextVoteAt);
+  const unlimited = hasUnlimitedVotes(profile?.handle);
+  const cooldown = useCountdown(unlimited ? null : profile?.nextVoteAt);
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[hsl(225_45%_4%_/_0.72)] backdrop-blur-xl">
@@ -58,11 +59,11 @@ export function Header() {
           {profile && (
             <>
               <Badge
-                variant={cooldown > 0 ? "warning" : "success"}
+                variant={!unlimited && cooldown > 0 ? "warning" : "success"}
                 className="hidden font-mono sm:inline-flex"
                 title={cooldown > 0 ? "Sonraki oy hakkına kalan süre" : "Oy hakkın hazır"}
               >
-                {cooldown > 0 ? formatDuration(cooldown) : "OY HAZIR"}
+                {unlimited ? "SINIRSIZ" : cooldown > 0 ? formatDuration(cooldown) : "OY HAZIR"}
               </Badge>
               {profile.leaderCount > 0 && (
                 <Badge variant="secondary" className="hidden md:inline-flex">

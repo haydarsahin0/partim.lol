@@ -4,7 +4,26 @@
  */
 
 /** İki oy arasındaki bekleme süresi */
-export const VOTE_COOLDOWN_MS = 60 * 60 * 1000;
+export const VOTE_COOLDOWN_MS = 5 * 60 * 1000;
+
+/**
+ * Bekleme süresi uygulanmayan kullanıcı adları.
+ *
+ * Ayrıcalıklı bir liste; oyunun dengesini doğrudan etkiler. Bu yüzden tek
+ * yerde duruyor ve gerçek modda SUNUCUDA da denetleniyor (bkz. cast_vote):
+ * yalnızca istemcide kalsaydı, isteğini elle atan herkes sınırsız oy
+ * kullanabilirdi.
+ *
+ * Kullanıcı adı değiştirilebildiği için eşleşme küçük harfe indirgenmiş
+ * kullanıcı adı üzerinden yapılır.
+ */
+export const UNLIMITED_VOTE_HANDLES = ["oyuncu47172"] as const;
+
+export function hasUnlimitedVotes(handle: string | null | undefined): boolean {
+  if (!handle) return false;
+  const normalized = handle.trim().toLocaleLowerCase("tr");
+  return UNLIMITED_VOTE_HANDLES.some((h) => h === normalized);
+}
 
 /** Oy başına kazanılan XP */
 export const XP_PER_VOTE = 1;

@@ -54,7 +54,7 @@ export default function Home() {
       {/* Canlı sayaç hapı — sitenin üstünde ortalanmış */}
       <StatsPill />
 
-      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)_380px]">
+      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[268px_minmax(0,1fr)_344px]">
       {/* Sol: ülke geneli */}
       <aside className="order-3 space-y-4 lg:order-1">
         <Card className="p-5">
@@ -84,7 +84,7 @@ export default function Home() {
       </aside>
 
       {/* Orta: harita */}
-      <section className="order-1 flex min-h-[46vh] flex-col gap-3 lg:order-2 lg:min-h-0">
+      <section className="order-1 flex flex-col gap-3 lg:order-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
             <ProvinceSearch onPick={selectAndFocus} />
@@ -106,9 +106,9 @@ export default function Home() {
           )}
         </div>
 
-        <Card className="relative flex-1 overflow-hidden p-0 lg:aspect-[1000/430] lg:flex-none">
+        <div className="glass-flat relative min-h-[54vh] flex-1 overflow-hidden lg:aspect-[2.05/1] lg:min-h-0 lg:flex-none">
           <TurkeyMap standings={standings} selectedId={selected} onSelect={select} />
-        </Card>
+        </div>
 
         <Card className="hidden p-4 lg:block">
           <PartyLegend />

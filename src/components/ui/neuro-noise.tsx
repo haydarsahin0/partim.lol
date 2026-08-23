@@ -377,8 +377,18 @@ export function NeuroNoise({ className }: { className?: string }) {
     let width = 0;
     let height = 0;
 
+    /*
+     * Çözünürlük ölçeği. Bu shader kare başına 6 katmanlık bir alan + 5 oktavlık
+     * gürültü hesaplıyor; maliyeti piksel sayısıyla doğrusal artıyor. Arka plan
+     * yumuşak ve bulanık olduğu için tam çözünürlükte çizmenin görsel karşılığı
+     * yok, bedeli ise mobilde haritayla aynı kareyi paylaşmak zorunda kalması.
+     * Küçük ekranlarda 1x'in altına iniyoruz.
+     */
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const narrow = window.innerWidth < 820;
+      const cap = narrow ? 1 : 1.5;
+      const quality = narrow ? 0.7 : 0.85;
+      const dpr = Math.min(window.devicePixelRatio || 1, cap) * quality;
       const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
       const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
       if (w === width && h === height) return;
@@ -386,6 +396,9 @@ export function NeuroNoise({ className }: { className?: string }) {
       height = h;
       canvas.width = w;
       canvas.height = h;
+      // Tuval küçük çiziliyor, CSS ile tam boyuta esnetiliyor.
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
       gl.viewport(0, 0, w, h);
     };
     resize();
@@ -404,9 +417,15 @@ export function NeuroNoise({ className }: { className?: string }) {
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
 
+    // Arka plan 30 kare/sn yeterli; kalan bütçe haritaya ve arayüze kalsın.
+    const MIN_FRAME_MS = 1000 / 30;
+    let lastFrame = 0;
+
     const loop = (now: number) => {
       frame = requestAnimationFrame(loop);
       if (!running) return;
+      if (now - lastFrame < MIN_FRAME_MS) return;
+      lastFrame = now;
       render(now);
     };
 

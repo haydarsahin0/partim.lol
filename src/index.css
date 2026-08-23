@@ -77,6 +77,16 @@
    * kenar (Apple'daki "hairline"), altta yumuşak gölge. saturate() olmadan
    * cam soluk görünüyor — asıl premium hissi veren o.
    */
+  /*
+   * Harita kartı: cam görünümü korunuyor ama backdrop-filter YOK. Altındaki
+   * shader ve üstündeki sürekli boyanan SVG birlikteyken, bulanık zemini her
+   * karede yeniden hesaplamak mobilde kare hızını yarıya düşürüyordu.
+   */
+  .glass-flat {
+    @apply rounded-[var(--radius)] border border-white/[0.09] bg-[hsl(222_40%_6%_/_0.86)]
+      shadow-[0_1px_0_0_rgb(255_255_255_/_0.06)_inset,0_16px_50px_-24px_rgb(0_0_0_/_0.9)];
+  }
+
   .glass {
     @apply relative rounded-[var(--radius)] border border-white/[0.09]
       bg-white/[0.045] shadow-[0_1px_0_0_rgb(255_255_255_/_0.06)_inset,0_16px_50px_-24px_rgb(0_0_0_/_0.9)];
@@ -124,6 +134,42 @@
       opacity: 0;
     }
   }
+}
+
+/* ---------------------------- harita ---------------------------------------
+ * Yazı boyutu ve kontur kalınlığı yakınlaştırmayla birlikte JS'e uğramadan
+ * ölçekleniyor: sahne grubu her karede yalnızca --map-k değişkenini yazıyor,
+ * gerisini tarayıcı hallediyor. Etiketler böylece ekranda sabit piksel
+ * boyutunda kalıyor ama React yeniden çizmiyor.
+ * -------------------------------------------------------------------------- */
+.map-scene {
+  --map-k: 1;
+}
+
+.map-label {
+  fill: #ffffff;
+  stroke: rgba(2, 5, 12, 0.9);
+  paint-order: stroke;
+  font-weight: 650;
+}
+
+.map-label-name {
+  font-size: calc(13.5px / var(--map-k));
+  stroke-width: calc(3px / var(--map-k));
+  letter-spacing: -0.01em;
+}
+
+.map-label-plate {
+  font-size: calc(12px / var(--map-k));
+  stroke-width: calc(2.6px / var(--map-k));
+  letter-spacing: 0.02em;
+}
+
+.map-label[data-compact="true"].map-label-name {
+  font-size: calc(12px / var(--map-k));
+}
+.map-label[data-compact="true"].map-label-plate {
+  font-size: calc(11px / var(--map-k));
 }
 
 /* Harita etkileşimi */
