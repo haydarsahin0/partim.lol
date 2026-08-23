@@ -85,6 +85,11 @@ export function SeatList({
                   <div className="flex items-center gap-1.5">
                     <Avatar src={seat.holder.avatarUrl} handle={seat.holder.handle} size={18} />
                     <span className="truncate text-sm font-semibold">@{seat.holder.handle}</span>
+                    {seat.holder.isBot && (
+                      <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                        bot
+                      </Badge>
+                    )}
                     {mine && (
                       <Badge variant="default" className="px-1.5 py-0">
                         sen

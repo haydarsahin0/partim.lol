@@ -4,7 +4,7 @@
  * Şema ve sunucu tarafı kurallar `supabase/migrations/20260823120000_init.sql` içindedir; oy soğuma süresi,
  * XP ve koltuk fiyatı orada da doğrulanır — istemciye güvenilmez.
  */
-import type { Session } from "@supabase/supabase-js";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { PARTY_IDS, readableTextTone, type Party } from "@/data/parties";
 import { fallbackAvatar } from "@/lib/avatar";
 import { LEADER_BASE_PRICE, levelFromXp, nextLeaderPrice } from "@/lib/game";
@@ -24,6 +24,7 @@ import type {
   Profile,
   ProvinceDetail,
   ProvinceStanding,
+  SeatMarketSummary,
   VoteResult,
 } from "./types";
 
@@ -40,6 +41,7 @@ type SeatRow = {
     display_name: string;
     avatar_url: string | null;
     x_handle?: string | null;
+    is_bot?: boolean | null;
   } | null;
 };
 type ProfileRow = {
@@ -53,6 +55,7 @@ type ProfileRow = {
   leader_count: number;
   next_vote_at: string | null;
   unlimited_votes?: boolean | null;
+  is_bot?: boolean | null;
   created_at: string;
 };
 
@@ -64,6 +67,7 @@ function authUserFromProfileRow(row: ProfileRow): AuthUser {
     displayName: row.display_name || row.handle,
     avatarUrl: row.avatar_url ?? fallbackAvatar(row.handle),
     xHandle: row.x_handle ?? null,
+    isBot: row.is_bot ?? false,
   };
 }
 
@@ -75,6 +79,7 @@ function authUserFromRow(row: SeatRow["holder"]): AuthUser | null {
     displayName: row.display_name || row.handle,
     avatarUrl: row.avatar_url ?? fallbackAvatar(row.handle),
     xHandle: row.x_handle ?? null,
+    isBot: row.is_bot ?? false,
   };
 }
 
@@ -116,6 +121,46 @@ function standingFromRows(provinceId: string, rows: TallyRow[]): ProvinceStandin
     leadingPartyId: tallies[0]?.partyId ?? null,
     margin: tallies.length > 1 ? tallies[0].pct - tallies[1].pct : tallies.length === 1 ? 100 : 0,
   };
+}
+
+/**
+ * Edge fonksiyonu çağırır ve HATAYI OKUNUR HÂLE GETİRİR.
+ *
+ * supabase-js, 2xx dışında dönen her yanıt için sabit "Edge Function returned
+ * a non-2xx status code" mesajı üretir; fonksiyonun gövdesinde yazdığımız
+ * gerçek sebep (`{"error": "..."}`) kullanıcıya hiç ulaşmaz. Bunu okumak için
+ * hatanın taşıdığı Response'u açıyoruz.
+ *
+ * Fonksiyon hiç yüklenmemişse (404) da aynı sabit mesaj geliyor; o durumda ne
+ * yapılacağını söyleyen bir metin dönüyoruz — bu, "parti kur ödemeye
+ * yönlendirmiyor" hatasının tam olarak sebebiydi.
+ */
+async function invokeEdge<T>(
+  db: SupabaseClient,
+  name: string,
+  body: Record<string, unknown>,
+): Promise<{ data: T | null; message?: string }> {
+  const { data, error } = await db.functions.invoke(name, { body });
+  if (!error) return { data: data as T };
+
+  const context = (error as { context?: Response }).context;
+  if (context && typeof context.status === "number") {
+    if (context.status === 404) {
+      return {
+        data: null,
+        message: `Ödeme servisi (${name}) sunucuya yüklenmemiş. GitHub → Actions → "Supabase'e uygula" → hedef: fonksiyonlar.`,
+      };
+    }
+    try {
+      const text = await context.text();
+      const parsed = text ? (JSON.parse(text) as { error?: string }) : null;
+      if (parsed?.error) return { data: null, message: parsed.error };
+      if (text) return { data: null, message: text.slice(0, 300) };
+    } catch {
+      /* gövde okunamadı; aşağıdaki genel mesaja düş */
+    }
+  }
+  return { data: null, message: error.message };
 }
 
 export class SupabaseBackend implements Backend {
@@ -281,7 +326,7 @@ export class SupabaseBackend implements Backend {
       this.db.from("province_tallies").select("province_id,party_id,votes").eq("province_id", provinceId),
       this.db
         .from("leader_seats")
-        .select("province_id,party_id,price,held_since,takeovers,holder:profiles(id,handle,display_name,avatar_url)")
+        .select("province_id,party_id,price,held_since,takeovers,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)")
         .eq("province_id", provinceId),
       this.db
         .from("recent_votes")
@@ -311,17 +356,41 @@ export class SupabaseBackend implements Backend {
     if (!user) return [];
     const { data, error } = await this.db
       .from("leader_seats")
-      .select("province_id,party_id,price,held_since,takeovers,holder:profiles(id,handle,display_name,avatar_url)")
+      .select("province_id,party_id,price,held_since,takeovers,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)")
       .eq("user_id", user.id)
       .order("held_since", { ascending: false });
     if (error) throw error;
     return ((data ?? []) as unknown as SeatRow[]).map(seatFromRow);
   }
 
+  async getSeatMarket(limit = 8): Promise<SeatMarketSummary> {
+    const [hotRes, allRes] = await Promise.all([
+      this.db
+        .from("leader_seats")
+        .select(
+          "province_id,party_id,price,held_since,takeovers,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)",
+        )
+        .order("price", { ascending: false })
+        .limit(limit),
+      // Hacim ve dolu koltuk sayısı için yalnızca fiyat sütunu yeterli.
+      this.db.from("leader_seats").select("price"),
+    ]);
+    if (hotRes.error) throw hotRes.error;
+
+    const prices = ((allRes.data ?? []) as Array<{ price: number | string }>).map((r) =>
+      Number(r.price ?? 0),
+    );
+    return {
+      held: prices.length,
+      volume: prices.reduce((a, b) => a + b, 0),
+      hot: ((hotRes.data ?? []) as unknown as SeatRow[]).map(seatFromRow),
+    };
+  }
+
   async getLeaderboard(limit = 25): Promise<LeaderboardEntry[]> {
     const { data, error } = await this.db
       .from("profiles")
-      .select("id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count")
+      .select("id,handle,display_name,avatar_url,x_handle,is_bot,xp,vote_count,leader_count")
       .order("xp", { ascending: false })
       .limit(limit);
     if (error) throw error;
@@ -393,30 +462,30 @@ export class SupabaseBackend implements Backend {
   }
 
   async createParty(input: CustomPartyInput): Promise<CreatePartyResult> {
-    const { data, error } = await this.db.functions.invoke("create-party-subscription", {
-      body: {
+    const { data, message } = await invokeEdge<{ url?: string }>(
+      this.db,
+      "create-party-subscription",
+      {
         ...input,
         successUrl: `${window.location.origin}${window.location.pathname}#/profil?parti=basarili`,
         cancelUrl: `${window.location.origin}${window.location.pathname}#/profil?parti=iptal`,
       },
-    });
-    if (error) return { kind: "error", message: error.message };
-    const url = (data as { url?: string } | null)?.url;
+    );
+    if (message) return { kind: "error", message };
+    const url = data?.url;
     if (!url) return { kind: "error", message: "Ödeme oturumu açılamadı." };
     return { kind: "redirect", url };
   }
 
   async claimSeat(provinceId: string, partyId: string): Promise<CheckoutResult> {
-    const { data, error } = await this.db.functions.invoke("create-checkout", {
-      body: {
-        provinceId,
-        partyId,
-        successUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=basarili`,
-        cancelUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=iptal`,
-      },
+    const { data, message } = await invokeEdge<{ url?: string }>(this.db, "create-checkout", {
+      provinceId,
+      partyId,
+      successUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=basarili`,
+      cancelUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=iptal`,
     });
-    if (error) return { kind: "error", message: error.message };
-    const url = (data as { url?: string } | null)?.url;
+    if (message) return { kind: "error", message };
+    const url = data?.url;
     if (!url) return { kind: "error", message: "Ödeme oturumu açılamadı." };
     return { kind: "redirect", url };
   }

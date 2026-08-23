@@ -48,6 +48,7 @@ import type {
   Profile,
   ProvinceDetail,
   ProvinceStanding,
+  SeatMarketSummary,
   VoteResult,
 } from "./types";
 
@@ -330,6 +331,32 @@ export class DemoBackend implements Backend {
       nextPrice: LEADER_BASE_PRICE,
       heldSince: null,
       takeovers: 0,
+    };
+  }
+
+  async getSeatMarket(limit = 8): Promise<SeatMarketSummary> {
+    // Demo modda dolu koltuklar tohum verisinden ve kullanıcının aldıklarından
+    // geliyor; ikisini birleştirip en pahalıları öne alıyoruz.
+    const rows: LeaderSeat[] = [];
+    const seen = new Set<string>();
+    for (const [provinceId, parties] of Object.entries(this.state.mySeats)) {
+      for (const partyId of Object.keys(parties)) {
+        rows.push(this.seatFor(provinceId, partyId));
+        seen.add(`${provinceId}/${partyId}`);
+      }
+    }
+    for (const [provinceId, parties] of Object.entries(this.seed.seats)) {
+      for (const partyId of Object.keys(parties)) {
+        if (seen.has(`${provinceId}/${partyId}`)) continue;
+        if (this.state.releasedSeats[provinceId]?.includes(partyId)) continue;
+        rows.push(this.seatFor(provinceId, partyId));
+      }
+    }
+    rows.sort((a, b) => b.price - a.price);
+    return {
+      held: rows.length,
+      volume: rows.reduce((a, r) => a + r.price, 0),
+      hot: rows.slice(0, limit),
     };
   }
 

@@ -17,6 +17,12 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.svg" />
+    <meta property="og:url" content="https://partim.lol/" />
+    <meta property="og:image" content="https://partim.lol/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:image" content="https://partim.lol/og.png" />
   </head>
   <body>
     <!--
@@ -31,12 +37,17 @@
         background: #060a12; color: #e2e8f0;
         font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, system-ui, sans-serif;
       ">
-        <div style="
-          width: 44px; height: 44px; border-radius: 14px;
-          background: linear-gradient(135deg, #22d3ee, #8b5cf6);
-          display: grid; place-items: center;
-          font-weight: 800; font-size: 20px; color: #05070f;
-        ">p</div>
+        <svg width="48" height="48" viewBox="0 0 64 64" aria-hidden="true">
+          <defs>
+            <linearGradient id="boot-g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#5EEAD4" />
+              <stop offset="0.55" stop-color="#22D3EE" />
+              <stop offset="1" stop-color="#3B82F6" />
+            </linearGradient>
+          </defs>
+          <path d="M32 57C32 57 47 36.5 47 25.5A15 15 0 1 0 17 25.5C17 36.5 32 57 32 57Z" fill="url(#boot-g)" />
+          <path d="M24.2 30.2V20.4l4.6 3.8L32 18.2l3.2 6L39.8 20.4v9.8z" fill="#060a12" />
+        </svg>
         <div style="font-size: 15px; font-weight: 600; opacity: 0.75">
           partim.lol yükleniyor…
         </div>

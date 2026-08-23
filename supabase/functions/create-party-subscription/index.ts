@@ -142,45 +142,54 @@ Deno.serve(async (req) => {
     }
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    success_url: body.successUrl,
-    cancel_url: body.cancelUrl,
-    client_reference_id: profileId,
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: "usd",
-          unit_amount: WEEKLY_PRICE_USD * 100,
-          recurring: { interval: "week" },
-          product_data: {
-            name: `partim.lol — ${name} (${shortName})`,
-            description: "Haftalık parti aboneliği. Oyun içi dijital konum; siyasi bağış değildir.",
+  // Stripe hatası (eksik/yanlış anahtar, hesap doğrulanmamış, para birimi
+  // kapalı...) yakalanmazsa istemciye 500 döner ve supabase-js bunu "non-2xx"
+  // diye sabit bir mesaja çevirir; sebep hiç görünmez.
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      success_url: body.successUrl,
+      cancel_url: body.cancelUrl,
+      client_reference_id: profileId,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: WEEKLY_PRICE_USD * 100,
+            recurring: { interval: "week" },
+            product_data: {
+              name: `partim.lol — ${name} (${shortName})`,
+              description: "Haftalık parti aboneliği. Oyun içi dijital konum; siyasi bağış değildir.",
+            },
           },
         },
+      ],
+      // Webhook partiyi bu bilgilerle açar.
+      subscription_data: {
+        metadata: {
+          kind: "custom_party",
+          user_id: profileId,
+          party_name: name,
+          party_short: shortName,
+          party_color: color,
+        },
       },
-    ],
-    // Webhook partiyi bu bilgilerle açar.
-    subscription_data: {
       metadata: {
         kind: "custom_party",
         user_id: profileId,
         party_name: name,
         party_short: shortName,
         party_color: color,
+        // Logo metadata'ya sığmaz; oturum kimliğiyle geçici tabloya yazılır.
+        has_logo: logo ? "1" : "0",
       },
-    },
-    metadata: {
-      kind: "custom_party",
-      user_id: profileId,
-      party_name: name,
-      party_short: shortName,
-      party_color: color,
-      // Logo metadata'ya sığmaz; oturum kimliğiyle geçici tabloya yazılır.
-      has_logo: logo ? "1" : "0",
-    },
-  });
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Stripe oturumu açılamadı.";
+    return json({ error: `Stripe: ${message}` }, 502);
+  }
 
   // Logoyu Stripe metadata'sında taşıyamayız (500 karakter sınırı), bu yüzden
   // oturum kimliğiyle eşleştirip webhook'ta okuyoruz.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Info, Sparkles, X } from "lucide-react";
+import { Crown, Info, Sparkles, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { TurkeyMap, focusProvinceOnMap } from "@/components/TurkeyMap";
 import { NationalPanel } from "@/components/NationalPanel";
@@ -7,9 +7,15 @@ import { ProvinceDetailView } from "@/components/ProvinceDetailView";
 import { ProvinceSearch } from "@/components/ProvinceSearch";
 import { PartyLegend } from "@/components/PartyLegend";
 import { StatsPill } from "@/components/StatsPill";
+import { SeatMarket } from "@/components/SeatMarket";
 import { CreatePartyDialog } from "@/components/CreatePartyDialog";
 import { Button } from "@/components/ui/button";
-import { PARTY_WEEKLY_PRICE, formatUsd } from "@/lib/game";
+import {
+  LEADER_BASE_PRICE,
+  PARTY_WEEKLY_PRICE,
+  XP_PER_LEADER_HOUR,
+  formatUsd,
+} from "@/lib/game";
 import { useGame } from "@/backend/GameProvider";
 import { PROVINCE_BY_ID } from "@/data/provinces";
 import { Card } from "@/components/ui/card";
@@ -54,9 +60,20 @@ export default function Home() {
       {/* Canlı sayaç hapı — sitenin üstünde ortalanmış */}
       <StatsPill />
 
-      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[268px_minmax(0,1fr)_344px]">
+      {/*
+        Mobil sıralama, düğmelerin göze çarpma sırasıyla aynı: harita →
+        başkanlık vitrini → seçili il → ülke geneli. Masaüstünde vitrin sol
+        sütunun en üstünde durur; bunun için satır/sütun açıkça veriliyor,
+        yoksa grid onu ikinci sütuna atıyor.
+      */}
+      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[268px_minmax(0,1fr)_344px] lg:grid-rows-[auto_minmax(0,1fr)]">
+      <SeatMarket
+        onSelectProvince={selectAndFocus}
+        className="order-2 lg:order-none lg:col-start-1 lg:row-start-1"
+      />
+
       {/* Sol: ülke geneli */}
-      <aside className="order-3 space-y-4 lg:order-1">
+      <aside className="order-4 space-y-4 lg:order-none lg:col-start-1 lg:row-start-2">
         <Card className="p-5">
           <NationalPanel onSelectProvince={selectAndFocus} />
         </Card>
@@ -84,7 +101,7 @@ export default function Home() {
       </aside>
 
       {/* Orta: harita */}
-      <section className="order-1 flex flex-col gap-3 lg:order-2">
+      <section className="order-1 flex flex-col gap-3 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
             <ProvinceSearch onPick={selectAndFocus} />
@@ -106,7 +123,7 @@ export default function Home() {
           )}
         </div>
 
-        <div className="glass-flat relative min-h-[54vh] flex-1 overflow-hidden lg:aspect-[2.05/1] lg:min-h-0 lg:flex-none">
+        <div className="glass-flat relative min-h-[46vh] flex-1 overflow-hidden lg:aspect-[2.05/1] lg:min-h-0 lg:flex-none">
           <TurkeyMap standings={standings} selectedId={selected} onSelect={select} />
         </div>
 
@@ -116,7 +133,7 @@ export default function Home() {
       </section>
 
       {/* Sağ: seçili il */}
-      <aside className="order-2 lg:order-3 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)]">
+      <aside className="order-3 lg:order-none lg:col-start-3 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)]">
         {province ? (
           <Card className="flex flex-col p-0 lg:h-full lg:max-h-[min(78vh,calc(100vh-6rem))] lg:overflow-hidden">
             <ProvinceDetailView
@@ -128,10 +145,15 @@ export default function Home() {
           </Card>
         ) : (
           <Card className="p-6 text-center">
-            <h2 className="font-display text-lg font-bold">Bir il seç</h2>
+            <Crown className="mx-auto size-7 text-primary" />
+            <h2 className="mt-2 font-display text-lg font-bold">İl başkanı ol</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Haritadan bir ile tıkla; o ilin parti yüzdelerini gör, oy ver ve il başkanlığını kap.
-              Her il, en çok oyu alan partinin rengine boyanır.
+              Haritadan bir ile tıkla; parti yüzdelerini gör, oy ver ve o ilin başkanlığını kap.
+              Adın ve X hesabın o partinin yanında, ilin sayfasında herkese görünür.
+            </p>
+            <p className="mt-3 text-[13px] text-muted-foreground">
+              Boş koltuk {formatUsd(LEADER_BASE_PRICE)}. Dolu koltuğu devralmak {formatUsd(2)},
+              sonra {formatUsd(3)}, {formatUsd(4)}… Elinde tuttuğun her saat +{XP_PER_LEADER_HOUR} XP.
             </p>
           </Card>
         )}

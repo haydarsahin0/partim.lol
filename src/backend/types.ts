@@ -13,6 +13,13 @@ export type AuthUser = {
    * etiketlenmeli, yoksa taklit kapısı açılır.
    */
   xHandle: string | null;
+  /**
+   * Oyunun kendi açılış hesabı mı? Büyük illerdeki bazı koltuklar oyun
+   * açılırken bu hesaplarla dolduruldu ki devralınacak bir şey olsun.
+   * Arayüzde açıkça rozetleniyor — koltuğu parayla devralan biri karşısında
+   * gerçek bir oyuncu sanmamalı.
+   */
+  isBot?: boolean;
 };
 
 export type Profile = AuthUser & {
@@ -69,6 +76,27 @@ export type ProvinceDetail = {
   seats: LeaderSeat[];
   /** Son oylar (canlı akış hissi için) */
   recentVotes: Array<{ handle: string; partyId: string; at: string }>;
+};
+
+/** Ana sayfadaki başkanlık vitrini için tek satır */
+export type SeatMarketRow = {
+  provinceId: string;
+  partyId: string;
+  holder: AuthUser | null;
+  /** Koltuğun şu anki değeri (boşsa 0) */
+  price: number;
+  /** Devralmak için ödenecek tutar */
+  nextPrice: number;
+  heldSince: string | null;
+};
+
+export type SeatMarketSummary = {
+  /** Ülke genelinde dolu koltuk sayısı */
+  held: number;
+  /** Bu koltuklara bugüne dek ödenen toplam (USD) */
+  volume: number;
+  /** En değerli/çekişmeli koltuklar */
+  hot: SeatMarketRow[];
 };
 
 export type LeaderboardEntry = {
@@ -148,6 +176,11 @@ export interface Backend {
    * okuyan herkes hakkı alırdı.
    */
   claimUnlimited(code: string): Promise<ProfileUpdateResult>;
+  /**
+   * Ana sayfadaki başkanlık vitrini: en değerli koltuklar ve toplam hacim.
+   * Oyunun para kazandıran kısmı bu; ana sayfada görünür olması gerekiyor.
+   */
+  getSeatMarket(limit?: number): Promise<SeatMarketSummary>;
   /** Profil alanlarını günceller (kullanıcı adı, görünen ad, X hesabı, avatar) */
   updateProfile(patch: ProfilePatch): Promise<ProfileUpdateResult>;
   /** Tarayıcı verisi silinmişse hesabı kurtarma koduyla geri alır */

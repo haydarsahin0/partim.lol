@@ -113,7 +113,11 @@ jobs:
         if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' }}
         # Yükleme sunucu tarafında derlenir; Docker gerekmez.
         run: |
+          # Buraya eklenmeyen fonksiyon yüklenmez ve istemci 404 alır —
+          # "kendi partini kur" ödemeye yönlendirmiyordu, sebebi buydu.
           supabase functions deploy create-checkout --project-ref "$PROJECT_REF"
+          supabase functions deploy create-party-subscription --project-ref "$PROJECT_REF"
+          # Webhook'u Stripe çağırır, kullanıcı JWT'si taşımaz.
           supabase functions deploy stripe-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
 
       - name: Özet

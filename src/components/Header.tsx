@@ -5,6 +5,7 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { LevelBadge } from "@/components/LevelBadge";
+import { Wordmark } from "@/components/Logo";
 import { formatDuration, formatNumber, hasUnlimitedVotes } from "@/lib/game";
 import { cn } from "@/lib/utils";
 
@@ -22,13 +23,8 @@ export function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[hsl(225_45%_4%_/_0.72)] backdrop-blur-xl">
       <div className="mx-auto flex h-16 w-full max-w-[1800px] items-center gap-3 px-3 sm:px-5">
-        <Link to="/" className="flex items-center gap-2.5">
-          <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary/90 to-accent/90 font-display text-base font-extrabold text-[#05070f]">
-            p
-          </span>
-          <span className="hidden font-display text-lg font-extrabold tracking-tight sm:block">
-            partim<span className="text-primary">.lol</span>
-          </span>
+        <Link to="/" aria-label="partim.lol ana sayfa">
+          <Wordmark className="flex items-center gap-2" />
         </Link>
 
         <nav className="ml-1 flex items-center gap-0.5">

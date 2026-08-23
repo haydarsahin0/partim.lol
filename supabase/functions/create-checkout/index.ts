@@ -93,32 +93,39 @@ Deno.serve(async (req) => {
   const price = Number(priceData ?? 1);
   if (!Number.isFinite(price) || price <= 0) return json({ error: "Fiyat hesaplanamadı." }, 500);
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    client_reference_id: profileId,
-    // Koltuk fiyatı her devirde değiştiği için sabit Price nesnesi yerine anlık fiyat.
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: "usd",
-          unit_amount: Math.round(price * 100),
-          product_data: {
-            name: `${province.name} · ${party.name} il başkanlığı`,
-            description: "partim.lol oyun içi konum — siyasi bağış değildir.",
+  // Stripe hatası yakalanmazsa istemci sabit "non-2xx" mesajı görür, sebebi değil.
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: profileId,
+      // Koltuk fiyatı her devirde değiştiği için sabit Price nesnesi yerine anlık fiyat.
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: Math.round(price * 100),
+            product_data: {
+              name: `${province.name} · ${party.name} il başkanlığı`,
+              description: "partim.lol oyun içi konum — siyasi bağış değildir.",
+            },
           },
         },
+      ],
+      metadata: {
+        user_id: profileId,
+        province_id: provinceId,
+        party_id: partyId,
+        price: String(price),
       },
-    ],
-    metadata: {
-      user_id: profileId,
-      province_id: provinceId,
-      party_id: partyId,
-      price: String(price),
-    },
-  });
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Stripe oturumu açılamadı.";
+    return json({ error: `Stripe: ${message}` }, 502);
+  }
 
   return json({ url: session.url, price });
 });

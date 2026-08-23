@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ExternalLink, MapPin, Users, X } from "lucide-react";
+import { Crown, ExternalLink, MapPin, Users, X } from "lucide-react";
 import { PROVINCE_BY_ID } from "@/data/provinces";
 import { PARTY_BY_ID, partyColor } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
@@ -12,7 +12,7 @@ import { VoteBallot } from "@/components/VoteBallot";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatNumber, formatPercent, formatSince } from "@/lib/game";
+import { LEADER_BASE_PRICE, formatNumber, formatPercent, formatSince, formatUsd } from "@/lib/game";
 import { cn } from "@/lib/utils";
 
 /** Bir ilin tüm detayları — hem yan panelde hem /il/:id sayfasında kullanılır. */
@@ -50,6 +50,7 @@ export function ProvinceDetailView({
   // Panel açılır açılmaz boş görünmesin diye önce haritadaki özet kullanılır.
   const standing = detail?.standing ?? standings[provinceId];
   const leading = standing?.leadingPartyId ?? null;
+  const heldSeats = detail?.seats.filter((seat) => seat.holder).length ?? 0;
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
@@ -119,6 +120,22 @@ export function ProvinceDetailView({
               fark {formatPercent(standing.margin)}
             </Badge>
           )}
+          {/* Başkanlık, oyunun en dikkat çekmesi gereken kısmı: başlıkta dursun. */}
+          <button
+            type="button"
+            onClick={() => {
+              const nextParams = new URLSearchParams(params);
+              nextParams.set("sekme", "baskanlar");
+              setParams(nextParams, { replace: true });
+            }}
+          >
+            <Badge variant="default" className="gap-1">
+              <Crown className="size-3" />
+              {heldSeats > 0
+                ? `${heldSeats} başkan · devral ${formatUsd(2)}`
+                : `başkanlık boş · ${formatUsd(LEADER_BASE_PRICE)}`}
+            </Badge>
+          </button>
         </div>
       </div>
 
@@ -140,8 +157,13 @@ export function ProvinceDetailView({
             <TabsTrigger value="oy" className="flex-1">
               Oy ver
             </TabsTrigger>
-            <TabsTrigger value="baskanlar" className="flex-1">
+            <TabsTrigger value="baskanlar" className="flex-1 gap-1.5">
               Başkanlar
+              {heldSeats > 0 && (
+                <span className="rounded-full bg-primary/20 px-1.5 text-[10px] font-bold text-primary">
+                  {heldSeats}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 
