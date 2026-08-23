@@ -73,13 +73,13 @@ jobs:
         env:
           X_CONSUMER_KEY: ${{ secrets.X_CONSUMER_KEY }}
           X_CONSUMER_SECRET: ${{ secrets.X_CONSUMER_SECRET }}
-        run: python3 scripts/enable-twitter-auth.py
+        run: scripts/supabase-auth.sh ac
 
       - name: Auth durumunu oku
-        # Her hedefte çalışır; gerçek durumu Supabase'in kendisinden okur.
+        # Önceki adım patlasa da çalışsın: teşhis için asıl değerli çıktı bu.
+        if: ${{ always() }}
         run: |
-          curl -sS -f -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            "https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth" -o auth.json
+          scripts/supabase-auth.sh oku > auth.json
           python3 scripts/auth-status.py auth.json | tee -a "$GITHUB_STEP_SUMMARY"
           rm -f auth.json
 
