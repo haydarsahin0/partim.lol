@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 225 45% 4%;
+    --foreground: 210 40% 98%;
+    --card: 224 40% 7%;
+    --card-foreground: 210 40% 98%;
+    --popover: 224 44% 6%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 187 92% 55%;
+    --primary-foreground: 224 60% 6%;
+    --secondary: 222 30% 14%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 222 26% 13%;
+    --muted-foreground: 215 20% 68%;
+    --accent: 265 85% 65%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 218 30% 18%;
+    --input: 218 30% 18%;
+    --ring: 187 92% 55%;
+    --radius: 0.85rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    /* Nebula sahnesi arkada kalsın diye gövde saydam bir katman gibi davranıyor */
+    background-color: hsl(var(--background));
+  }
+
+  ::selection {
+    @apply bg-primary/30 text-foreground;
+  }
+
+  /* Ana içerik sütunlarında ince kaydırma çubuğu */
+  .thin-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .thin-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .thin-scroll::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+  }
+}
+
+@layer components {
+  /* Nebula üzerinde okunabilirlik için standart cam panel */
+  .glass {
+    @apply rounded-2xl border border-white/10 bg-[hsl(224_44%_6%_/_0.72)] shadow-[0_8px_40px_-12px_rgb(0_0_0_/_0.9)] backdrop-blur-xl;
+  }
+
+  .glass-soft {
+    @apply rounded-xl border border-white/[0.07] bg-white/[0.03] backdrop-blur-md;
+  }
+
+  .stat-label {
+    @apply text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground;
+  }
+}
+
+/* Harita etkileşimi */
+.province-path {
+  transition:
+    fill 220ms ease,
+    filter 160ms ease,
+    opacity 160ms ease;
+  cursor: pointer;
+  outline: none;
+}
+
+.province-path:hover,
+.province-path:focus-visible {
+  filter: brightness(1.45) saturate(1.15);
+}
+
+.province-path[data-selected="true"] {
+  filter: brightness(1.6) saturate(1.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

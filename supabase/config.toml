@@ -1,0 +1,9 @@
+# Supabase CLI yapılandırması — `supabase link` sonrası kullanılır.
+project_id = "partim-lol"
+
+[functions.create-checkout]
+verify_jwt = true
+
+[functions.stripe-webhook]
+# Stripe kendi imzasını gönderir, Supabase JWT'si taşımaz.
+verify_jwt = false
