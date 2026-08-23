@@ -71,9 +71,16 @@ jobs:
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - name: Özel alan adı (varsa)
-        if: ${{ vars.CUSTOM_DOMAIN != '' }}
-        run: echo "${{ vars.CUSTOM_DOMAIN }}" > dist/CNAME
+      - name: Özel alan adını doğrula
+        # Varsayılan alan adı public/CNAME dosyasından gelir (partim.lol).
+        # Farklı bir alan adına geçilecekse depo değişkeni CUSTOM_DOMAIN
+        # tanımlanır ve bu adım dosyanın üzerine yazar.
+        run: |
+          if [ -n "${{ vars.CUSTOM_DOMAIN }}" ]; then
+            echo "${{ vars.CUSTOM_DOMAIN }}" > dist/CNAME
+          fi
+          echo "Yayın alan adı: $(cat dist/CNAME 2>/dev/null || echo '(yok — github.io altında)')" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Jekyll'i devre dışı bırak
         run: touch dist/.nojekyll
