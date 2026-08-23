@@ -4,26 +4,29 @@
 
 @layer base {
   :root {
-    --background: 225 45% 4%;
-    --foreground: 210 40% 98%;
-    --card: 224 40% 7%;
-    --card-foreground: 210 40% 98%;
-    --popover: 224 44% 6%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 187 92% 55%;
-    --primary-foreground: 224 60% 6%;
-    --secondary: 222 30% 14%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 222 26% 13%;
-    --muted-foreground: 215 20% 68%;
-    --accent: 265 85% 65%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 218 30% 18%;
-    --input: 218 30% 18%;
-    --ring: 187 92% 55%;
-    --radius: 0.85rem;
+    /* Koyu, düşük doygunluklu zemin: shader arka planı öne çıksın,
+       cam paneller onun üstünde okunur kalsın. */
+    --background: 222 40% 4%;
+    --foreground: 210 30% 97%;
+    --card: 220 30% 8%;
+    --card-foreground: 210 30% 97%;
+    --popover: 220 34% 7%;
+    --popover-foreground: 210 30% 97%;
+    --primary: 187 96% 56%;
+    --primary-foreground: 220 45% 6%;
+    --secondary: 220 18% 16%;
+    --secondary-foreground: 210 30% 97%;
+    --muted: 220 16% 14%;
+    --muted-foreground: 215 16% 70%;
+    --accent: 268 70% 70%;
+    --accent-foreground: 210 30% 97%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 30% 97%;
+    --border: 216 22% 20%;
+    --input: 216 22% 20%;
+    --ring: 187 96% 56%;
+    /* Apple'ın yumuşak köşe dili: bileşenler bunun katlarını kullanır */
+    --radius: 1rem;
   }
 }
 
@@ -40,23 +43,25 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    /* Nebula sahnesi arkada kalsın diye gövde saydam bir katman gibi davranıyor */
-    background-color: hsl(var(--background));
+    /* Sistem yazı tipi önce: iOS/macOS'ta SF Pro, diğerlerinde Inter */
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    /* iOS'ta çift dokunuşla yakınlaşmayı kapat; haritanın kendi jesti var */
+    touch-action: manipulation;
   }
 
   ::selection {
-    @apply bg-primary/30 text-foreground;
+    @apply bg-primary/25 text-foreground;
   }
 
-  /* Ana içerik sütunlarında ince kaydırma çubuğu */
   .thin-scroll {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
   }
   .thin-scroll::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
   .thin-scroll::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
@@ -65,37 +70,80 @@
 }
 
 @layer components {
-  /* Nebula üzerinde okunabilirlik için standart cam panel */
+  /*
+   * Buğulu cam sistemi.
+   *
+   * Üç katman: doygunluğu artıran bulanık zemin, üstte ince bir aydınlık
+   * kenar (Apple'daki "hairline"), altta yumuşak gölge. saturate() olmadan
+   * cam soluk görünüyor — asıl premium hissi veren o.
+   */
   .glass {
-    @apply rounded-2xl border border-white/10 bg-[hsl(224_44%_6%_/_0.72)] shadow-[0_8px_40px_-12px_rgb(0_0_0_/_0.9)] backdrop-blur-xl;
+    @apply relative rounded-[var(--radius)] border border-white/[0.09]
+      bg-white/[0.045] shadow-[0_1px_0_0_rgb(255_255_255_/_0.06)_inset,0_16px_50px_-24px_rgb(0_0_0_/_0.9)];
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
   }
 
+  /* Daha hafif cam: iç içe kutular için */
   .glass-soft {
-    @apply rounded-xl border border-white/[0.07] bg-white/[0.03] backdrop-blur-md;
+    @apply rounded-[calc(var(--radius)-0.25rem)] border border-white/[0.07] bg-white/[0.03];
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+  }
+
+  /* Yüzen kontroller: hap şeklinde, üstte durur */
+  .glass-pill {
+    @apply rounded-full border border-white/[0.1] bg-white/[0.06]
+      shadow-[0_1px_0_0_rgb(255_255_255_/_0.08)_inset,0_10px_30px_-14px_rgb(0_0_0_/_0.85)];
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
   }
 
   .stat-label {
-    @apply text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground;
+    @apply text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground;
+  }
+
+  /* Canlı göstergesi: yeşil nokta + yumuşak nabız */
+  .live-dot {
+    @apply relative inline-block size-2 rounded-full bg-emerald-400;
+  }
+  .live-dot::after {
+    content: "";
+    @apply absolute inset-0 rounded-full bg-emerald-400;
+    animation: live-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  @keyframes live-ping {
+    0% {
+      transform: scale(1);
+      opacity: 0.7;
+    }
+    80%,
+    100% {
+      transform: scale(2.4);
+      opacity: 0;
+    }
   }
 }
 
 /* Harita etkileşimi */
 .province-path {
-  transition:
-    fill 220ms ease,
-    filter 160ms ease,
-    opacity 160ms ease;
-  cursor: pointer;
+  /* fill/fill-opacity BİLEREK geçişsiz: ilk çizimde iller nötr renkte, oy
+     verileri gelince parti rengine dönüyor. Aradaki CSS geçişi bazı tarayıcı
+     ve derleme yollarında takılıp haritayı gri bırakıyordu. Renk doğruluğu
+     yumuşak geçişten önemli. */
+  transition: filter 160ms ease;
   outline: none;
 }
 
-.province-path:hover,
-.province-path:focus-visible {
-  filter: brightness(1.45) saturate(1.15);
+@media (hover: hover) {
+  .province-path:hover {
+    filter: brightness(1.35) saturate(1.1);
+  }
 }
 
-.province-path[data-selected="true"] {
-  filter: brightness(1.6) saturate(1.2);
+.province-path:focus-visible {
+  filter: brightness(1.45);
 }
 
 @media (prefers-reduced-motion: reduce) {

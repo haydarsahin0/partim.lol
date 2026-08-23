@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Crown, Sparkles, Timer, Vote } from "lucide-react";
+import { CreatePartyDialog } from "@/components/CreatePartyDialog";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import type { LeaderSeat } from "@/backend/types";
@@ -13,6 +14,7 @@ import { LevelBadge } from "@/components/LevelBadge";
 import { SignInDialog } from "@/components/SignInDialog";
 import { XLogo } from "@/components/XLogo";
 import {
+  PARTY_WEEKLY_PRICE,
   XP_PER_LEADER_HOUR,
   formatDuration,
   formatNumber,
@@ -44,6 +46,7 @@ export default function ProfilePage() {
   const { backend, user, profile } = useGame();
   const [seats, setSeats] = useState<LeaderSeat[]>([]);
   const [signInOpen, setSignInOpen] = useState(false);
+  const [partyOpen, setPartyOpen] = useState(false);
   const cooldown = useCountdown(profile?.nextVoteAt);
 
   useEffect(() => {
@@ -114,7 +117,27 @@ export default function ProfilePage() {
       </div>
 
       <Card className="p-5">
-        <h2 className="mb-3 font-display text-base font-bold">İl başkanlıklarım</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-display text-base font-semibold tracking-[-0.02em]">
+              Kendi partin
+            </h2>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Haftalık {formatUsd(PARTY_WEEKLY_PRICE)} — 81 ilin pusulasına gir, haritayı kendi
+              renginle boya.
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => setPartyOpen(true)}>
+            <Sparkles />
+            Parti kur
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <h2 className="mb-3 font-display text-base font-semibold tracking-[-0.02em]">
+          İl başkanlıklarım
+        </h2>
         {seats.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Henüz bir koltuğun yok. Haritadan bir il seç, sevdiğin partinin il başkanlığını{" "}
@@ -157,6 +180,7 @@ export default function ProfilePage() {
           </ul>
         )}
       </Card>
+      <CreatePartyDialog open={partyOpen} onOpenChange={setPartyOpen} />
     </div>
   );
 }

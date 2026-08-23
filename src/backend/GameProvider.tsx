@@ -9,11 +9,20 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import { partyName } from "@/data/parties";
+import { PARTIES, partyName, setCustomParties, type Party } from "@/data/parties";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { getBackend } from "./index";
 import { DemoBackend } from "./demoBackend";
-import type { AuthUser, Backend, LeaderSeat, Profile, ProvinceStanding } from "./types";
+import type {
+  AuthUser,
+  Backend,
+  CreatePartyResult,
+  CustomPartyInput,
+  LeaderSeat,
+  Profile,
+  ProvinceStanding,
+  SiteStats,
+} from "./types";
 
 type GameContextValue = {
   backend: Backend;
@@ -21,6 +30,9 @@ type GameContextValue = {
   user: AuthUser | null;
   profile: Profile | null;
   standings: Record<string, ProvinceStanding>;
+  /** Sabit partiler + kullanıcıların kurdukları */
+  parties: Party[];
+  stats: SiteStats;
   /** Ülke geneli parti toplamları, oy sırasına göre */
   national: Array<{ partyId: string; votes: number; pct: number; provinces: number }>;
   totalVotes: number;
@@ -32,6 +44,7 @@ type GameContextValue = {
   signOut: () => Promise<void>;
   vote: (provinceId: string, partyId: string) => Promise<boolean>;
   claimSeat: (provinceId: string, partyId: string) => Promise<LeaderSeat | null>;
+  createParty: (input: CustomPartyInput) => Promise<CreatePartyResult>;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -43,6 +56,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [standings, setStandings] = useState<Record<string, ProvinceStanding>>({});
+  const [parties, setParties] = useState<Party[]>(PARTIES);
+  const [stats, setStats] = useState<SiteStats>({ online: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
@@ -68,6 +83,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, [backend]);
 
+  /** Özel partileri canlı dizine yazar ve yeniden çizimi tetikler. */
+  const refreshParties = useCallback(async () => {
+    try {
+      const custom = await backend.getCustomParties();
+      setCustomParties(custom);
+      if (mounted.current) setParties([...PARTIES]);
+    } catch {
+      /* özel partiler alınamazsa sabit liste yeterli */
+    }
+  }, [backend]);
+
+  const refreshStats = useCallback(async () => {
+    try {
+      const next = await backend.getStats();
+      if (mounted.current) setStats(next);
+    } catch {
+      /* sayaç kritik değil */
+    }
+  }, [backend]);
+
   const refreshProfile = useCallback(async () => {
     try {
       const next = await backend.getProfile();
@@ -82,7 +117,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     void (async () => {
       const current = await backend.getUser();
       if (!cancelled) setUser(current);
-      await Promise.all([refresh(), refreshProfile()]);
+      // Partiler önce yüklensin: harita boyaması onlara bağlı.
+      await refreshParties();
+      await Promise.all([refresh(), refreshProfile(), refreshStats()]);
     })();
     const unsubscribe = backend.onAuthChange((next) => {
       setUser(next);
@@ -92,7 +129,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       unsubscribe();
     };
-  }, [backend, refresh, refreshProfile]);
+  }, [backend, refresh, refreshProfile, refreshParties, refreshStats]);
 
   // İl başkanlığı XP'si saat başı işlendiği için profili düzenli tazeliyoruz.
   useEffect(() => {
@@ -100,6 +137,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const id = window.setInterval(() => void refreshProfile(), 60_000);
     return () => window.clearInterval(id);
   }, [user, refreshProfile]);
+
+  // Canlı sayaç: hap "canlı" hissettirsin diye 20 saniyede bir tazelenir.
+  useEffect(() => {
+    const id = window.setInterval(() => void refreshStats(), 20_000);
+    return () => window.clearInterval(id);
+  }, [refreshStats]);
 
   const signIn = useCallback(
     async (handle?: string) => {
@@ -162,6 +205,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [backend],
   );
 
+  const createParty = useCallback(
+    async (input: CustomPartyInput) => {
+      const result = await backend.createParty(input);
+      if (result.kind === "error") {
+        toast.error(result.message);
+        return result;
+      }
+      if (result.kind === "redirect") {
+        window.location.assign(result.url);
+        return result;
+      }
+      await refreshParties();
+      toast.success(`${input.name} kuruldu! Artık haritada oy alabilir.`);
+      return result;
+    },
+    [backend, refreshParties],
+  );
+
   const { national, totalVotes } = useMemo(() => {
     const byParty = new Map<string, { votes: number; provinces: number }>();
     let total = 0;
@@ -196,6 +257,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     user,
     profile,
     standings,
+    parties,
+    stats,
     national,
     totalVotes,
     loading,
@@ -206,6 +269,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     signOut,
     vote,
     claimSeat,
+    createParty,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

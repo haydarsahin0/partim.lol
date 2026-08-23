@@ -190,6 +190,25 @@ select * from seat_purchases where status = 'stale' order by created_at desc;
 
 ---
 
+### 2.4 Kendi partisini kurma (haftalık abonelik)
+
+Parti kurma $9/hafta abonelik ister ve `create-party-subscription` fonksiyonuyla
+çalışır. Faz 2'deki adımlar bittiyse fonksiyon zaten yüklendi; ek olarak:
+
+1. Stripe webhook uç noktasına **`invoice.paid`** olayını da ekleyin.
+   Parti ilk ödemede açılır, her yenilemede süresi uzar.
+2. Süresi dolan partileri kapatmak için pg_cron'a ikinci bir iş ekleyin:
+
+   ```sql
+   select cron.schedule('partim-expire-parties', '10 * * * *',
+     $$select public.expire_custom_parties()$$);
+   ```
+
+Renk yakınlığı hem istemcide hem edge fonksiyonunda denetlenir: seçilen renk
+mevcut partilerden algısal olarak yeterince uzak değilse ödeme başlatılmaz.
+
+---
+
 ## Faz 3 — partim.lol alan adı
 
 1. Alan adı sağlayıcının DNS panelinde:

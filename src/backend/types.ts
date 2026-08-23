@@ -1,3 +1,5 @@
+import type { Party } from "@/data/parties";
+
 export type AuthUser = {
   id: string;
   /** @ olmadan Twitter/X kullanıcı adı */
@@ -78,6 +80,30 @@ export type CheckoutResult =
   | { kind: "done"; seat: LeaderSeat; profile: Profile }
   | { kind: "error"; message: string };
 
+/** Üstteki hap için canlı sayaçlar */
+export type SiteStats = {
+  /** Son birkaç dakikada aktif olan kullanıcı */
+  online: number;
+  /** Açılıştan bu yana toplam ziyaretçi */
+  total: number;
+};
+
+/** Kullanıcının kurduğu parti */
+export type CustomPartyInput = {
+  name: string;
+  /** 2–6 harf */
+  shortName: string;
+  /** #RRGGBB */
+  color: string;
+  /** Yüklenen logo, data URI olarak (isteğe bağlı) */
+  logoDataUrl: string | null;
+};
+
+export type CreatePartyResult =
+  | { kind: "redirect"; url: string }
+  | { kind: "done"; partyId: string }
+  | { kind: "error"; message: string };
+
 export type BackendMode = "demo" | "supabase";
 
 export interface Backend {
@@ -97,9 +123,15 @@ export interface Backend {
   getLeaderboard(limit?: number): Promise<LeaderboardEntry[]>;
   /** Kullanıcının sahip olduğu koltuklar */
   getMySeats(): Promise<LeaderSeat[]>;
+  /** Üstteki hapta gösterilen canlı sayaçlar */
+  getStats(): Promise<SiteStats>;
+  /** Kullanıcıların kurduğu partiler */
+  getCustomParties(): Promise<Party[]>;
 
   /* --- eylemler --- */
   castVote(provinceId: string, partyId: string): Promise<VoteResult>;
   /** İl başkanlığı için Stripe ödemesini başlatır */
   claimSeat(provinceId: string, partyId: string): Promise<CheckoutResult>;
+  /** Haftalık abonelikle yeni bir parti kurar */
+  createParty(input: CustomPartyInput): Promise<CreatePartyResult>;
 }

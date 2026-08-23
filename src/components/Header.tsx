@@ -90,7 +90,7 @@ export function Header() {
               </Button>
             </div>
           ) : (
-            <Button onClick={() => setSignInOpen(true)}>
+            <Button aria-label="Giriş yap" onClick={() => setSignInOpen(true)}>
               <XLogo />
               <span className="hidden sm:inline">Giriş yap</span>
             </Button>

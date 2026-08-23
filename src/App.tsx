@@ -3,7 +3,7 @@ import { HashRouter, Link, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { GameProvider } from "@/backend/GameProvider";
 import { Header } from "@/components/Header";
-import { QuantumNebula } from "@/components/ui/quantum-nebula";
+import { NeuroNoise } from "@/components/ui/neuro-noise";
 import { Skeleton } from "@/components/ui/skeleton";
 import Home from "@/pages/Home";
 
@@ -54,8 +54,9 @@ export default function App() {
       <GameProvider>
         {/* Arka plan sahnesi: sabit, etkileşimsiz, içeriğin arkasında */}
         <div className="pointer-events-none fixed inset-0 -z-10">
-          <QuantumNebula className="absolute inset-0 h-full w-full opacity-75" />
-          <div className="absolute inset-0 bg-[radial-gradient(130%_100%_at_50%_-5%,transparent_25%,hsl(225_45%_4%_/_0.6)_80%)]" />
+          <NeuroNoise className="absolute inset-0 h-full w-full" />
+          {/* İçeriğin okunabilir kalması için sahnenin üstüne yumuşak bir örtü */}
+          <div className="absolute inset-0 bg-[radial-gradient(120%_100%_at_50%_0%,hsl(222_40%_4%_/_0.45)_0%,hsl(222_40%_4%_/_0.78)_60%,hsl(222_40%_4%_/_0.92)_100%)]" />
         </div>
 
         <div className="flex min-h-full flex-col">

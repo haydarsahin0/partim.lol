@@ -45,11 +45,62 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Haftalık parti aboneliği: ilk ödeme ve her yenileme partiyi uzatır.
+  if (event.type === "invoice.paid") {
+    const invoice = event.data.object as Stripe.Invoice;
+    const subscriptionId =
+      typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id;
+    if (!subscriptionId) {
+      return new Response(JSON.stringify({ received: true, ignored: "abonelik yok" }), { status: 200 });
+    }
+
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const meta = subscription.metadata ?? {};
+    if (meta.kind !== "custom_party") {
+      return new Response(JSON.stringify({ received: true, ignored: "parti aboneliği değil" }), {
+        status: 200,
+      });
+    }
+
+    // İlk ödemede logo, Checkout oturumuna bağlı geçici satırda duruyor.
+    let logoUrl: string | null = null;
+    const sessionId = typeof invoice.checkout === "string" ? invoice.checkout : null;
+    if (sessionId) {
+      const { data: pending } = await admin
+        .from("pending_party_logos")
+        .select("logo_url")
+        .eq("session_id", sessionId)
+        .maybeSingle();
+      logoUrl = pending?.logo_url ?? null;
+      if (logoUrl) await admin.from("pending_party_logos").delete().eq("session_id", sessionId);
+    }
+
+    const periodEnd = new Date((subscription.current_period_end ?? 0) * 1000).toISOString();
+    const { data, error } = await admin.rpc("apply_party_subscription", {
+      p_subscription_id: subscriptionId,
+      p_user_id: meta.user_id,
+      p_name: meta.party_name,
+      p_short_name: meta.party_short,
+      p_color: meta.party_color,
+      p_logo_url: logoUrl,
+      p_period_end: periodEnd,
+    });
+    if (error) {
+      console.error("apply_party_subscription hatası", error);
+      return new Response(error.message, { status: 500 });
+    }
+    return new Response(JSON.stringify({ received: true, result: data }), { status: 200 });
+  }
+
   if (event.type !== "checkout.session.completed") {
     return new Response(JSON.stringify({ received: true }), { status: 200 });
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
+  // Parti abonelikleri invoice.paid ile işlenir; burada karışmasın.
+  if (session.mode === "subscription" || session.metadata?.kind === "custom_party") {
+    return new Response(JSON.stringify({ received: true, ignored: "abonelik" }), { status: 200 });
+  }
   if (session.payment_status !== "paid") {
     return new Response(JSON.stringify({ received: true, ignored: "ödenmemiş" }), { status: 200 });
   }

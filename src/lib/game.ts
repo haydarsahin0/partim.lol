@@ -12,6 +12,13 @@ export const XP_PER_VOTE = 1;
 /** İl başkanı olarak geçirilen her saat için XP */
 export const XP_PER_LEADER_HOUR = 20;
 
+/** Kendi partisini kurmanın haftalık ücreti (USD) */
+export const PARTY_WEEKLY_PRICE = 9;
+
+/** Parti kısaltması bu aralıkta olmalı */
+export const PARTY_SHORT_MIN = 2;
+export const PARTY_SHORT_MAX = 6;
+
 /** Boş bir il başkanlığının açılış fiyatı (USD) */
 export const LEADER_BASE_PRICE = 1;
 

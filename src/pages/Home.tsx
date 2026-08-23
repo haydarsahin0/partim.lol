@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react";
-import { Info, X } from "lucide-react";
+import { Info, Sparkles, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { TurkeyMap, focusProvinceOnMap } from "@/components/TurkeyMap";
 import { NationalPanel } from "@/components/NationalPanel";
 import { ProvinceDetailView } from "@/components/ProvinceDetailView";
 import { ProvinceSearch } from "@/components/ProvinceSearch";
 import { PartyLegend } from "@/components/PartyLegend";
+import { StatsPill } from "@/components/StatsPill";
+import { CreatePartyDialog } from "@/components/CreatePartyDialog";
+import { SignInDialog } from "@/components/SignInDialog";
+import { Button } from "@/components/ui/button";
+import { PARTY_WEEKLY_PRICE, formatUsd } from "@/lib/game";
 import { useGame } from "@/backend/GameProvider";
 import { PROVINCE_BY_ID } from "@/data/provinces";
 import { Card } from "@/components/ui/card";
 
 export default function Home() {
-  const { standings } = useGame();
+  const { standings, user } = useGame();
   const [params, setParams] = useSearchParams();
   const selected = params.get("il");
 
@@ -43,14 +48,38 @@ export default function Home() {
   }, [showHint]);
 
   const province = selected ? PROVINCE_BY_ID[selected] : null;
+  const [partyOpen, setPartyOpen] = useState(false);
+  const [signInOpen, setSignInOpen] = useState(false);
 
   return (
-    <div className="mx-auto grid w-full max-w-[1800px] flex-1 grid-cols-1 gap-4 p-3 sm:p-4 lg:grid-cols-[300px_minmax(0,1fr)_380px]">
+    <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-3 p-3 sm:p-4">
+      {/* Canlı sayaç hapı — sitenin üstünde ortalanmış */}
+      <StatsPill />
+
+      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[300px_minmax(0,1fr)_380px]">
       {/* Sol: ülke geneli */}
       <aside className="order-3 space-y-4 lg:order-1">
         <Card className="p-5">
           <NationalPanel onSelectProvince={selectAndFocus} />
         </Card>
+        <Card className="p-5">
+          <h3 className="font-display text-base font-semibold tracking-[-0.02em]">
+            Kendi partini kur
+          </h3>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+            Haftalık {formatUsd(PARTY_WEEKLY_PRICE)}. Adını, kısaltmanı, logonu ve rengini seç;
+            partin 81 ilin pusulasına girsin.
+          </p>
+          <Button
+            variant="primary"
+            className="mt-3.5 w-full"
+            onClick={() => (user ? setPartyOpen(true) : setSignInOpen(true))}
+          >
+            <Sparkles />
+            Parti kur
+          </Button>
+        </Card>
+
         <Card className="p-5 lg:hidden">
           <PartyLegend />
         </Card>
@@ -65,7 +94,8 @@ export default function Home() {
           {showHint && (
             <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-[hsl(224_44%_6%_/_0.7)] px-3 py-2 text-xs text-muted-foreground backdrop-blur-md">
               <Info className="size-3.5 shrink-0" />
-              <span>Tekerlekle yakınlaş, sürükleyerek gez, ile tıkla.</span>
+              <span className="hidden sm:inline">Tekerlekle yakınlaş, sürükleyerek gez, ile tıkla.</span>
+              <span className="sm:hidden">İki parmakla yakınlaş, sürükleyerek gez, ile dokun.</span>
               <button
                 type="button"
                 onClick={() => setShowHint(false)}
@@ -78,7 +108,7 @@ export default function Home() {
           )}
         </div>
 
-        <Card className="relative flex-1 overflow-hidden p-0">
+        <Card className="relative flex-1 overflow-hidden p-0 lg:aspect-[1000/430] lg:flex-none">
           <TurkeyMap standings={standings} selectedId={selected} onSelect={select} />
         </Card>
 
@@ -108,6 +138,10 @@ export default function Home() {
           </Card>
         )}
       </aside>
+      </div>
+
+      <CreatePartyDialog open={partyOpen} onOpenChange={setPartyOpen} />
+      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
     </div>
   );
 }

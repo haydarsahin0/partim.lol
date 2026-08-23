@@ -14,133 +14,257 @@ type Props = {
   className?: string;
 };
 
+/** k = yakınlaştırma, x/y = viewBox biriminde kaydırma */
 type View = { k: number; x: number; y: number };
 
 const MIN_K = 1;
-const MAX_K = 9;
-/** Bu alanın altındaki iller ancak yakınlaşınca etiketlenir */
-const LABEL_AREA = 900;
+const MAX_K = 14;
+const { width: W, height: H } = MAP_VIEWBOX;
+const CX = W / 2;
+const CY = H / 2;
+
+/**
+ * Ekran koordinatı (viewBox birimi) ile dünya koordinatı arasındaki dönüşüm.
+ *
+ * Uygulanan transform:  translate(CX,CY) scale(k) translate(-CX+x, -CY+y)
+ *   ekran = C + k * (dünya - C + v)
+ * Tersi aşağıda. Hem parmakla sürüklemede hem de yakınlaştırmada "tutulan
+ * nokta parmağın altında kalsın" davranışını bu iki fonksiyon sağlıyor.
+ */
+const toWorld = (local: { x: number; y: number }, view: View) => ({
+  x: CX + (local.x - CX) / view.k - view.x,
+  y: CY + (local.y - CY) / view.k - view.y,
+});
+
+const offsetFor = (local: { x: number; y: number }, world: { x: number; y: number }, k: number) => ({
+  x: CX + (local.x - CX) / k - world.x,
+  y: CY + (local.y - CY) / k - world.y,
+});
+
+function clampView(next: View): View {
+  const k = Math.min(MAX_K, Math.max(MIN_K, next.k));
+  const maxX = (W * (k - 1)) / k / 2;
+  const maxY = (H * (k - 1)) / k / 2;
+  return {
+    k,
+    x: Math.min(maxX, Math.max(-maxX, next.x)),
+    y: Math.min(maxY, Math.max(-maxY, next.y)),
+  };
+}
 
 export function TurkeyMap({ standings, selectedId, onSelect, className }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
   const [view, setView] = useState<View>({ k: 1, x: 0, y: 0 });
+  const viewRef = useRef(view);
+  const targetRef = useRef(view);
+  const rafRef = useRef(0);
+
+  /** Kapsayıcının ekran boyutu — etiketleri piksel cinsinden sabit tutmak için */
+  const [box, setBox] = useState({ width: 0, height: 0 });
   const [hovered, setHovered] = useState<Province | null>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
-  const drag = useRef<{ id: number; x: number; y: number; captured: boolean } | null>(null);
-  /** Sürükleme bitince gelen tıklamayı yut; her yeni basışta sıfırlanır. */
-  const draggedRef = useRef(false);
 
-  const { width, height } = MAP_VIEWBOX;
+  /* -------------------------- görünüm animasyonu -------------------------- */
 
-  /** Görüntüyü haritanın dışına kaçmayacak şekilde sınırla */
-  const clamp = useCallback(
-    (next: View): View => {
-      const k = Math.min(MAX_K, Math.max(MIN_K, next.k));
-      const maxX = (width * (k - 1)) / k / 2;
-      const maxY = (height * (k - 1)) / k / 2;
-      return {
-        k,
-        x: Math.min(maxX, Math.max(-maxX, next.x)),
-        y: Math.min(maxY, Math.max(-maxY, next.y)),
-      };
-    },
-    [width, height],
-  );
-
-  /** Ekran koordinatını viewBox koordinatına çevirir */
-  const toLocal = useCallback((clientX: number, clientY: number) => {
-    const svg = svgRef.current;
-    if (!svg) return { x: 0, y: 0 };
-    const rect = svg.getBoundingClientRect();
-    const scale = Math.min(rect.width / MAP_VIEWBOX.width, rect.height / MAP_VIEWBOX.height);
-    const offsetX = (rect.width - MAP_VIEWBOX.width * scale) / 2;
-    const offsetY = (rect.height - MAP_VIEWBOX.height * scale) / 2;
-    return {
-      x: (clientX - rect.left - offsetX) / scale,
-      y: (clientY - rect.top - offsetY) / scale,
+  const tick = useCallback(() => {
+    const cur = viewRef.current;
+    const target = targetRef.current;
+    // Kritik sönümlemeye yakın bir yaklaşma: hızlı başlar, yumuşak durur.
+    const f = 0.24;
+    const next: View = {
+      k: cur.k + (target.k - cur.k) * f,
+      x: cur.x + (target.x - cur.x) * f,
+      y: cur.y + (target.y - cur.y) * f,
     };
+    const settled =
+      Math.abs(next.k - target.k) < 0.0004 &&
+      Math.abs(next.x - target.x) < 0.04 &&
+      Math.abs(next.y - target.y) < 0.04;
+
+    viewRef.current = settled ? target : next;
+    setView(viewRef.current);
+    rafRef.current = settled ? 0 : requestAnimationFrame(tick);
   }, []);
 
-  const zoomAt = useCallback(
-    (factor: number, focusX: number, focusY: number) => {
-      setView((prev) => {
-        const k = Math.min(MAX_K, Math.max(MIN_K, prev.k * factor));
-        if (k === prev.k) return prev;
-        // Odak noktası sabit kalsın diye kaydırmayı yeniden hesapla
-        const cx = width / 2;
-        const cy = height / 2;
-        const worldX = (focusX - cx) / prev.k - prev.x;
-        const worldY = (focusY - cy) / prev.k - prev.y;
-        return clamp({ k, x: (focusX - cx) / k - worldX, y: (focusY - cy) / k - worldY });
-      });
+  /**
+   * `immediate` doğrudan dokunma içindir (sürükleme, kıstırma): orada araya
+   * yumuşatma girerse hareket parmağın gerisinde kalıyor ve "ağır" hissettiriyor.
+   * Tekerlek ve düğmeler animasyonlu gider.
+   */
+  const applyView = useCallback(
+    (next: View, immediate = false) => {
+      const clamped = clampView(next);
+      targetRef.current = clamped;
+      if (immediate) {
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = 0;
+        }
+        viewRef.current = clamped;
+        setView(clamped);
+        return;
+      }
+      if (!rafRef.current) rafRef.current = requestAnimationFrame(tick);
     },
-    [clamp, width, height],
+    [tick],
   );
 
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<SVGSVGElement>) => {
-      e.preventDefault();
-      const { x, y } = toLocal(e.clientX, e.clientY);
-      zoomAt(e.deltaY < 0 ? 1.18 : 1 / 1.18, x, y);
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+
+  /* ---------------------------- ölçü takibi ------------------------------- */
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setBox({ width, height });
+    });
+    observer.observe(el);
+    setBox({ width: el.clientWidth, height: el.clientHeight });
+    return () => observer.disconnect();
+  }, []);
+
+  /** viewBox birimi → CSS pikseli (yakınlaştırma hariç) */
+  const fitScale = box.width > 0 ? Math.min(box.width / W, box.height / H) : 0;
+  /** viewBox birimi → CSS pikseli (yakınlaştırma dâhil) */
+  const screenScale = fitScale * view.k;
+
+  const toLocal = useCallback(
+    (clientX: number, clientY: number) => {
+      const svg = svgRef.current;
+      if (!svg || !fitScale) return { x: CX, y: CY };
+      const rect = svg.getBoundingClientRect();
+      const offsetX = (rect.width - W * fitScale) / 2;
+      const offsetY = (rect.height - H * fitScale) / 2;
+      return {
+        x: (clientX - rect.left - offsetX) / fitScale,
+        y: (clientY - rect.top - offsetY) / fitScale,
+      };
     },
-    [toLocal, zoomAt],
+    [fitScale],
   );
 
-  // React'in pasif wheel dinleyicisi preventDefault'a izin vermediği için
-  // tekerlek olayını elle, pasif olmayan modda bağlıyoruz.
+  const zoomBy = useCallback(
+    (factor: number, local: { x: number; y: number }, immediate = false) => {
+      const base = immediate ? viewRef.current : targetRef.current;
+      const k = Math.min(MAX_K, Math.max(MIN_K, base.k * factor));
+      if (k === base.k) return;
+      const world = toWorld(local, base);
+      applyView({ k, ...offsetFor(local, world, k) }, immediate);
+    },
+    [applyView],
+  );
+
+  /* ------------------------- işaretçi jestleri ---------------------------- */
+
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  /** Kıstırma başlangıcındaki durum */
+  const pinch = useRef<{ distance: number; k: number; world: { x: number; y: number } } | null>(null);
+  /** Tek parmakla sürüklemede sabit tutulan dünya noktası */
+  const grab = useRef<{ world: { x: number; y: number }; moved: boolean } | null>(null);
+  const draggedRef = useRef(false);
+
+  const midpoint = () => {
+    const list = [...pointers.current.values()];
+    const sum = list.reduce((a, p) => ({ x: a.x + p.x, y: a.y + p.y }), { x: 0, y: 0 });
+    return { x: sum.x / list.length, y: sum.y / list.length };
+  };
+  const spread = () => {
+    const [a, b] = [...pointers.current.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    if (pointers.current.size === 1) {
+      draggedRef.current = false;
+      grab.current = { world: toWorld(toLocal(e.clientX, e.clientY), viewRef.current), moved: false };
+      pinch.current = null;
+    } else if (pointers.current.size === 2) {
+      const mid = midpoint();
+      grab.current = null;
+      pinch.current = {
+        distance: spread(),
+        k: viewRef.current.k,
+        world: toWorld(toLocal(mid.x, mid.y), viewRef.current),
+      };
+      // İki parmağa geçildiği an tıklama sayılmasın
+      draggedRef.current = true;
+    }
+  };
+
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === "mouse") setCursor({ x: e.clientX, y: e.clientY });
+
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.current.size >= 2 && pinch.current) {
+      const mid = midpoint();
+      const distance = spread();
+      if (distance <= 0 || pinch.current.distance <= 0) return;
+      const k = Math.min(MAX_K, Math.max(MIN_K, pinch.current.k * (distance / pinch.current.distance)));
+      applyView({ k, ...offsetFor(toLocal(mid.x, mid.y), pinch.current.world, k) }, true);
+      return;
+    }
+
+    const held = grab.current;
+    if (!held) return;
+    const local = toLocal(e.clientX, e.clientY);
+    if (!held.moved) {
+      // Küçük titremeleri sürükleme sayma; yoksa her dokunuş tıklamayı yutar.
+      const start = offsetFor(local, held.world, viewRef.current.k);
+      const moved = Math.hypot(start.x - viewRef.current.x, start.y - viewRef.current.y) * fitScale;
+      if (moved < 4) return;
+      held.moved = true;
+      draggedRef.current = true;
+    }
+    applyView({ k: viewRef.current.k, ...offsetFor(local, held.world, viewRef.current.k) }, true);
+  };
+
+  const endPointer = (e: React.PointerEvent<SVGSVGElement>) => {
+    pointers.current.delete(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    if (pointers.current.size < 2) pinch.current = null;
+    if (pointers.current.size === 0) {
+      grab.current = null;
+    } else if (pointers.current.size === 1) {
+      // Bir parmak kalkınca kalanla sürüklemeye devam et
+      const [only] = [...pointers.current.values()];
+      grab.current = { world: toWorld(toLocal(only.x, only.y), viewRef.current), moved: true };
+    }
+  };
+
+  // React'in tekerlek dinleyicisi pasif olduğu için preventDefault edemiyoruz;
+  // elle, pasif olmayan modda bağlıyoruz.
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const { x, y } = toLocal(e.clientX, e.clientY);
-      zoomAt(e.deltaY < 0 ? 1.18 : 1 / 1.18, x, y);
+      // Trackpad'de pinch, ctrlKey ile gelir ve daha ince adımlar ister.
+      const factor = Math.exp((-e.deltaY * (e.ctrlKey ? 0.012 : 0.0022)) / 1);
+      zoomBy(factor, toLocal(e.clientX, e.clientY), e.ctrlKey);
     };
     svg.addEventListener("wheel", onWheel, { passive: false });
     return () => svg.removeEventListener("wheel", onWheel);
-  }, [toLocal, zoomAt]);
+  }, [toLocal, zoomBy]);
 
-  // Pointer yakalama BİLEREK basış anında yapılmıyor: yakalama açıkken Chromium
-  // uyumluluk fare olaylarını da SVG köküne yönlendiriyor ve il yollarının click
-  // olayı hiç tetiklenmiyor. Yakalamayı ancak gerçekten sürükleme başlayınca açıyoruz.
-  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (e.button !== 0) return;
-    draggedRef.current = false;
-    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, captured: false };
-  };
-
-  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    setCursor({ x: e.clientX, y: e.clientY });
-    const d = drag.current;
-    if (!d || d.id !== e.pointerId) return;
-    const dx = e.clientX - d.x;
-    const dy = e.clientY - d.y;
-    if (!d.captured) {
-      if (Math.hypot(dx, dy) < 4) return;
-      d.captured = true;
-      draggedRef.current = true;
-      e.currentTarget.setPointerCapture(e.pointerId);
-    }
-    d.x = e.clientX;
-    d.y = e.clientY;
-    const rect = svgRef.current?.getBoundingClientRect();
-    const scale = rect ? Math.min(rect.width / width, rect.height / height) : 1;
-    setView((prev) => clamp({ ...prev, x: prev.x + dx / (scale * prev.k), y: prev.y + dy / (scale * prev.k) }));
-  };
-
-  const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (drag.current?.captured && e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-    drag.current = null;
-  };
-
-  /** Seçili ile yumuşakça odaklan */
+  /** Dışarıdan bir ile odaklan */
   const focusProvince = useCallback(
-    (province: Province, k = 3.4) => {
-      setView(clamp({ k, x: width / 2 - province.cx, y: height / 2 - province.cy }));
+    (province: Province) => {
+      const k = Math.min(MAX_K, Math.max(3, 2600 / Math.sqrt(Math.max(province.area, 1))));
+      applyView({ k, x: CX - province.cx, y: CY - province.cy });
     },
-    [clamp, width, height],
+    [applyView],
   );
 
   useEffect(() => {
@@ -153,35 +277,30 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
     return () => window.removeEventListener("partim:focus-province", handler);
   }, [focusProvince]);
 
-  const hoveredStanding = hovered ? standings[hovered.id] : undefined;
+  /* ------------------------------- çizim ---------------------------------- */
 
   const paths = useMemo(
     () =>
       PROVINCES.map((province) => {
         const standing = standings[province.id];
         const leading = standing?.leadingPartyId ?? null;
-        const fill = leading ? partyColor(leading) : NEUTRAL_COLOR;
-        // Fark ne kadar azsa il o kadar solgun görünür — çekişmeli iller belli olsun
         const margin = standing?.margin ?? 0;
-        const opacity = leading ? 0.74 + Math.min(0.26, margin / 60) : 0.32;
         const selected = selectedId === province.id;
         return (
           <path
             key={province.id}
             d={province.d}
             className="province-path"
-            fill={fill}
-            fillOpacity={selected ? 1 : opacity}
-            stroke={selected ? "#ffffff" : "rgba(6,10,20,0.85)"}
-            strokeWidth={selected ? 1.6 / view.k : 0.5 / view.k}
+            fill={leading ? partyColor(leading) : NEUTRAL_COLOR}
+            fillOpacity={selected ? 1 : leading ? 0.74 + Math.min(0.26, margin / 60) : 0.3}
+            stroke={selected ? "#ffffff" : "rgba(3,7,18,0.75)"}
+            strokeWidth={(selected ? 1.8 : 0.5) / view.k}
             strokeLinejoin="round"
-            data-selected={selected}
             tabIndex={0}
             role="button"
-            aria-label={`${province.name} — ${
-              leading ? `${partyName(leading)} önde` : "henüz oy yok"
-            }`}
-            onPointerEnter={() => setHovered(province)}
+            aria-label={`${province.name} — ${leading ? `${partyName(leading)} önde` : "henüz oy yok"}`}
+            style={{ cursor: "pointer" }}
+            onPointerEnter={(e) => e.pointerType === "mouse" && setHovered(province)}
             onPointerLeave={() => setHovered((h) => (h?.id === province.id ? null : h))}
             onClick={() => {
               if (draggedRef.current) return;
@@ -199,68 +318,91 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
     [standings, selectedId, onSelect, view.k],
   );
 
+  /**
+   * Etiketler ekranda SABİT boyutta durur: yazı tipi boyutu viewBox biriminde
+   * değil, piksele göre hesaplanır. Önceki sürümde etiketler haritayla birlikte
+   * küçüldüğü için mobilde okunmuyordu.
+   *
+   * Her il için ada mı plakaya mı yer var, ilin ekrandaki genişliğine bakılarak
+   * karar verilir — böylece yakınlaştıkça etiketler kendiliğinden açılır.
+   */
   const labels = useMemo(() => {
-    const showAll = view.k >= 2.2;
-    const showNames = view.k >= 3;
-    return PROVINCES.filter((p) => showAll || p.area >= LABEL_AREA).map((province) => (
-      <text
-        key={province.id}
-        x={province.cx}
-        y={province.cy}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        pointerEvents="none"
-        fill="rgba(255,255,255,0.92)"
-        stroke="rgba(3,6,14,0.85)"
-        strokeWidth={2.2 / view.k}
-        paintOrder="stroke"
-        fontSize={(showNames ? 7 : 8) / view.k}
-        fontWeight={700}
-        style={{ letterSpacing: showNames ? "0.01em" : "0" }}
-      >
-        {showNames ? province.name : String(province.plate).padStart(2, "0")}
-      </text>
-    ));
-  }, [view.k]);
+    if (!screenScale) return null;
+    const compact = box.width < 520;
+    const namePx = compact ? 12 : 13.5;
+    const platePx = compact ? 11 : 12;
+
+    return PROVINCES.map((province) => {
+      const across = Math.sqrt(province.area) * screenScale;
+      const nameWidth = province.name.length * namePx * 0.53 + 8;
+      const showName = across > nameWidth;
+      const showPlate = !showName && across > 22;
+      if (!showName && !showPlate) return null;
+
+      const px = showName ? namePx : platePx;
+      return (
+        <text
+          key={province.id}
+          x={province.cx}
+          y={province.cy}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill="#ffffff"
+          stroke="rgba(2,5,12,0.9)"
+          strokeWidth={(showName ? 3 : 2.6) / screenScale}
+          paintOrder="stroke"
+          fontSize={px / screenScale}
+          fontWeight={650}
+          style={{ letterSpacing: showName ? "-0.01em" : "0.02em" }}
+        >
+          {showName ? province.name : String(province.plate).padStart(2, "0")}
+        </text>
+      );
+    });
+  }, [screenScale, box.width]);
+
+  const hoveredStanding = hovered ? standings[hovered.id] : undefined;
+  const atMin = view.k <= MIN_K + 0.001;
+  const atMax = view.k >= MAX_K - 0.001;
 
   return (
-    <div className={cn("relative h-full w-full", className)}>
+    <div ref={wrapRef} className={cn("relative h-full w-full", className)}>
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${width} ${height}`}
-        className="h-full w-full touch-none select-none"
+        viewBox={`0 0 ${W} ${H}`}
+        className="h-full w-full select-none"
         preserveAspectRatio="xMidYMid meet"
-        onWheel={handleWheel}
+        // touch-action: none — tarayıcının kendi kaydırma/yakınlaştırma jestini
+        // devralmasını engeller, yoksa iki parmak sayfayı zoomluyor.
+        style={{ touchAction: "none" }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onPointerUp={endPointer}
+        onPointerCancel={endPointer}
         onPointerLeave={() => {
           setHovered(null);
           setCursor(null);
         }}
-        style={{ cursor: "grab" }}
       >
         <defs>
           <filter id="map-glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="2.2" result="blur" />
+            <feGaussianBlur stdDeviation="2.4" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
+
         <g
-          transform={`translate(${width / 2} ${height / 2}) scale(${view.k}) translate(${
-            -width / 2 + view.x
-          } ${-height / 2 + view.y})`}
+          transform={`translate(${CX} ${CY}) scale(${view.k}) translate(${-CX + view.x} ${-CY + view.y})`}
         >
-          {/* Parlama katmanı yalnızca görseldir: <use> ile aynı yolları
-              tekrar çizeriz, böylece tıklanabilir öğeler ikiye katlanmaz. */}
+          {/* Parlama katmanı yalnızca görseldir: <use> ile aynı yolları tekrar
+              çizeriz, böylece tıklanabilir öğeler ikiye katlanmaz. */}
           <use
             href="#partim-provinces"
             filter="url(#map-glow)"
-            opacity={0.38}
+            opacity={0.34}
             aria-hidden="true"
             pointerEvents="none"
           />
@@ -275,43 +417,46 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
       <div className="pointer-events-auto absolute bottom-3 right-3 flex flex-col gap-1.5">
         <Button
           variant="outline"
-          size="icon"
+          size="icon-sm"
           aria-label="Yakınlaştır"
-          onClick={() => zoomAt(1.35, width / 2, height / 2)}
+          disabled={atMax}
+          onClick={() => zoomBy(1.6, { x: CX, y: CY })}
         >
           <Plus />
         </Button>
         <Button
           variant="outline"
-          size="icon"
+          size="icon-sm"
           aria-label="Uzaklaştır"
-          onClick={() => zoomAt(1 / 1.35, width / 2, height / 2)}
+          disabled={atMin}
+          onClick={() => zoomBy(1 / 1.6, { x: CX, y: CY })}
         >
           <Minus />
         </Button>
         <Button
           variant="outline"
-          size="icon"
+          size="icon-sm"
           aria-label="Haritayı sıfırla"
-          onClick={() => setView({ k: 1, x: 0, y: 0 })}
+          disabled={atMin && Math.abs(view.x) < 0.5 && Math.abs(view.y) < 0.5}
+          onClick={() => applyView({ k: 1, x: 0, y: 0 })}
         >
           <Locate />
         </Button>
       </div>
 
-      {/* İmleç ipucu */}
+      {/* İmleç ipucu — yalnızca fare ile */}
       {hovered && cursor && (
         <div
-          className="pointer-events-none fixed z-40 -translate-x-1/2 -translate-y-[calc(100%+14px)] rounded-lg border border-white/12 bg-[hsl(224_44%_6%_/_0.92)] px-3 py-2 text-xs shadow-2xl backdrop-blur"
+          className="glass-pill pointer-events-none fixed z-40 -translate-x-1/2 -translate-y-[calc(100%+14px)] px-3 py-2 text-xs"
           style={{ left: cursor.x, top: cursor.y }}
         >
           <div className="flex items-center gap-2 font-semibold">
-            <span className="text-[10px] font-mono text-muted-foreground">
+            <span className="font-mono text-[10px] text-muted-foreground">
               {String(hovered.plate).padStart(2, "0")}
             </span>
             {hovered.name}
           </div>
-          {hoveredStanding && hoveredStanding.leadingPartyId ? (
+          {hoveredStanding?.leadingPartyId ? (
             <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
               <span
                 className="inline-block size-2.5 rounded-full"

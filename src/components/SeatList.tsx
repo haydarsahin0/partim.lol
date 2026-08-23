@@ -78,11 +78,15 @@ export function SeatList({
             >
               <span
                 aria-hidden="true"
-                className="grid size-8 shrink-0 place-items-center rounded-lg text-[11px] font-black"
+                className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl text-[11px] font-black"
                 style={{ background: partyColor(seat.partyId), color: partyTextColor(seat.partyId) }}
                 title={party?.fullName}
               >
-                {party?.name.slice(0, 2) ?? "?"}
+                {party?.logoUrl ? (
+                  <img src={party.logoUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  (party?.name.slice(0, 2) ?? "?")
+                )}
               </span>
 
               <div className="min-w-0 flex-1">

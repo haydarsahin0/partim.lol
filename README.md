@@ -20,9 +20,10 @@ bir ildeki bir partinin **il başkanlığı** koltuğunu satın alır.
 | Boş koltuk fiyatı | $1 |
 | Devralma | O anki bedelin $1 fazlası (1 → 2 → 3 …) |
 | Seviye eğrisi | L seviyesi için toplam `25·(L−1)·L` XP (2. seviye 50, 5. seviye 500) |
+| Kendi partini kurma | Haftalık $9 abonelik; 2–6 harf kısaltma, logo ve renk |
 
-Her **il × parti** ikilisi için tek bir başkanlık koltuğu vardır; yani 81 × 15 =
-1215 koltuk. Koltuğun sahibi, o ilin panelinde partinin yanında X kullanıcı adıyla
+Her **il × parti** ikilisi için tek bir başkanlık koltuğu vardır; yani 81 × 17 =
+1377 koltuk (kullanıcıların kurduğu partilerle birlikte daha da artar). Koltuğun sahibi, o ilin panelinde partinin yanında X kullanıcı adıyla
 görünür. Tüm bu sabitler tek yerde — [`src/lib/game.ts`](src/lib/game.ts) — tanımlı
 ve sunucu tarafında [`supabase/migrations/20260823120000_init.sql`](supabase/migrations/20260823120000_init.sql) içinde aynen
 tekrarlanır.
@@ -45,7 +46,7 @@ oynanabilir — GitHub Pages'e sunucusuz dağıtım da böyle çalışır.
 
 - **Vite + React 18 + TypeScript**, shadcn/ui dizin düzeni (`src/components/ui`)
 - **Tailwind CSS** (koyu tema, cam paneller)
-- **three.js** — arka plandaki `QuantumNebula` parçacık sahnesi
+- **WebGL (kütüphanesiz)** — arka plandaki `NeuroNoise` shader sahnesi
 - **Supabase** — X (Twitter) OAuth + Postgres (isteğe bağlı)
 - **Stripe Checkout** — il başkanlığı ödemeleri (isteğe bağlı)
 - Rotalama `HashRouter` ile: GitHub Pages'te 404 hilesi gerekmez

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Check, Loader2, Vote } from "lucide-react";
-import { PARTIES, partyColor, partyTextColor } from "@/data/parties";
+import { partyColor, partyTextColor } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ export function VoteBallot({
   provinceName: string;
   onVoted?: () => void;
 }) {
-  const { user, profile, vote } = useGame();
+  const { user, profile, vote, parties } = useGame();
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
@@ -49,8 +49,8 @@ export function VoteBallot({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-        {PARTIES.map((party) => {
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {parties.map((party) => {
           const isSelected = selected === party.id;
           return (
             <button
@@ -68,10 +68,16 @@ export function VoteBallot({
             >
               <span
                 aria-hidden="true"
-                className="grid size-6 shrink-0 place-items-center rounded-md text-[10px] font-black"
+                className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg text-[10px] font-black"
                 style={{ background: party.color, color: partyTextColor(party.id) }}
               >
-                {isSelected ? <Check className="size-3.5" /> : party.name.slice(0, 1)}
+                {isSelected ? (
+                  <Check className="size-3.5" />
+                ) : party.logoUrl ? (
+                  <img src={party.logoUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  party.name.slice(0, 2)
+                )}
               </span>
               <span className="min-w-0 flex-1 truncate text-xs font-semibold">{party.name}</span>
             </button>

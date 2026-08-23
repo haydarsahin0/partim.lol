@@ -13,11 +13,12 @@ let instance: Backend | null = null;
  */
 export function getBackend(): Backend {
   if (instance) return instance;
-  instance =
+  const next: Backend =
     import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
       ? new SupabaseBackend()
       : new DemoBackend();
-  return instance;
+  instance = next;
+  return next;
 }
 
 export type { Backend };

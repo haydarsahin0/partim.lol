@@ -5,7 +5,7 @@
  * XP ve koltuk fiyatı orada da doğrulanır — istemciye güvenilmez.
  */
 import type { Session, User } from "@supabase/supabase-js";
-import { PARTY_IDS } from "@/data/parties";
+import { PARTY_IDS, readableTextTone, type Party } from "@/data/parties";
 import { fallbackAvatar } from "@/lib/avatar";
 import { LEADER_BASE_PRICE, levelFromXp, nextLeaderPrice } from "@/lib/game";
 import { getSupabase } from "./supabaseClient";
@@ -13,6 +13,9 @@ import type {
   AuthUser,
   Backend,
   CheckoutResult,
+  CreatePartyResult,
+  CustomPartyInput,
+  SiteStats,
   LeaderSeat,
   LeaderboardEntry,
   Profile,
@@ -274,6 +277,60 @@ export class SupabaseBackend implements Backend {
       this.getProvinceDetail(provinceId),
     ]);
     return { ok: true, profile: profile ?? undefined, standing: detail.standing };
+  }
+
+  async getStats(): Promise<SiteStats> {
+    // Giriş yapan kullanıcı için "çevrimiçi" işaretini tazele. Hata önemli
+    // değil: sayaç kozmetik, oyunun işleyişini etkilemiyor.
+    void this.db.rpc("touch_presence").then(() => undefined, () => undefined);
+
+    // site_stats: profil sayısını ve son 5 dakikada görülen kullanıcıyı
+    // tek satırda toplayan görünüm (bkz. migration).
+    const { data, error } = await this.db
+      .from("site_stats")
+      .select("online,total")
+      .maybeSingle();
+    if (error || !data) return { online: 0, total: 0 };
+    return { online: Number(data.online ?? 0), total: Number(data.total ?? 0) };
+  }
+
+  async getCustomParties(): Promise<Party[]> {
+    const { data, error } = await this.db
+      .from("active_custom_parties")
+      .select("id,name,short_name,color,logo_url,owner_handle");
+    if (error) return [];
+    return ((data ?? []) as Array<{
+      id: string;
+      name: string;
+      short_name: string;
+      color: string;
+      logo_url: string | null;
+      owner_handle: string | null;
+    }>).map((row) => ({
+      id: row.id,
+      name: row.short_name,
+      fullName: row.name,
+      color: row.color,
+      on: readableTextTone(row.color),
+      custom: true,
+      logoUrl: row.logo_url,
+      ownerHandle: row.owner_handle,
+      blurb: row.owner_handle ? `@${row.owner_handle} tarafından kuruldu.` : undefined,
+    }));
+  }
+
+  async createParty(input: CustomPartyInput): Promise<CreatePartyResult> {
+    const { data, error } = await this.db.functions.invoke("create-party-subscription", {
+      body: {
+        ...input,
+        successUrl: `${window.location.origin}${window.location.pathname}#/profil?parti=basarili`,
+        cancelUrl: `${window.location.origin}${window.location.pathname}#/profil?parti=iptal`,
+      },
+    });
+    if (error) return { kind: "error", message: error.message };
+    const url = (data as { url?: string } | null)?.url;
+    if (!url) return { kind: "error", message: "Ödeme oturumu açılamadı." };
+    return { kind: "redirect", url };
   }
 
   async claimSeat(provinceId: string, partyId: string): Promise<CheckoutResult> {

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 const Tabs = TabsPrimitive.Root;
 
+/** iOS'un segmented control'ü: cam hap içinde kayan seçili durum */
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
@@ -11,7 +12,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-10 items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1 text-muted-foreground",
+      "inline-flex h-11 items-center justify-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.045] p-1 text-muted-foreground backdrop-blur-xl backdrop-saturate-150",
       className,
     )}
     {...props}
@@ -26,7 +27,10 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-white/10 data-[state=active]:text-foreground",
+      "inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 text-[14px] font-semibold tracking-[-0.01em]",
+      "transition-all duration-200 ease-apple active:scale-[0.97]",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-40",
+      "data-[state=active]:bg-white/[0.13] data-[state=active]:text-foreground data-[state=active]:shadow-[0_1px_0_0_rgb(255_255_255_/_0.1)_inset]",
       className,
     )}
     {...props}

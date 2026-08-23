@@ -5,7 +5,7 @@
  * Kurallar gerçek arka uçla birebir aynıdır (saatlik oy, XP, koltuk fiyatı),
  * ama veriler yalnızca bu tarayıcıda durur ve gerçek ödeme alınmaz.
  */
-import { PARTY_IDS } from "@/data/parties";
+import { PARTIES, PARTY_IDS, setCustomParties, takenColors } from "@/data/parties";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { fallbackAvatar, hashString } from "@/lib/avatar";
 import {
@@ -16,11 +16,18 @@ import {
   levelFromXp,
   nextLeaderPrice,
 } from "@/lib/game";
+import { readableTextTone } from "@/data/parties";
+import type { Party } from "@/data/parties";
+import { PARTY_SHORT_MAX, PARTY_SHORT_MIN } from "@/lib/game";
+import { checkPartyColor, describeColorCheck } from "@/lib/color";
 import { buildRivals, buildSeed, type SeedSeats, type SeedVotes } from "./demoSeed";
 import type {
   AuthUser,
   Backend,
   CheckoutResult,
+  CreatePartyResult,
+  CustomPartyInput,
+  SiteStats,
   LeaderSeat,
   LeaderboardEntry,
   Profile,
@@ -46,6 +53,8 @@ type DemoState = {
   mySeats: Record<string, Record<string, OwnedSeat>>;
   /** provinceId -> partyId -> tohumdan devralınıp boşaltılan koltuklar */
   releasedSeats: Record<string, string[]>;
+  /** Kullanıcının kurduğu partiler */
+  customParties: Party[];
   recent: Array<{ provinceId: string; handle: string; partyId: string; at: string }>;
 };
 
@@ -60,6 +69,7 @@ function emptyState(): DemoState {
     myVotes: {},
     mySeats: {},
     releasedSeats: {},
+    customParties: [],
     recent: [],
   };
 }
@@ -364,5 +374,69 @@ export class DemoBackend implements Backend {
 
     const profile = await this.getProfile();
     return { kind: "done", seat: this.seatFor(provinceId, partyId), profile: profile! };
+  }
+
+  /* ---------------- sayaçlar ve özel partiler ---------------- */
+
+  async getStats(): Promise<SiteStats> {
+    // Demo modda gerçek sayaç yok; günün saatine göre inandırıcı bir eğri
+    // üretiyoruz ki hap boş görünmesin. Gerçek modda bu veriler Supabase'den.
+    const now = Date.now();
+    const hour = new Date(now).getHours();
+    // Akşam saatlerinde yoğunluk artsın
+    const daily = 0.55 + 0.45 * Math.sin(((hour - 4) / 24) * Math.PI * 2);
+    const jitter = Math.sin(now / 45_000) * 0.06 + Math.sin(now / 11_000) * 0.03;
+    const online = Math.max(12, Math.round(430 * daily * (1 + jitter)));
+    // Toplam sayaç sürekli ve yavaşça artsın
+    const total = 128_400 + Math.floor((now - Date.UTC(2026, 7, 1)) / 42_000);
+    return { online, total };
+  }
+
+  async getCustomParties(): Promise<Party[]> {
+    return this.state.customParties;
+  }
+
+  async createParty(input: CustomPartyInput): Promise<CreatePartyResult> {
+    if (!this.state.user) return { kind: "error", message: "Önce giriş yapmalısın." };
+
+    const name = input.name.trim();
+    const shortName = input.shortName.trim().toLocaleUpperCase("tr");
+
+    if (name.length < 3 || name.length > 40) {
+      return { kind: "error", message: "Parti adı 3–40 karakter olmalı." };
+    }
+    if (shortName.length < PARTY_SHORT_MIN || shortName.length > PARTY_SHORT_MAX) {
+      return {
+        kind: "error",
+        message: `Kısaltma ${PARTY_SHORT_MIN}–${PARTY_SHORT_MAX} harf olmalı.`,
+      };
+    }
+    if (PARTIES.some((p) => p.name.toLocaleLowerCase("tr") === name.toLocaleLowerCase("tr"))) {
+      return { kind: "error", message: "Bu adda bir parti zaten var." };
+    }
+
+    const check = checkPartyColor(input.color, takenColors());
+    if (!check.ok) {
+      return { kind: "error", message: describeColorCheck(check) ?? "Renk uygun değil." };
+    }
+
+    const id = `ozel-${shortName.toLocaleLowerCase("tr").replace(/[^a-z0-9]/g, "")}-${Date.now().toString(36)}`;
+    const party: Party = {
+      id,
+      name: shortName,
+      fullName: name,
+      color: input.color,
+      on: readableTextTone(input.color),
+      custom: true,
+      logoUrl: input.logoDataUrl,
+      ownerHandle: this.state.user.handle,
+      blurb: `@${this.state.user.handle} tarafından kuruldu.`,
+    };
+
+    this.state.customParties.push(party);
+    save(this.state);
+    setCustomParties(this.state.customParties);
+
+    return { kind: "done", partyId: id };
   }
 }
