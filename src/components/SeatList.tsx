@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Crown, Loader2, ShieldCheck, Sparkles } from "lucide-react";
-import { PARTY_BY_ID, partyColor, partyTextColor } from "@/data/parties";
+import { PARTY_BY_ID } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
 import type { LeaderSeat } from "@/backend/types";
 import { Avatar } from "@/components/ui/avatar";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { XP_PER_LEADER_HOUR, formatSince, formatUsd } from "@/lib/game";
 import { cn } from "@/lib/utils";
+import { PartyMark } from "@/components/PartyMark";
 
 /** Bir ildeki tüm partilerin il başkanlığı koltukları. */
 export function SeatList({
@@ -74,18 +75,7 @@ export function SeatList({
                   : "border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05]",
               )}
             >
-              <span
-                aria-hidden="true"
-                className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl text-[11px] font-black"
-                style={{ background: partyColor(seat.partyId), color: partyTextColor(seat.partyId) }}
-                title={party?.fullName}
-              >
-                {party?.logoUrl ? (
-                  <img src={party.logoUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  (party?.name.slice(0, 2) ?? "?")
-                )}
-              </span>
+              <PartyMark partyId={seat.partyId} size={36} title={party?.fullName} />
 
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-semibold text-muted-foreground">

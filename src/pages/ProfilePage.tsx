@@ -3,10 +3,11 @@ import { Link } from "react-router-dom";
 import { Crown, Sparkles, Timer, Vote } from "lucide-react";
 import { CreatePartyDialog } from "@/components/CreatePartyDialog";
 import { ProfileEditor } from "@/components/ProfileEditor";
+import { PartyMark } from "@/components/PartyMark";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import type { LeaderSeat } from "@/backend/types";
-import { PARTY_BY_ID, partyColor, partyTextColor } from "@/data/parties";
+import { PARTY_BY_ID } from "@/data/parties";
 import { PROVINCE_BY_ID } from "@/data/provinces";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -142,12 +143,7 @@ export default function ProfilePage() {
                     to={`/il/${seat.provinceId}`}
                     className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 transition-colors hover:bg-white/[0.06]"
                   >
-                    <span
-                      className="grid size-8 shrink-0 place-items-center rounded-lg text-[11px] font-black"
-                      style={{ background: partyColor(seat.partyId), color: partyTextColor(seat.partyId) }}
-                    >
-                      {party?.name.slice(0, 2)}
-                    </span>
+                    <PartyMark partyId={seat.partyId} size={32} className="rounded-lg" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-bold">{province?.name}</div>
                       <div className="truncate text-xs text-muted-foreground">

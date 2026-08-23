@@ -6,6 +6,7 @@ import { useCountdown } from "@/hooks/useCountdown";
 import { Button } from "@/components/ui/button";
 import { XP_PER_VOTE, formatDuration, hasUnlimitedVotes } from "@/lib/game";
 import { cn } from "@/lib/utils";
+import { PartyMark } from "@/components/PartyMark";
 
 /** Bir il için oy pusulası: parti seç, saatte bir oy kullan. */
 export function VoteBallot({
@@ -65,19 +66,17 @@ export function VoteBallot({
                   : "border-white/10 bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.06]",
               )}
             >
-              <span
-                aria-hidden="true"
-                className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg text-[10px] font-black"
-                style={{ background: party.color, color: partyTextColor(party.id) }}
-              >
-                {isSelected ? (
+              {isSelected ? (
+                <span
+                  aria-hidden="true"
+                  className="grid size-7 shrink-0 place-items-center rounded-lg"
+                  style={{ background: party.color, color: partyTextColor(party.id) }}
+                >
                   <Check className="size-3.5" />
-                ) : party.logoUrl ? (
-                  <img src={party.logoUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  party.name.slice(0, 2)
-                )}
-              </span>
+                </span>
+              ) : (
+                <PartyMark partyId={party.id} size={28} className="rounded-lg" />
+              )}
               <span className="min-w-0 flex-1 truncate text-xs font-semibold">{party.name}</span>
             </button>
           );

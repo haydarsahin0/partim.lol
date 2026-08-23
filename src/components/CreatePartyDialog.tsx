@@ -114,7 +114,7 @@ export function CreatePartyDialog({
             {logo ? (
               <img src={logo} alt="" className="h-full w-full object-cover" />
             ) : (
-              (shortName || "??").slice(0, 3)
+              (shortName || "??")
             )}
           </span>
           <div className="min-w-0 flex-1">

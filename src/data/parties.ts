@@ -15,6 +15,12 @@ export type Party = {
   id: string;
   /** Pusulada ve dar alanlarda kullanılan kısa ad */
   name: string;
+  /**
+   * Rozetin (logo) üstüne basılan kısaltma. `name`den türetmek yetmiyordu:
+   * ilk iki harfi almak "Yeniden Refah"ı "Ye", "Memleket"i "Me" yapıyordu.
+   * Bu yüzden her parti için ayrı ayrı yazılı.
+   */
+  shortName: string;
   /** Parti bilgisinde gösterilen tam ad */
   fullName: string;
   /** Kurumsal renk (hex) */
@@ -33,24 +39,24 @@ export type Party = {
 };
 
 export const BASE_PARTIES: Party[] = [
-  { id: "akp", name: "AK Parti", fullName: "Adalet ve Kalkınma Partisi", color: "#F58220", on: "dark", founded: 2001, blurb: "Muhafazakâr demokrat merkez sağ." },
-  { id: "chp", name: "CHP", fullName: "Cumhuriyet Halk Partisi", color: "#E30A17", on: "light", founded: 1923, blurb: "Sosyal demokrat, Kemalist gelenek." },
-  { id: "dem", name: "DEM Parti", fullName: "Halkların Eşitlik ve Demokrasi Partisi", color: "#7B2D8E", on: "light", founded: 2023, blurb: "Sol, çoğulcu ve Kürt siyasi hareketi." },
-  { id: "mhp", name: "MHP", fullName: "Milliyetçi Hareket Partisi", color: "#8E1B2E", on: "light", founded: 1969, blurb: "Ülkücü, milliyetçi muhafazakâr." },
-  { id: "iyi", name: "İYİ Parti", fullName: "İYİ Parti", color: "#00A0DF", on: "dark", founded: 2017, blurb: "Milliyetçi merkez sağ." },
-  { id: "yrp", name: "Yeniden Refah", fullName: "Yeniden Refah Partisi", color: "#0F6B4A", on: "light", founded: 2018, blurb: "Millî Görüş geleneği." },
-  { id: "zafer", name: "Zafer Partisi", fullName: "Zafer Partisi", color: "#1B3A93", on: "light", founded: 2021, blurb: "Milliyetçi, göç karşıtı program." },
-  { id: "tip", name: "TİP", fullName: "Türkiye İşçi Partisi", color: "#D81E05", on: "light", founded: 2017, blurb: "Sosyalist sol." },
-  { id: "sp", name: "Saadet", fullName: "Saadet Partisi", color: "#16326B", on: "light", founded: 2001, blurb: "Millî Görüş çizgisi." },
-  { id: "deva", name: "DEVA", fullName: "Demokrasi ve Atılım Partisi", color: "#00A8A0", on: "dark", founded: 2020, blurb: "Liberal muhafazakâr merkez." },
-  { id: "gelecek", name: "Gelecek", fullName: "Gelecek Partisi", color: "#3F51B5", on: "light", founded: 2019, blurb: "Muhafazakâr demokrat merkez." },
-  { id: "dp", name: "Demokrat Parti", fullName: "Demokrat Parti", color: "#0057A8", on: "light", founded: 2007, blurb: "Merkez sağ, Demokrat gelenek." },
-  { id: "hudapar", name: "HÜDA PAR", fullName: "Hür Dava Partisi", color: "#3E8E41", on: "light", founded: 2012, blurb: "İslamcı muhafazakâr." },
-  { id: "bbp", name: "BBP", fullName: "Büyük Birlik Partisi", color: "#1F2E5C", on: "light", founded: 1993, blurb: "Milliyetçi muhafazakâr." },
-  { id: "memleket", name: "Memleket", fullName: "Memleket Partisi", color: "#C2185B", on: "light", founded: 2021, blurb: "Ulusalcı sol merkez." },
+  { id: "akp", name: "AK Parti", shortName: "AKP", fullName: "Adalet ve Kalkınma Partisi", color: "#F58220", on: "dark", founded: 2001, blurb: "Muhafazakâr demokrat merkez sağ." },
+  { id: "chp", name: "CHP", shortName: "CHP", fullName: "Cumhuriyet Halk Partisi", color: "#E30A17", on: "light", founded: 1923, blurb: "Sosyal demokrat, Kemalist gelenek." },
+  { id: "dem", name: "DEM Parti", shortName: "DEM", fullName: "Halkların Eşitlik ve Demokrasi Partisi", color: "#7B2D8E", on: "light", founded: 2023, blurb: "Sol, çoğulcu ve Kürt siyasi hareketi." },
+  { id: "mhp", name: "MHP", shortName: "MHP", fullName: "Milliyetçi Hareket Partisi", color: "#8E1B2E", on: "light", founded: 1969, blurb: "Ülkücü, milliyetçi muhafazakâr." },
+  { id: "iyi", name: "İYİ Parti", shortName: "İYİ", fullName: "İYİ Parti", color: "#00A0DF", on: "dark", founded: 2017, blurb: "Milliyetçi merkez sağ." },
+  { id: "yrp", name: "Yeniden Refah", shortName: "YRP", fullName: "Yeniden Refah Partisi", color: "#0F6B4A", on: "light", founded: 2018, blurb: "Millî Görüş geleneği." },
+  { id: "zafer", name: "Zafer Partisi", shortName: "ZP", fullName: "Zafer Partisi", color: "#1B3A93", on: "light", founded: 2021, blurb: "Milliyetçi, göç karşıtı program." },
+  { id: "tip", name: "TİP", shortName: "TİP", fullName: "Türkiye İşçi Partisi", color: "#D81E05", on: "light", founded: 2017, blurb: "Sosyalist sol." },
+  { id: "sp", name: "Saadet", shortName: "SP", fullName: "Saadet Partisi", color: "#16326B", on: "light", founded: 2001, blurb: "Millî Görüş çizgisi." },
+  { id: "deva", name: "DEVA", shortName: "DEVA", fullName: "Demokrasi ve Atılım Partisi", color: "#00A8A0", on: "dark", founded: 2020, blurb: "Liberal muhafazakâr merkez." },
+  { id: "gelecek", name: "Gelecek", shortName: "GP", fullName: "Gelecek Partisi", color: "#3F51B5", on: "light", founded: 2019, blurb: "Muhafazakâr demokrat merkez." },
+  { id: "dp", name: "Demokrat Parti", shortName: "DP", fullName: "Demokrat Parti", color: "#0057A8", on: "light", founded: 2007, blurb: "Merkez sağ, Demokrat gelenek." },
+  { id: "hudapar", name: "HÜDA PAR", shortName: "HÜDA", fullName: "Hür Dava Partisi", color: "#3E8E41", on: "light", founded: 2012, blurb: "İslamcı muhafazakâr." },
+  { id: "bbp", name: "BBP", shortName: "BBP", fullName: "Büyük Birlik Partisi", color: "#1F2E5C", on: "light", founded: 1993, blurb: "Milliyetçi muhafazakâr." },
+  { id: "memleket", name: "Memleket", shortName: "MP", fullName: "Memleket Partisi", color: "#C2185B", on: "light", founded: 2021, blurb: "Ulusalcı sol merkez." },
   // Renkleri algısal mesafeyle seçildi; kurumsal tonları netleşince güncelleyin.
-  { id: "yeni", name: "Yeni Parti", fullName: "Yeni Parti", color: "#AFB42B", on: "dark", blurb: "Merkez, yenilikçi program." },
-  { id: "anahtar", name: "Anahtar Parti", fullName: "Anahtar Parti", color: "#8D6E63", on: "light", blurb: "Merkez sağ, kalkınmacı çizgi." },
+  { id: "yeni", name: "Yeni Parti", shortName: "YP", fullName: "Yeni Parti", color: "#AFB42B", on: "dark", blurb: "Merkez, yenilikçi program." },
+  { id: "anahtar", name: "Anahtar Parti", shortName: "AP", fullName: "Anahtar Parti", color: "#8D6E63", on: "light", blurb: "Merkez sağ, kalkınmacı çizgi." },
 ];
 
 /* --------------------------- canlı dizin ---------------------------------
@@ -76,6 +82,8 @@ export function setCustomParties(custom: Party[]): void {
   const normalized = custom.map((p) => ({
     ...p,
     custom: true,
+    // Özel partide kullanıcının verdiği 2–6 harflik kısaltma zaten `name`.
+    shortName: p.shortName || p.name,
     on: p.on ?? readableTextTone(p.color),
   }));
 
@@ -103,6 +111,14 @@ export function partyName(partyId: string | null | undefined): string {
 }
 
 /** Parti renginin üstünde okunacak metin rengi */
+/** Rozete basılacak kısaltma. Bilinmeyen parti için "?" döner. */
+export function partyShortName(partyId: string | null | undefined): string {
+  if (!partyId) return "?";
+  const party = PARTY_BY_ID[partyId];
+  if (!party) return partyId.slice(0, 3).toLocaleUpperCase("tr");
+  return party.shortName || party.name;
+}
+
 export function partyTextColor(partyId: string | null | undefined): string {
   const party = partyId ? PARTY_BY_ID[partyId] : undefined;
   const tone = party?.on ?? (party ? readableTextTone(party.color) : "light");

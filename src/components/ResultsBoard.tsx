@@ -1,4 +1,5 @@
 import { PARTY_BY_ID, partyColor, partyTextColor } from "@/data/parties";
+import { PartyMark } from "@/components/PartyMark";
 import type { ProvinceStanding } from "@/backend/types";
 import { formatNumber, formatPercent } from "@/lib/game";
 import { cn } from "@/lib/utils";
@@ -65,10 +66,7 @@ export function ResultsBoard({
               >
                 {index + 1}
               </span>
-              <span
-                className="size-3 shrink-0 rounded-[4px]"
-                style={{ background: partyColor(tally.partyId) }}
-              />
+              <PartyMark partyId={tally.partyId} size={24} />
               <span
                 className={cn("min-w-0 flex-1 truncate text-sm", index === 0 && "font-semibold")}
                 title={party?.fullName}

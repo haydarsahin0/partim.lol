@@ -539,6 +539,7 @@ export class DemoBackend implements Backend {
     const party: Party = {
       id,
       name: shortName,
+      shortName,
       fullName: name,
       color: input.color,
       on: readableTextTone(input.color),

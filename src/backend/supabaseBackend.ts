@@ -381,6 +381,7 @@ export class SupabaseBackend implements Backend {
     }>).map((row) => ({
       id: row.id,
       name: row.short_name,
+      shortName: row.short_name,
       fullName: row.name,
       color: row.color,
       on: readableTextTone(row.color),

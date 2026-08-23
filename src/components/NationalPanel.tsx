@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 import { Flame, TrendingUp } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
-import { PARTY_BY_ID, partyColor, partyTextColor } from "@/data/parties";
+import { PARTY_BY_ID, partyColor } from "@/data/parties";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber, formatPercent } from "@/lib/game";
 import { useMemo } from "react";
+import { PartyMark } from "@/components/PartyMark";
 
 /** Ülke geneli tablo: parti yüzdeleri, kazanılan il sayısı ve en çekişmeli iller. */
 export function NationalPanel({ onSelectProvince }: { onSelectProvince?: (id: string) => void }) {
@@ -53,12 +54,11 @@ export function NationalPanel({ onSelectProvince }: { onSelectProvince?: (id: st
         <ul className="space-y-1.5">
           {national.slice(0, 7).map((row) => (
             <li key={row.partyId} className="flex items-center gap-2.5">
-              <span
-                className="grid size-6 shrink-0 place-items-center rounded-md text-[9px] font-black"
-                style={{ background: partyColor(row.partyId), color: partyTextColor(row.partyId) }}
-              >
-                {PARTY_BY_ID[row.partyId]?.name.slice(0, 2)}
-              </span>
+<PartyMark
+                partyId={row.partyId}
+                size={24}
+                title={PARTY_BY_ID[row.partyId]?.fullName}
+              />
               <span className="min-w-0 flex-1 truncate text-sm font-semibold">
                 {PARTY_BY_ID[row.partyId]?.name}
               </span>
