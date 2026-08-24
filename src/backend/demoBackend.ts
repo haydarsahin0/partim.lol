@@ -16,12 +16,14 @@ import {
 import { pick, seededRng } from "@/lib/rng";
 import { syntheticHistory } from "@/lib/timelapse";
 import {
+  FAST_VOTE_COOLDOWN_MS,
   LEADER_BASE_PRICE,
   RALLY_COOLDOWN_MS,
   RALLY_VOTES,
   checkLeaderBid,
-  VOTE_COOLDOWN_MS,
+  hasFastVotes,
   hasUnlimitedVotes,
+  voteCooldownMs,
   XP_PER_LEADER_HOUR,
   XP_PER_VOTE,
   levelFromXp,
@@ -52,6 +54,7 @@ import type {
   Profile,
   ProvinceDetail,
   LiveVote,
+  FastVotesResult,
   ProvinceStanding,
   RallyResult,
   VoteHistory,
@@ -91,6 +94,8 @@ type DemoState = {
   deviceId: string | null;
   /** Sahip kodu girilmiş mi? Demo modda veri zaten yalnızca bu tarayıcıda. */
   unlimitedVotes: boolean;
+  /** Hızlı oy aboneliğinin bittiği an (ISO) */
+  fastVotesUntil: string | null;
   recent: Array<{
     provinceId: string;
     handle: string;
@@ -115,6 +120,7 @@ function emptyState(): DemoState {
     recoveryCode: null,
     deviceId: null,
     unlimitedVotes: false,
+    fastVotesUntil: null,
     recent: [],
   };
 }
@@ -494,6 +500,7 @@ export class DemoBackend implements Backend {
       leaderCount,
       nextVoteAt: this.state.nextVoteAt,
       unlimitedVotes: this.state.unlimitedVotes ?? false,
+      fastVotesUntil: this.state.fastVotesUntil ?? null,
       createdAt: this.state.createdAt,
     };
   }
@@ -540,10 +547,13 @@ export class DemoBackend implements Backend {
     if (!PARTY_IDS.includes(partyId)) return { ok: false, message: "Böyle bir parti yok." };
 
     const now = Date.now();
-    const unlimited = hasUnlimitedVotes({
+    const kimlik = {
       handle: this.state.user.handle,
       unlimitedVotes: this.state.unlimitedVotes,
-    });
+      fastVotesUntil: this.state.fastVotesUntil ?? null,
+    };
+    const unlimited = hasUnlimitedVotes(kimlik);
+    const bekleme = voteCooldownMs(kimlik);
     const next = this.state.nextVoteAt ? Date.parse(this.state.nextVoteAt) : 0;
     if (!unlimited && next > now) {
       return { ok: false, message: "Oy hakkın henüz dolmadı." };
@@ -553,7 +563,7 @@ export class DemoBackend implements Backend {
     provinceVotes[partyId] = (provinceVotes[partyId] ?? 0) + 1;
     this.state.voteCount += 1;
     this.state.xp += XP_PER_VOTE;
-    this.state.nextVoteAt = unlimited ? null : new Date(now + VOTE_COOLDOWN_MS).toISOString();
+    this.state.nextVoteAt = unlimited ? null : new Date(now + bekleme).toISOString();
     this.state.recent.unshift({
       provinceId,
       partyId,
@@ -568,6 +578,26 @@ export class DemoBackend implements Backend {
       profile: (await this.getProfile()) ?? undefined,
       standing: this.standingFor(provinceId),
     };
+  }
+
+  async startFastVotes(): Promise<FastVotesResult> {
+    if (!this.state.user) return { kind: "error", message: "Önce giriş yapmalısın." };
+    if (hasFastVotes({ fastVotesUntil: this.state.fastVotesUntil })) {
+      return { kind: "error", message: "Hızlı oy aboneliğin zaten sürüyor." };
+    }
+
+    // Demo modda ödeme yok: hak anında bir günlüğüne veriliyor.
+    const now = Date.now();
+    this.state.fastVotesUntil = new Date(now + 24 * 60 * 60 * 1000).toISOString();
+    // Elindeki uzun bekleme yeni süreye kısaltılıyor.
+    const next = this.state.nextVoteAt ? Date.parse(this.state.nextVoteAt) : 0;
+    if (next > now + FAST_VOTE_COOLDOWN_MS) {
+      this.state.nextVoteAt = new Date(now + FAST_VOTE_COOLDOWN_MS).toISOString();
+    }
+    save(this.state);
+
+    const profile = await this.getProfile();
+    return { kind: "done", profile: profile! };
   }
 
   async holdRally(provinceId: string, partyId: string): Promise<RallyResult> {

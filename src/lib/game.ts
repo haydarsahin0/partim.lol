@@ -15,6 +15,39 @@ export const VOTE_COOLDOWN_MS = 60 * 1000;
 /** Bekleme süresinin insan diliyle karşılığı — arayüz metinlerinde kullanılır. */
 export const VOTE_COOLDOWN_LABEL = "1 dakikada 1 oy";
 
+/** Hızlı oy aboneliğindeki bekleme süresi */
+export const FAST_VOTE_COOLDOWN_MS = 15 * 1000;
+
+export const FAST_VOTE_COOLDOWN_LABEL = "15 saniyede 1 oy";
+
+/**
+ * Hızlı oy aboneliğinin günlük ücreti (USD).
+ *
+ * Arayüzde bilerek yazmıyor: düğmede yalnızca ne kazandırdığı duruyor, ücreti
+ * kullanıcı Stripe sayfasında görüyor. Buradaki değer sunucu tarafındaki
+ * create-fast-votes-subscription ile aynı olmalı; ödeme oradan geçiyor.
+ */
+export const FAST_VOTE_DAILY_PRICE = 2;
+
+/** Hızlı oy aboneliği şu an geçerli mi? */
+export function hasFastVotes(
+  profile: { fastVotesUntil?: string | null } | null | undefined,
+): boolean {
+  const until = profile?.fastVotesUntil;
+  return !!until && Date.parse(until) > Date.now();
+}
+
+/** Bu profil için geçerli bekleme süresi. Sunucudaki cast_vote ile aynı kural. */
+export function voteCooldownMs(
+  profile:
+    | { handle?: string | null; unlimitedVotes?: boolean; fastVotesUntil?: string | null }
+    | null
+    | undefined,
+): number {
+  if (hasUnlimitedVotes(profile)) return 0;
+  return hasFastVotes(profile) ? FAST_VOTE_COOLDOWN_MS : VOTE_COOLDOWN_MS;
+}
+
 /**
  * Bekleme süresi uygulanmayan kullanıcı adları.
  *

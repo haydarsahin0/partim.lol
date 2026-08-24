@@ -34,6 +34,7 @@ import type {
   ProvinceStanding,
   VoteHistory,
   VoteHistoryBucket,
+  FastVotesResult,
   RallyResult,
   SeatMarketSummary,
   VoteResult,
@@ -67,6 +68,7 @@ type ProfileRow = {
   leader_count: number;
   next_vote_at: string | null;
   unlimited_votes?: boolean | null;
+  fast_votes_until?: string | null;
   is_bot?: boolean | null;
   created_at: string;
 };
@@ -299,7 +301,7 @@ export class SupabaseBackend implements Backend {
     const { data, error } = await this.db
       .from("profiles")
       .select(
-        "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at,unlimited_votes,created_at",
+        "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at,unlimited_votes,fast_votes_until,created_at",
       )
       .eq("auth_user_id", sessionData.session.user.id)
       .maybeSingle();
@@ -316,6 +318,7 @@ export class SupabaseBackend implements Backend {
       leaderCount: row.leader_count ?? 0,
       nextVoteAt: row.next_vote_at,
       unlimitedVotes: row.unlimited_votes ?? false,
+      fastVotesUntil: row.fast_votes_until ?? null,
       createdAt: row.created_at,
     };
     return this.cachedProfile;
@@ -579,6 +582,21 @@ export class SupabaseBackend implements Backend {
         ...input,
         successUrl: `${window.location.origin}${window.location.pathname}#/profil?parti=basarili`,
         cancelUrl: `${window.location.origin}${window.location.pathname}#/profil?parti=iptal`,
+      },
+    );
+    if (message) return { kind: "error", message };
+    const url = data?.url;
+    if (!url) return { kind: "error", message: "Ödeme oturumu açılamadı." };
+    return { kind: "redirect", url };
+  }
+
+  async startFastVotes(): Promise<FastVotesResult> {
+    const { data, message } = await invokeEdge<{ url?: string }>(
+      this.db,
+      "create-fast-votes-subscription",
+      {
+        successUrl: `${window.location.origin}${window.location.pathname}#/profil?hizli=basarili`,
+        cancelUrl: `${window.location.origin}${window.location.pathname}#/profil?hizli=iptal`,
       },
     );
     if (message) return { kind: "error", message };

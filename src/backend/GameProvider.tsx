@@ -10,7 +10,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { PARTIES, partyName, setCustomParties, type Party } from "@/data/parties";
-import { RALLY_VOTES } from "@/lib/game";
+import { FAST_VOTE_COOLDOWN_LABEL, RALLY_VOTES } from "@/lib/game";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { getDeviceIdentity } from "@/lib/device";
 import { getBackend } from "./index";
@@ -54,6 +54,8 @@ type GameContextValue = {
   createParty: (input: CustomPartyInput) => Promise<CreatePartyResult>;
   /** Miting düzenler; başarılıysa true döner */
   holdRally: (provinceId: string, partyId: string) => Promise<boolean>;
+  /** Hızlı oy aboneliğini başlatır; gerçek modda Stripe'a yönlendirir */
+  startFastVotes: () => Promise<boolean>;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -253,6 +255,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [backend, refresh],
   );
 
+  const startFastVotes = useCallback(async () => {
+    const result = await backend.startFastVotes();
+    if (result.kind === "error") {
+      toast.error(result.message);
+      return false;
+    }
+    if (result.kind === "redirect") {
+      window.location.assign(result.url);
+      return true;
+    }
+    setProfile(result.profile);
+    toast.success(`Hızlı oy açıldı: artık ${FAST_VOTE_COOLDOWN_LABEL}.`);
+    return true;
+  }, [backend]);
+
   const holdRally = useCallback(
     async (provinceId: string, partyId: string) => {
       const result = await backend.holdRally(provinceId, partyId);
@@ -364,6 +381,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     claimSeat,
     createParty,
     holdRally,
+    startFastVotes,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

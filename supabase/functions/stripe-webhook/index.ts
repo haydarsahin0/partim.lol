@@ -56,6 +56,22 @@ Deno.serve(async (req) => {
 
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
     const meta = subscription.metadata ?? {};
+
+    // Hızlı oy: her günlük yenileme hakkı bir gün daha uzatır.
+    if (meta.kind === "fast_votes") {
+      const periodEnd = new Date((subscription.current_period_end ?? 0) * 1000).toISOString();
+      const { data, error } = await admin.rpc("apply_fast_votes_subscription", {
+        p_subscription_id: subscriptionId,
+        p_user_id: meta.user_id,
+        p_period_end: periodEnd,
+      });
+      if (error) {
+        console.error("apply_fast_votes_subscription hatası", error);
+        return new Response(error.message, { status: 500 });
+      }
+      return new Response(JSON.stringify({ received: true, result: data }), { status: 200 });
+    }
+
     if (meta.kind !== "custom_party") {
       return new Response(JSON.stringify({ received: true, ignored: "parti aboneliği değil" }), {
         status: 200,
@@ -92,13 +108,33 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ received: true, result: data }), { status: 200 });
   }
 
+  // Abonelik bitti: hızlı oy hakkını hemen kapat. (Kapatılmasa da yenileme
+  // gelmediği an süre kendiliğinden dolar; bu, iptalin anında görünmesi için.)
+  if (event.type === "customer.subscription.deleted") {
+    const subscription = event.data.object as Stripe.Subscription;
+    if ((subscription.metadata ?? {}).kind === "fast_votes") {
+      const { error } = await admin.rpc("cancel_fast_votes_subscription", {
+        p_subscription_id: subscription.id,
+      });
+      if (error) {
+        console.error("cancel_fast_votes_subscription hatası", error);
+        return new Response(error.message, { status: 500 });
+      }
+    }
+    return new Response(JSON.stringify({ received: true }), { status: 200 });
+  }
+
   if (event.type !== "checkout.session.completed") {
     return new Response(JSON.stringify({ received: true }), { status: 200 });
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
   // Parti abonelikleri invoice.paid ile işlenir; burada karışmasın.
-  if (session.mode === "subscription" || session.metadata?.kind === "custom_party") {
+  if (
+    session.mode === "subscription" ||
+    session.metadata?.kind === "custom_party" ||
+    session.metadata?.kind === "fast_votes"
+  ) {
     return new Response(JSON.stringify({ received: true, ignored: "abonelik" }), { status: 200 });
   }
   if (session.payment_status !== "paid") {

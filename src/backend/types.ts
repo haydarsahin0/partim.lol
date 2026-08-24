@@ -36,6 +36,12 @@ export type Profile = AuthUser & {
    * denetler; buradaki değer yalnızca arayüzü doğru göstermek için.
    */
   unlimitedVotes: boolean;
+  /**
+   * Hızlı oy aboneliğinin bittiği an (ISO). null ise abonelik yok.
+   * Süreyi sunucu hesaplar; buradaki değer yalnızca arayüzü doğru göstermek
+   * için — istemci kendi bekleme süresini kısaltamaz.
+   */
+  fastVotesUntil: string | null;
   createdAt: string;
 };
 
@@ -166,6 +172,12 @@ export type RallyResult = {
   standing?: ProvinceStanding;
 };
 
+/** Hızlı oy aboneliği: gerçek modda Stripe'a gider, demoda anında verilir. */
+export type FastVotesResult =
+  | { kind: "redirect"; url: string }
+  | { kind: "done"; profile: Profile }
+  | { kind: "error"; message: string };
+
 export type CheckoutResult =
   | { kind: "redirect"; url: string }
   | { kind: "done"; seat: LeaderSeat; profile: Profile }
@@ -269,6 +281,11 @@ export interface Backend {
   claimSeat(provinceId: string, partyId: string, amount?: number): Promise<CheckoutResult>;
   /** Haftalık abonelikle yeni bir parti kurar */
   createParty(input: CustomPartyInput): Promise<CreatePartyResult>;
+  /**
+   * Oy bekleme süresini kısaltan günlük aboneliği başlatır.
+   * Hak ödeme onaylanınca webhook tarafından veriliyor.
+   */
+  startFastVotes(): Promise<FastVotesResult>;
   /**
    * Miting düzenler: başkanı olunan il + parti için partiye toplu oy ekler.
    * Günde bir kez; hak sunucuda da denetlenir, istemciye güvenilmez.
