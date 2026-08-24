@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2, Pause, Play, RotateCcw, Video } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import type { VoteHistory, VoteHistoryBucket } from "@/backend/types";
-import { buildFrames, lerpFrame, syntheticHistory, type Frame } from "@/lib/timelapse";
+import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
+import { buildFrames, lerpFrame, scopeFrame, syntheticHistory, type Frame } from "@/lib/timelapse";
 import { BOYUTLAR, drawFrame, guvenliPay, type Kalite, type Oran } from "@/lib/timelapseRenderer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -186,6 +187,9 @@ export default function TimelapsePage() {
   const paylasimVar = useMemo(paylasimDesteginiOlc, []);
   /** Sosyal medya güvenli alan kılavuzu — yalnızca önizlemede, kayda girmiyor. */
   const [kilavuz, setKilavuz] = useState(false);
+  /** Kapsam: boş ise Türkiye geneli, doluysa tek il. */
+  const [odakIl, setOdakIl] = useState("");
+  const odakAdi = odakIl ? (PROVINCE_BY_ID[odakIl]?.name ?? null) : null;
   const pay = guvenliPay(oran);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -254,12 +258,19 @@ export default function TimelapsePage() {
   const kareUret = useCallback(
     (oran: number): Frame | null => {
       if (frames.length === 0) return null;
-      if (frames.length === 1) return frames[0];
-      const konum = Math.max(0, Math.min(1, oran)) * (frames.length - 1);
-      const i = Math.min(frames.length - 2, Math.floor(konum));
-      return lerpFrame(frames[i], frames[i + 1], konum - i);
+      let f: Frame;
+      if (frames.length === 1) {
+        f = frames[0];
+      } else {
+        const konum = Math.max(0, Math.min(1, oran)) * (frames.length - 1);
+        const i = Math.min(frames.length - 2, Math.floor(konum));
+        f = lerpFrame(frames[i], frames[i + 1], konum - i);
+      }
+      // Kapsam daraltması en sonda: harita ve iller olduğu gibi kalıyor,
+      // yalnızca tablo ile sayaç seçilen ilin sonuçlarına dönüyor.
+      return odakIl ? scopeFrame(f, odakIl) : f;
     },
-    [frames],
+    [frames, odakIl],
   );
 
   const frame: Frame | null = useMemo(() => kareUret(ilerleme), [kareUret, ilerleme]);
@@ -272,9 +283,15 @@ export default function TimelapsePage() {
       if (!canvas || !f) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      drawFrame(ctx, f, { oran, kalite, ornek: kaynak === "ornek" });
+      drawFrame(ctx, f, {
+        oran,
+        kalite,
+        ornek: kaynak === "ornek",
+        odakProvinceId: odakIl || null,
+        odakAdi,
+      });
     },
-    [oran, kalite, kaynak],
+    [oran, kalite, kaynak, odakIl, odakAdi],
   );
 
   // Döngünün okuduğu güncel referanslar (bkz. cizRef tanımı).
@@ -598,8 +615,35 @@ export default function TimelapsePage() {
                 />
               </div>
 
+              {/*
+                Kapsam 81 seçenek: düğme sırası olmaz, yerel açılır liste hem
+                aramayı hem klavyeyi bedavaya getiriyor.
+              */}
+              <div className="space-y-1.5">
+                <span className="stat-label">Kapsam</span>
+                <select
+                  value={odakIl}
+                  onChange={(e) => {
+                    setOynuyor(false);
+                    setOdakIl(e.target.value);
+                  }}
+                  disabled={kaydediyor}
+                  className="w-full rounded-xl border border-white/12 bg-[hsl(224_44%_8%)] px-3 py-2 text-sm font-semibold transition-colors hover:border-white/25 focus:border-white/40 focus:outline-none disabled:opacity-50 sm:max-w-xs"
+                >
+                  <option value="">Türkiye geneli</option>
+                  {[...PROVINCES]
+                    .sort((a, b) => a.name.localeCompare(b.name, "tr"))
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {String(p.plate).padStart(2, "0")} · {p.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Badge variant="secondary">{kovaSayisi} veri karesi</Badge>
+                {odakAdi && <Badge variant="secondary">{odakAdi}</Badge>}
                 <Badge variant="secondary">
                   ≈{sureSn} sn · {KARE_HIZI} kare/sn
                 </Badge>

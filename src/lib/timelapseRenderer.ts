@@ -50,6 +50,38 @@ export const BOYUTLAR: Record<Kalite, Record<Oran, { width: number; height: numb
   },
 };
 
+/**
+ * Bir ilin sınır kutusu (viewBox koordinatı).
+ *
+ * Yollar yalnızca mutlak M/L/Z komutlarından oluşuyor (provinces.ts otomatik
+ * üretiliyor), dolayısıyla `d` metnindeki bütün sayı çiftleri koordinat.
+ * Path2D sınır kutusu vermediği için en kestirme yol bu.
+ */
+const kutular = new Map<string, { x: number; y: number; w: number; h: number }>();
+function ilKutusu(provinceId: string) {
+  const varolan = kutular.get(provinceId);
+  if (varolan) return varolan;
+
+  const province = PROVINCES.find((p) => p.id === provinceId);
+  if (!province) return null;
+
+  const sayilar = province.d.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i + 1 < sayilar.length; i += 2) {
+    const x = sayilar[i];
+    const y = sayilar[i + 1];
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  if (!Number.isFinite(minX)) return null;
+
+  const kutu = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  kutular.set(provinceId, kutu);
+  return kutu;
+}
+
 /** `d` metinleri her karede yeniden ayrıştırılmasın diye bir kez kuruluyor. */
 let yollar: Array<{ id: string; path: Path2D }> | null = null;
 function provincePaths() {
@@ -94,6 +126,10 @@ export type CizimSecenekleri = {
   /** "örnek veri" damgası basılsın mı? */
   ornek: boolean;
   baslik?: string;
+  /** Tek bir ile odaklan: harita oraya yakınlaşır, üst yazıya il adı girer. */
+  odakProvinceId?: string | null;
+  /** Odaklanılan ilin adı (harita verisi renderer'da, ad çağıranda). */
+  odakAdi?: string | null;
 };
 
 /**
@@ -128,26 +164,67 @@ export function guvenliAlan(oran: Oran, kalite: Kalite = "hd") {
 
 type Alan = { x: number; y: number; w: number; h: number };
 
-/** Haritayı verilen alana sığdırıp ortalar. */
-function haritaCiz(ctx: CanvasRenderingContext2D, frame: Frame, alan: Alan): void {
-  const olcek = Math.min(alan.w / W, alan.h / H);
-  const ox = alan.x + (alan.w - W * olcek) / 2;
-  const oy = alan.y + (alan.h - H * olcek) / 2;
+/**
+ * Haritayı verilen alana sığdırıp ortalar.
+ *
+ * `odak` verilirse o ilin çevresine yakınlaşıyor ve komşular soluklaşıyor:
+ * il bazlı videoda hangi ilden bahsedildiği tek bakışta anlaşılsın diye.
+ * Ülke geneli görünümde hiçbir şey değişmiyor.
+ */
+function haritaCiz(
+  ctx: CanvasRenderingContext2D,
+  frame: Frame,
+  alan: Alan,
+  odak?: string | null,
+): void {
+  const kutu = odak ? ilKutusu(odak) : null;
+
+  // Odaklıyken il, harita alanının kısa kenarının ~%50'sini kaplasın; küçük
+  // iller aşırı büyümesin diye yakınlaşma tavanı var.
+  const tabanOlcek = Math.min(alan.w / W, alan.h / H);
+  const olcek = kutu
+    ? Math.min(
+        tabanOlcek * 6,
+        Math.min(alan.w * 0.5 / Math.max(kutu.w, 1), alan.h * 0.5 / Math.max(kutu.h, 1)),
+      )
+    : tabanOlcek;
+
+  const merkezX = kutu ? kutu.x + kutu.w / 2 : W / 2;
+  const merkezY = kutu ? kutu.y + kutu.h / 2 : H / 2;
+  const ox = alan.x + alan.w / 2 - merkezX * olcek;
+  const oy = alan.y + alan.h / 2 - merkezY * olcek;
 
   ctx.save();
+  // Yakınlaşınca taşan komşular alanın dışına sarkmasın.
+  ctx.beginPath();
+  ctx.rect(alan.x, alan.y, alan.w, alan.h);
+  ctx.clip();
+
   ctx.translate(ox, oy);
   ctx.scale(olcek, olcek);
   ctx.lineJoin = "round";
   ctx.lineWidth = 0.9 / olcek;
   ctx.strokeStyle = "rgba(3,7,18,0.75)";
+
   for (const { id, path } of provincePaths()) {
     const lider = frame.leaders[id];
+    const secili = !odak || id === odak;
     ctx.fillStyle = lider ? partyColor(lider) : NEUTRAL;
-    ctx.globalAlpha = lider ? 0.92 : 0.45;
+    ctx.globalAlpha = secili ? (lider ? 0.92 : 0.45) : 0.16;
     ctx.fill(path);
     ctx.globalAlpha = 1;
     ctx.stroke(path);
   }
+
+  if (odak) {
+    const hedef = provincePaths().find((p) => p.id === odak);
+    if (hedef) {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2.2 / olcek;
+      ctx.stroke(hedef.path);
+    }
+  }
+
   ctx.restore();
 }
 
@@ -167,9 +244,28 @@ function tabloYuksekligi(satirH: number, seritH: number, adet: number): number {
 function tabloCiz(
   ctx: CanvasRenderingContext2D,
   frame: Frame,
-  o: { x: number; y: number; w: number; satirH: number; seritH: number; adet: number },
+  o: {
+    x: number;
+    y: number;
+    w: number;
+    satirH: number;
+    seritH: number;
+    adet: number;
+    /** Dikey yerleşimde her şey ortalı; boş durum yazısı da öyle olmalı. */
+    ortala?: boolean;
+  },
 ): number {
-  const { x, y, w, satirH, seritH, adet } = o;
+  const { x, y, w, satirH, seritH, adet, ortala = false } = o;
+
+  // Tek ile daraltılmış videoda zamanın başında o ilde henüz oy olmuyor;
+  // tablo alanı boş kalmasın.
+  if (frame.national.length === 0) {
+    ctx.textAlign = ortala ? "center" : "left";
+    ctx.font = `600 ${Math.round(satirH * 0.42)}px "SF Pro Text", Inter, system-ui, sans-serif`;
+    ctx.fillStyle = MUTED;
+    ctx.fillText("Henüz oy yok", ortala ? x + w / 2 : x, y + satirH * 0.9);
+    return tabloYuksekligi(satirH, seritH, adet);
+  }
 
   let seritX = x;
   ctx.save();
@@ -269,7 +365,14 @@ function sayacCiz(
 export function drawFrame(
   ctx: CanvasRenderingContext2D,
   frame: Frame,
-  { oran, kalite = "hd", ornek, baslik = "partim.lol" }: CizimSecenekleri,
+  {
+    oran,
+    kalite = "hd",
+    ornek,
+    baslik = "partim.lol",
+    odakProvinceId = null,
+    odakAdi = null,
+  }: CizimSecenekleri,
 ): void {
   const { width, height } = BOYUTLAR[kalite][oran];
   const dikey = oran !== "16:9";
@@ -361,10 +464,14 @@ export function drawFrame(
     ctx.textAlign = "center";
     ctx.font = `600 ${m.tarih}px "SF Mono", ui-monospace, monospace`;
     ctx.fillStyle = MUTED;
-    ctx.fillText(formatTarih(frame.at), merkez, y);
+    ctx.fillText(
+      odakAdi ? `${odakAdi} · ${formatTarih(frame.at)}` : formatTarih(frame.at),
+      merkez,
+      y,
+    );
 
     y += m.araB;
-    haritaCiz(ctx, frame, { x: alan.x, y, w: alan.w, h: m.harita });
+    haritaCiz(ctx, frame, { x: alan.x, y, w: alan.w, h: m.harita }, odakProvinceId);
     y += m.harita + m.araB;
 
     y += tabloCiz(ctx, frame, {
@@ -374,6 +481,7 @@ export function drawFrame(
       satirH: m.satir,
       seritH: m.serit,
       adet,
+      ortala: true,
     });
 
     y += m.araB + m.damga;
@@ -402,7 +510,11 @@ export function drawFrame(
 
     ctx.font = `600 ${Math.round(width * 0.016)}px "SF Mono", ui-monospace, monospace`;
     ctx.fillStyle = MUTED;
-    ctx.fillText(formatTarih(frame.at), alan.x, baslikY + Math.round(width * 0.026));
+    ctx.fillText(
+      odakAdi ? `${odakAdi} · ${formatTarih(frame.at)}` : formatTarih(frame.at),
+      alan.x,
+      baslikY + Math.round(width * 0.026),
+    );
 
     ctx.textAlign = "right";
     ctx.font = `800 ${Math.round(width * 0.03)}px "SF Mono", ui-monospace, monospace`;
@@ -417,7 +529,7 @@ export function drawFrame(
     const sutunAra = Math.round(width * 0.03);
     const haritaW = Math.round(alan.w * 0.6) - sutunAra;
 
-    haritaCiz(ctx, frame, { x: alan.x, y: icerikY, w: haritaW, h: icerikH });
+    haritaCiz(ctx, frame, { x: alan.x, y: icerikY, w: haritaW, h: icerikH }, odakProvinceId);
 
     const tabloX = alan.x + haritaW + sutunAra;
     const tabloW = alan.x + alan.w - tabloX;

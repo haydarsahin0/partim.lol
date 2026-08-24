@@ -101,7 +101,7 @@ function summarize(at: string, tallies: Tallies): Frame {
  * her kare bir öncekinin üstüne o kovadaki oyları ekler — yani hiçbir kare
  * baştan hesaplanmıyor, video kaç kare olursa olsun maliyet aynı kalıyor.
  */
-export function buildFrames(history: VoteHistory): Frame[] {
+export function buildFrames(history: VoteHistory, sonAn?: string): Frame[] {
   const running = clone(history.seed);
   const first = history.buckets[0]?.at ?? new Date().toISOString();
 
@@ -115,7 +115,67 @@ export function buildFrames(history: VoteHistory): Frame[] {
     }
     frames.push(summarize(bucket.at, clone(running)));
   }
+
+  /*
+   * VİDEO ŞU ANDA BİTMELİ.
+   *
+   * Kovalar aşağı yuvarlanıyor: saatlik dilimde son kova 21:00 damgasını
+   * taşıyor, saat 21:50 olsa bile. Sayılar güncel ama ekrandaki saat geride
+   * kalıyordu ve video "belli bir saatte takılı" görünüyordu. Son kovanın
+   * sayılarıyla ama şimdinin damgasıyla bir kapanış karesi ekliyoruz.
+   */
+  const son = sonAn ?? new Date().toISOString();
+  const sonKare = frames[frames.length - 1];
+  if (!sonKare || Date.parse(son) > Date.parse(sonKare.at)) {
+    frames.push(summarize(son, clone(running)));
+  }
+
   return frames;
+}
+
+/**
+ * Kareyi tek bir ile daraltır.
+ *
+ * Harita ve il sayıları olduğu gibi kalıyor — video hâlâ Türkiye'yi çiziyor,
+ * yalnızca odak ile kayıyor. Değişen şey tablo ve sayaç: ülke geneli yerine
+ * seçilen ilin kendi sonuçları.
+ */
+export function scopeFrame(frame: Frame, provinceId: string): Frame {
+  const row = frame.tallies[provinceId] ?? {};
+  const toplam = Math.round(Object.values(row).reduce((a, b) => a + b, 0));
+
+  const ham = Object.entries(row)
+    .filter(([, v]) => v > 0)
+    .map(([partyId, votes]) => ({ partyId, tam: toplam > 0 ? votes : 0 }));
+  const genelToplam = ham.reduce((a, r) => a + r.tam, 0);
+
+  // Ülke tablosuyla aynı en-büyük-kalan yöntemi: sayılar tam, yüzdeler %100.
+  const olcekli = ham.map((r) => ({
+    partyId: r.partyId,
+    tam: genelToplam > 0 ? (r.tam / genelToplam) * toplam : 0,
+  }));
+  const sayilar = olcekli.map((r) => ({ partyId: r.partyId, votes: Math.floor(r.tam) }));
+  let kalan = toplam - sayilar.reduce((a, r) => a + r.votes, 0);
+  const kesirSirasi = olcekli
+    .map((r, i) => ({ i, kesir: r.tam - Math.floor(r.tam) }))
+    .sort((a, b) => b.kesir - a.kesir);
+  for (let k = 0; kalan > 0 && kesirSirasi.length > 0; k++) {
+    sayilar[kesirSirasi[k % kesirSirasi.length].i].votes += 1;
+    kalan -= 1;
+  }
+
+  return {
+    ...frame,
+    national: sayilar
+      .filter((r) => r.votes > 0)
+      .map((r) => ({
+        partyId: r.partyId,
+        votes: r.votes,
+        pct: toplam ? (r.votes / toplam) * 100 : 0,
+      }))
+      .sort((a, b) => b.votes - a.votes),
+    totalVotes: toplam,
+  };
 }
 
 /**
