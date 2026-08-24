@@ -63,7 +63,12 @@ export type LeaderSeat = {
   holder: AuthUser | null;
   /** Koltuğun mevcut değeri (USD). Boşsa 0. */
   price: number;
-  /** Devralmak için ödenecek tutar (USD) */
+  /**
+   * Devralmak için ödenmesi gereken EN AZ tutar (USD).
+   *
+   * Fiyat sabit merdiven değil: kullanıcı bunun üstünde istediğini ödeyebilir
+   * ve ödediği tutar koltuğun yeni değeri olur.
+   */
   nextPrice: number;
   /** Koltuğun alındığı an (ISO), boşsa null */
   heldSince: string | null;
@@ -233,8 +238,12 @@ export interface Backend {
 
   /* --- eylemler --- */
   castVote(provinceId: string, partyId: string): Promise<VoteResult>;
-  /** İl başkanlığı için Stripe ödemesini başlatır */
-  claimSeat(provinceId: string, partyId: string): Promise<CheckoutResult>;
+  /**
+   * İl başkanlığı için Stripe ödemesini başlatır.
+   * `amount` verilmezse en az tutar kullanılır; verilirse sunucuda da
+   * doğrulanır — istemciye güvenilmez.
+   */
+  claimSeat(provinceId: string, partyId: string, amount?: number): Promise<CheckoutResult>;
   /** Haftalık abonelikle yeni bir parti kurar */
   createParty(input: CustomPartyInput): Promise<CreatePartyResult>;
 }

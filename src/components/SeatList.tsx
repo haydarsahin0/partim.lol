@@ -14,10 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { XP_PER_LEADER_HOUR, formatSince, formatUsd } from "@/lib/game";
+import { XP_PER_LEADER_HOUR, checkLeaderBid, formatSince, formatUsd } from "@/lib/game";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { BotDot } from "@/components/BotDot";
 import { PartyMark } from "@/components/PartyMark";
+import { SeatCardButton } from "@/components/SeatCardButton";
 
 /** Bir ildeki tüm partilerin il başkanlığı koltukları. */
 export function SeatList({
@@ -32,12 +34,23 @@ export function SeatList({
   const { user, isDemo, claimSeat } = useGame();
   const [target, setTarget] = useState<LeaderSeat | null>(null);
   const [busy, setBusy] = useState(false);
+  /* Teklif metin olarak tutuluyor: sayıya çevirince kullanıcı "12" yazarken
+     ara adımda "1" görünüp imleç zıplıyor. */
+  const [teklif, setTeklif] = useState("");
+
+  const tutar = Number(teklif.replace(",", "."));
+  const kontrol = target ? checkLeaderBid(tutar, target.nextPrice) : { ok: false as const, message: "" };
+
+  const ac = (seat: LeaderSeat) => {
+    setTarget(seat);
+    setTeklif(String(seat.nextPrice));
+  };
 
   const confirm = async () => {
-    if (!target) return;
+    if (!target || !kontrol.ok) return;
     setBusy(true);
     try {
-      const seat = await claimSeat(target.provinceId, target.partyId);
+      const seat = await claimSeat(target.provinceId, target.partyId, tutar);
       if (seat) {
         setTarget(null);
         onChanged?.();
@@ -58,7 +71,7 @@ export function SeatList({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-base font-bold">İl başkanlıkları</h3>
         <span className="text-xs text-muted-foreground">
-          Saat başı +{XP_PER_LEADER_HOUR} XP · devralma her elde {formatUsd(1)} artar
+          Saat başı +{XP_PER_LEADER_HOUR} XP · devralmak için son bedelin üstüne çık
         </span>
       </div>
 
@@ -105,14 +118,17 @@ export function SeatList({
 
               <div className="shrink-0 text-right">
                 {mine ? (
-                  <Badge variant="success" className="gap-1">
-                    <Crown className="size-3" /> başkansın
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <Badge variant="success" className="gap-1">
+                      <Crown className="size-3" /> başkansın
+                    </Badge>
+                    <SeatCardButton seat={seat} />
+                  </div>
                 ) : (
                   <Button
                     size="sm"
                     variant={seat.holder ? "outline" : "default"}
-                    onClick={() => setTarget(seat)}
+                    onClick={() => ac(seat)}
                   >
                     {seat.holder ? "Devral" : "Kap"} {formatUsd(seat.nextPrice)}
                   </Button>
@@ -133,12 +149,54 @@ export function SeatList({
                 </DialogTitle>
                 <DialogDescription>
                   {target.holder
-                    ? `Koltuk şu an @${target.holder.handle} elinde. ${formatUsd(
+                    ? `Koltuk şu an @${target.holder.handle} elinde. En az ${formatUsd(
                         target.nextPrice,
-                      )} ödeyerek devralabilirsin.`
-                    : `Bu koltuk boş. ${formatUsd(target.nextPrice)} ödeyerek ilk başkan sen ol.`}
+                      )} ödeyerek devralabilirsin — dilediğin kadar üstüne çıkabilirsin.`
+                    : `Bu koltuk boş. En az ${formatUsd(target.nextPrice)} ödeyerek ilk başkan sen ol.`}
                 </DialogDescription>
               </DialogHeader>
+
+              {/* Ucu açık teklif: ödenen tutar koltuğun yeni değeri olur, yani
+                  yüksek teklif hem koltuğu alır hem savunur. */}
+              <div className="space-y-2">
+                <label htmlFor="baskanlik-teklif" className="stat-label">
+                  Ödeyeceğin tutar
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-muted-foreground">
+                      $
+                    </span>
+                    <Input
+                      id="baskanlik-teklif"
+                      inputMode="decimal"
+                      value={teklif}
+                      onChange={(e) => setTeklif(e.target.value.replace(/[^\d.,]/g, ""))}
+                      className="pl-7 font-mono"
+                      aria-invalid={!kontrol.ok}
+                    />
+                  </div>
+                  {[
+                    { etiket: "en az", deger: target.nextPrice },
+                    { etiket: "2×", deger: target.nextPrice * 2 },
+                    { etiket: "5×", deger: target.nextPrice * 5 },
+                  ].map((h) => (
+                    <Button
+                      key={h.etiket}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setTeklif(String(h.deger))}
+                    >
+                      {h.etiket}
+                    </Button>
+                  ))}
+                </div>
+                {!kontrol.ok && kontrol.message && (
+                  <p className="text-xs text-amber-300">{kontrol.message}</p>
+                )}
+              </div>
 
               <ul className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm">
                 <li className="flex items-center gap-2">
@@ -151,7 +209,8 @@ export function SeatList({
                 </li>
                 <li className="flex items-center gap-2">
                   <ShieldCheck className="size-4 text-primary" />
-                  Bir sonraki devralma bedeli {formatUsd(target.nextPrice + 1)} olur.
+                  Ödediğin tutar koltuğun yeni değeri olur; senden devralmak isteyen
+                  en az {formatUsd((kontrol.ok ? tutar : target.nextPrice) + 1)} ödemek zorunda kalır.
                 </li>
               </ul>
 
@@ -166,9 +225,9 @@ export function SeatList({
                 <Button variant="ghost" onClick={() => setTarget(null)}>
                   Vazgeç
                 </Button>
-                <Button onClick={() => void confirm()} disabled={busy}>
+                <Button onClick={() => void confirm()} disabled={busy || !kontrol.ok}>
                   {busy ? <Loader2 className="animate-spin" /> : <Crown />}
-                  {formatUsd(target.nextPrice)} öde
+                  {kontrol.ok ? `${formatUsd(tutar)} öde` : "Tutarı gir"}
                 </Button>
               </DialogFooter>
             </>

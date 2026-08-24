@@ -17,12 +17,13 @@ import { pick, seededRng } from "@/lib/rng";
 import { syntheticHistory } from "@/lib/timelapse";
 import {
   LEADER_BASE_PRICE,
+  checkLeaderBid,
   VOTE_COOLDOWN_MS,
   hasUnlimitedVotes,
   XP_PER_LEADER_HOUR,
   XP_PER_VOTE,
   levelFromXp,
-  nextLeaderPrice,
+  minLeaderPrice,
 } from "@/lib/game";
 import { readableTextTone } from "@/data/parties";
 import type { Party } from "@/data/parties";
@@ -302,7 +303,7 @@ export class DemoBackend implements Backend {
         partyId,
         holder: this.state.user,
         price: mine.price,
-        nextPrice: nextLeaderPrice(mine.price),
+        nextPrice: minLeaderPrice(mine.price),
         heldSince: mine.heldSince,
         takeovers: mine.takeovers,
       };
@@ -321,7 +322,7 @@ export class DemoBackend implements Backend {
           xHandle: null,
         },
         price: seeded.price,
-        nextPrice: nextLeaderPrice(seeded.price),
+        nextPrice: minLeaderPrice(seeded.price),
         heldSince: seeded.heldSince,
         takeovers: seeded.takeovers,
       };
@@ -548,12 +549,17 @@ export class DemoBackend implements Backend {
     };
   }
 
-  async claimSeat(provinceId: string, partyId: string): Promise<CheckoutResult> {
+  async claimSeat(provinceId: string, partyId: string, amount?: number): Promise<CheckoutResult> {
     if (!this.state.user) return { kind: "error", message: "Önce giriş yapmalısın." };
     const seat = this.seatFor(provinceId, partyId);
     if (seat.holder?.id === this.state.user.id) {
       return { kind: "error", message: "Bu koltuk zaten senin." };
     }
+
+    // Tutar ucu açık; alt sınır gerçek modda sunucuda da denetleniyor.
+    const bedel = amount ?? seat.nextPrice;
+    const kontrol = checkLeaderBid(bedel, seat.nextPrice);
+    if (!kontrol.ok) return { kind: "error", message: kontrol.message };
 
     const now = new Date().toISOString();
     // Tohum sahibinden devralındıysa o kaydı geçersizleştir
@@ -562,7 +568,7 @@ export class DemoBackend implements Backend {
       if (!list.includes(partyId)) list.push(partyId);
     }
     (this.state.mySeats[provinceId] ??= {})[partyId] = {
-      price: seat.nextPrice,
+      price: bedel,
       heldSince: now,
       takeovers: seat.takeovers + 1,
       xpPaidUntil: now,

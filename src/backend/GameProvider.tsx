@@ -49,7 +49,7 @@ type GameContextValue = {
   claimUnlimited: (code: string) => Promise<ProfileUpdateResult>;
   getRecoveryCode: () => Promise<string | null>;
   vote: (provinceId: string, partyId: string) => Promise<boolean>;
-  claimSeat: (provinceId: string, partyId: string) => Promise<LeaderSeat | null>;
+  claimSeat: (provinceId: string, partyId: string, amount?: number) => Promise<LeaderSeat | null>;
   createParty: (input: CustomPartyInput) => Promise<CreatePartyResult>;
 };
 
@@ -251,8 +251,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   );
 
   const claimSeat = useCallback(
-    async (provinceId: string, partyId: string) => {
-      const result = await backend.claimSeat(provinceId, partyId);
+    async (provinceId: string, partyId: string, amount?: number) => {
+      const result = await backend.claimSeat(provinceId, partyId, amount);
       if (result.kind === "error") {
         toast.error(result.message);
         return null;

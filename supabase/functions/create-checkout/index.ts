@@ -57,7 +57,14 @@ Deno.serve(async (req) => {
   const profileId = profileRow?.id as string | undefined;
   if (!profileId) return json({ error: "Hesap bulunamadı." }, 401);
 
-  let body: { provinceId?: string; partyId?: string; successUrl?: string; cancelUrl?: string };
+  let body: {
+    provinceId?: string;
+    partyId?: string;
+    successUrl?: string;
+    cancelUrl?: string;
+    /** Ucu açık teklif. Verilmezse en az tutar kullanılır. */
+    amount?: number;
+  };
   try {
     body = await req.json();
   } catch {
@@ -90,8 +97,33 @@ Deno.serve(async (req) => {
   });
   if (priceError) return json({ error: priceError.message }, 500);
 
-  const price = Number(priceData ?? 1);
-  if (!Number.isFinite(price) || price <= 0) return json({ error: "Fiyat hesaplanamadı." }, 500);
+  const enAz = Number(priceData ?? 1);
+  if (!Number.isFinite(enAz) || enAz <= 0) return json({ error: "Fiyat hesaplanamadı." }, 500);
+
+  /*
+   * Ucu açık fiyat.
+   *
+   * Kullanıcı en az tutarın üstünde istediğini ödeyebiliyor; ödediği tutar
+   * koltuğun yeni değeri oluyor. İstemcinin gönderdiği sayıya güvenilmez:
+   * alt sınırı burada veritabanından okuyup yeniden doğruluyoruz, yoksa
+   * isteği elle atan biri $1'e her koltuğu alırdı.
+   *
+   * Tavan hem kazara fazladan sıfır yazmaya hem Stripe'ın kendi üst sınırına
+   * çarpmaya karşı. lib/game.ts'teki LEADER_MAX_PRICE ile aynı.
+   */
+  const TAVAN = 100_000;
+  const istenen = body.amount === undefined ? enAz : Number(body.amount);
+  if (!Number.isFinite(istenen)) return json({ error: "Geçerli bir tutar gir." }, 400);
+  if (Math.round(istenen * 100) !== istenen * 100) {
+    return json({ error: "Tutar en fazla iki ondalık basamak olabilir." }, 400);
+  }
+  if (istenen < enAz) {
+    return json({ error: `Bu koltuk için en az $${enAz} ödemelisin.`, minimum: enAz }, 409);
+  }
+  if (istenen > TAVAN) {
+    return json({ error: `En fazla $${TAVAN} ödeyebilirsin.` }, 400);
+  }
+  const price = istenen;
 
   // Stripe hatası yakalanmazsa istemci sabit "non-2xx" mesajı görür, sebebi değil.
   let session;

@@ -62,9 +62,10 @@ export function SeatMarket({
             İl başkanlığı
           </h3>
           <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-            Boş koltuk {formatUsd(LEADER_BASE_PRICE)}. Dolu koltuğu devralmak her seferinde
-            <strong className="text-foreground"> 1 dolar daha pahalı</strong> — {formatUsd(2)},{" "}
-            {formatUsd(3)}, {formatUsd(4)}… Koltuk sende kaldığı her saat +20 XP.
+            Boş koltuk {formatUsd(LEADER_BASE_PRICE)}. Dolu koltuğu devralmak için
+            <strong className="text-foreground"> son ödenen bedelin üstüne çıkman</strong> yeter —
+            tavan yok, ne kadar yüksek ödersen koltuğu o kadar zor kaptırırsın. Sende kaldığı her
+            saat +20 XP.
           </p>
         </div>
       </div>

@@ -142,8 +142,8 @@ export default function Home() {
               Adın ve X hesabın o partinin yanında, ilin sayfasında herkese görünür.
             </p>
             <p className="mt-3 text-[13px] text-muted-foreground">
-              Boş koltuk {formatUsd(LEADER_BASE_PRICE)}. Dolu koltuğu devralmak {formatUsd(2)},
-              sonra {formatUsd(3)}, {formatUsd(4)}… Elinde tuttuğun her saat +{XP_PER_LEADER_HOUR} XP.
+              Boş koltuk {formatUsd(LEADER_BASE_PRICE)}. Dolu koltuğu devralmak için son ödenen
+              bedelin üstüne çık — tavan yok. Elinde tuttuğun her saat +{XP_PER_LEADER_HOUR} XP.
             </p>
         </Card>
       </aside>

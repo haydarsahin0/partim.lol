@@ -27,9 +27,9 @@ const RULES = [
     title: "İl başkanlığını kap",
     body: `Her il × her parti için tek bir başkanlık koltuğu var. Boş koltuk ${formatUsd(
       LEADER_BASE_PRICE,
-    )}. Dolu bir koltuğu devralmak, o anki bedelin ${formatUsd(
+    )}. Dolu bir koltuğu devralmak için son ödenen bedelin en az ${formatUsd(
       LEADER_PRICE_STEP,
-    )} fazlasına mal olur — yani koltuk el değiştirdikçe pahalılaşır.`,
+    )} üstüne çıkman gerekir — ama tavan yok, istediğin kadar yüksek ödeyebilirsin. Ödediğin tutar koltuğun yeni değeri olur; yüksek ödemek koltuğu almanın yanında savunmanın da yolu.`,
   },
   {
     icon: Sparkles,

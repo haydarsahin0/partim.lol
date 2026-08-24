@@ -7,7 +7,7 @@
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { PARTY_IDS, readableTextTone, type Party } from "@/data/parties";
 import { fallbackAvatar } from "@/lib/avatar";
-import { LEADER_BASE_PRICE, levelFromXp, nextLeaderPrice } from "@/lib/game";
+import { LEADER_BASE_PRICE, levelFromXp, minLeaderPrice } from "@/lib/game";
 import { getSupabase } from "./supabaseClient";
 import { normalizeRecoveryCode, type DeviceIdentity } from "@/lib/device";
 import type {
@@ -92,7 +92,7 @@ function seatFromRow(row: SeatRow): LeaderSeat {
     partyId: row.party_id,
     holder: authUserFromRow(row.holder),
     price,
-    nextPrice: nextLeaderPrice(price),
+    nextPrice: minLeaderPrice(price),
     heldSince: row.held_since,
     takeovers: row.takeovers ?? 0,
   };
@@ -537,10 +537,13 @@ export class SupabaseBackend implements Backend {
     return { kind: "redirect", url };
   }
 
-  async claimSeat(provinceId: string, partyId: string): Promise<CheckoutResult> {
+  async claimSeat(provinceId: string, partyId: string, amount?: number): Promise<CheckoutResult> {
     const { data, message } = await invokeEdge<{ url?: string }>(this.db, "create-checkout", {
       provinceId,
       partyId,
+      // Tutar ucu açık. Sunucu yine de alt sınırı kendisi hesaplayıp
+      // doğruluyor — istemcinin gönderdiği sayıya güvenilmez.
+      amount,
       successUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=basarili`,
       cancelUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=iptal`,
     });

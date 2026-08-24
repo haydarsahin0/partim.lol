@@ -45,13 +45,48 @@ export const PARTY_SHORT_MAX = 6;
 /** Boş bir il başkanlığının açılış fiyatı (USD) */
 export const LEADER_BASE_PRICE = 1;
 
-/** Devralma her seferinde bu kadar artar (USD) */
+/** Devralmak için en az bu kadar artırmak gerekir (USD) */
 export const LEADER_PRICE_STEP = 1;
 
-/** Bir koltuğu devralmak için ödenmesi gereken tutar */
-export function nextLeaderPrice(currentPrice: number | null | undefined): number {
+/**
+ * Koltuk fiyatının tavanı (USD).
+ *
+ * Ucu açık olması istendi, ama tamamen sınırsız bırakmak tehlikeli: yanlışlıkla
+ * fazladan sıfır yazan biri kart limitine takılana kadar bunu fark etmiyor ve
+ * iadesi elle yapılıyor. Tavan hem kazayı hem Stripe'ın kendi üst sınırına
+ * çarpmayı önlüyor.
+ */
+export const LEADER_MAX_PRICE = 100_000;
+
+/**
+ * Bir koltuğu devralmak için ödenmesi gereken EN AZ tutar.
+ *
+ * Fiyat artık sabit merdiven değil: kullanıcı bu tutarın üstünde istediğini
+ * ödeyebiliyor. Ödediği tutar koltuğun yeni değeri oluyor, yani sonraki
+ * devralma da oradan devam ediyor.
+ */
+export function minLeaderPrice(currentPrice: number | null | undefined): number {
   if (!currentPrice || currentPrice <= 0) return LEADER_BASE_PRICE;
   return currentPrice + LEADER_PRICE_STEP;
+}
+
+/** Girilen teklif geçerli mi? Hata varsa sebebini döner. */
+export function checkLeaderBid(
+  amount: number,
+  minimum: number,
+): { ok: true } | { ok: false; message: string } {
+  if (!Number.isFinite(amount)) return { ok: false, message: "Geçerli bir tutar gir." };
+  // Stripe kuruş cinsinden çalışıyor; iki basamaktan fazlası sessizce yuvarlanır.
+  if (Math.round(amount * 100) !== amount * 100) {
+    return { ok: false, message: "Tutar en fazla iki ondalık basamak olabilir." };
+  }
+  if (amount < minimum) {
+    return { ok: false, message: `En az ${formatUsd(minimum)} ödemelisin.` };
+  }
+  if (amount > LEADER_MAX_PRICE) {
+    return { ok: false, message: `En fazla ${formatUsd(LEADER_MAX_PRICE)} ödeyebilirsin.` };
+  }
+  return { ok: true };
 }
 
 /**
