@@ -16,7 +16,7 @@ import {
   minLeaderPrice,
 } from "@/lib/game";
 import { getSupabase } from "./supabaseClient";
-import { normalizeRecoveryCode, type DeviceIdentity } from "@/lib/device";
+import { getDeviceIdentity, normalizeRecoveryCode, type DeviceIdentity } from "@/lib/device";
 import type {
   AuthUser,
   Backend,
@@ -244,7 +244,41 @@ export class SupabaseBackend implements Backend {
     const { data } = this.db.auth.onAuthStateChange(
       async (_event: string, session: Session | null) => {
         this.cachedProfile = null;
-        cb(session ? await this.getUser() : null);
+        if (!session) {
+          cb(null);
+          return;
+        }
+
+        /*
+         * BURADA PROFİL AÇILMALI.
+         *
+         * Eskiden yalnızca getUser() çağrılıyordu; o da profil satırını OKUYAN
+         * bir sorgu. Google ile ilk kez giren kullanıcının henüz profil satırı
+         * olmadığı için null dönüyor ve hiçbir şey onu oluşturmuyordu:
+         * kullanıcı Google'da hesabını seçiyor, siteye dönüyor ve sanki hiçbir
+         * şey olmamış gibi çıkışlı kalıyordu.
+         *
+         * Açılışta ensureSession çalışıyor ama o sırada oturum henüz yok;
+         * oturum tam da bu olayla geliyor. O yüzden profili burada kuruyoruz.
+         */
+        try {
+          const profile = await this.ensureSession(getDeviceIdentity());
+          cb(
+            profile
+              ? {
+                  id: profile.id,
+                  handle: profile.handle,
+                  displayName: profile.displayName,
+                  avatarUrl: profile.avatarUrl,
+                  xHandle: profile.xHandle,
+                }
+              : null,
+          );
+        } catch {
+          // Profil kurulamadıysa en azından oturumu yansıt; kullanıcı yeniden
+          // deneyebilsin diye sessiz kalmıyoruz, çağıran hatayı gösteriyor.
+          cb(await this.getUser());
+        }
       },
     );
     return () => data.subscription.unsubscribe();
@@ -603,9 +637,25 @@ export class SupabaseBackend implements Backend {
   }
 
   async signInWithGoogle() {
-    // Dönüş adresi hash yönlendirmesiyle uyumlu: Supabase PKCE akışında kodu
-    // sorgu dizesine koyuyor, detectSessionInUrl onu oradan okuyor.
-    const redirectTo = `${window.location.origin}${window.location.pathname}#/profil?google=basarili`;
+    /*
+     * DÖNÜŞ ADRESİNDE # OLMAMALI.
+     *
+     * Uygulama hash yönlendirmesi kullanıyor. Dönüş adresine `#/profil`
+     * yazılınca Supabase'in eklediği `?code=...` hash'in İÇİNDE kalıyordu
+     * (".../#/profil?google=basarili&code=xxx"). supabase-js kodu
+     * window.location.search içinde arıyor, orada bulamıyor ve oturumu hiç
+     * kurmuyordu: kullanıcı Google'da hesabını seçip dönüyor, hiçbir şey
+     * olmuyordu.
+     *
+     * Adres artık temiz kök; kod sorgu dizesine düşüyor ve okunuyor.
+     * Kullanıcının bulunduğu sayfa aşağıda saklanıp dönüşte geri veriliyor.
+     */
+    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    try {
+      sessionStorage.setItem("partim.lol/giris-donus", window.location.hash || "#/profil");
+    } catch {
+      /* depolama kapalı olabilir; dönüşte ana sayfada kalır */
+    }
 
     /*
      * Anonim oturum varken önce KİMLİK EKLEME deneniyor: auth kullanıcısı aynı

@@ -41,7 +41,22 @@ export function getSupabase(): SupabaseClient {
     throw new Error("Supabase yapılandırılmamış (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).");
   }
   client ??= createClient(url!, anonKey!, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      /*
+       * PKCE açıkça seçili.
+       *
+       * Örtük akışta Google jetonları adres HASH'ine düşüyor
+       * ("#access_token=..."). Uygulama HashRouter kullandığı için o hash aynı
+       * zamanda yönlendirme yolu: router onu bilinmeyen bir yol sanıp ana
+       * sayfaya yönlendirebiliyor ve supabase-js daha okumadan hash siliniyor.
+       * PKCE'de kod sorgu dizesinde (`?code=`) geliyor, yönlendirmeyle
+       * çakışmıyor.
+       */
+      flowType: "pkce",
+    },
   });
   return client;
 }

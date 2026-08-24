@@ -5,6 +5,7 @@ import { GameProvider } from "@/backend/GameProvider";
 import { Header } from "@/components/Header";
 import { LeaderReminder } from "@/components/LeaderReminder";
 import { useCheckoutConfirm } from "@/hooks/useCheckoutConfirm";
+import { useAuthReturn } from "@/hooks/useAuthReturn";
 import { SignInDialog } from "@/components/SignInDialog";
 import { NeuroNoise } from "@/components/ui/neuro-noise";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,6 +62,7 @@ function Footer() {
  */
 function Kancalar() {
   useCheckoutConfirm();
+  useAuthReturn();
   return null;
 }
 
