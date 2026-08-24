@@ -1,17 +1,20 @@
-import { useState } from "react";
-import { Check, Loader2, Vote } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, Loader2, Sparkles, Vote } from "lucide-react";
 import { partyColor, partyTextColor } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Button } from "@/components/ui/button";
 import {
+  PARTY_WEEKLY_PRICE,
   VOTE_COOLDOWN_LABEL,
   XP_PER_VOTE,
   formatDuration,
+  formatUsd,
   hasUnlimitedVotes,
 } from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { PartyMark } from "@/components/PartyMark";
+import { CreatePartyDialog } from "@/components/CreatePartyDialog";
 
 /** Bir il için oy pusulası: parti seç, saatte bir oy kullan. */
 export function VoteBallot({
@@ -26,6 +29,17 @@ export function VoteBallot({
   const { profile, vote, parties } = useGame();
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [partiKur, setPartiKur] = useState(false);
+
+  /*
+   * Kullanıcıların kurduğu partiler pusulanın başında duruyor. Canlı dizine
+   * sona ekleniyorlar; 17 partilik ızgaranın dibinde kalınca partisini yeni
+   * kuran kullanıcı kendi partisini bulamıyordu.
+   */
+  const siralı = useMemo(
+    () => [...parties].sort((a, b) => Number(!!b.custom) - Number(!!a.custom)),
+    [parties],
+  );
   const unlimited = hasUnlimitedVotes(profile);
   const cooldown = useCountdown(unlimited ? null : profile?.nextVoteAt);
 
@@ -54,8 +68,29 @@ export function VoteBallot({
         </span>
       </div>
 
+      {/*
+        Parti kurma pusulanın en başında: oy verecek kişi listeye bakarken
+        kendi partisini de kurabileceğini görsün.
+      */}
+      <button
+        type="button"
+        onClick={() => setPartiKur(true)}
+        className="group flex w-full items-center gap-3 rounded-xl border border-dashed border-cyan-400/40 bg-cyan-400/[0.06] px-3 py-2.5 text-left transition-colors hover:border-cyan-300/70 hover:bg-cyan-400/[0.12]"
+      >
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-cyan-400/15 text-cyan-300">
+          <Sparkles className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-bold text-foreground">Kendi partini kur</span>
+          <span className="block text-[11px] leading-tight text-muted-foreground">
+            Haftalık {formatUsd(PARTY_WEEKLY_PRICE)} · adını, rengini ve logonu seç, partin bu
+            pusulaya girsin
+          </span>
+        </span>
+      </button>
+
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {parties.map((party) => {
+        {siralı.map((party) => {
           const isSelected = selected === party.id;
           return (
             <button
@@ -112,6 +147,7 @@ export function VoteBallot({
         )}
       </Button>
 
+      <CreatePartyDialog open={partiKur} onOpenChange={setPartiKur} />
     </div>
   );
 }

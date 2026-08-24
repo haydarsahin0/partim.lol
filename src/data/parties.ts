@@ -82,7 +82,6 @@ export function setCustomParties(custom: Party[]): void {
   const normalized = custom.map((p) => ({
     ...p,
     custom: true,
-    // Özel partide kullanıcının verdiği 2–6 harflik kısaltma zaten `name`.
     shortName: p.shortName || p.name,
     on: p.on ?? readableTextTone(p.color),
   }));

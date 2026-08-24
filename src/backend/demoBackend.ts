@@ -626,7 +626,10 @@ export class DemoBackend implements Backend {
     const id = `ozel-${shortName.toLocaleLowerCase("tr").replace(/[^a-z0-9]/g, "")}-${Date.now().toString(36)}`;
     const party: Party = {
       id,
-      name: shortName,
+      // Pusulada ve listelerde partinin adı görünüyor, rozette kısaltması —
+      // hazır partilerde olduğu gibi. Buraya kısaltmayı yazınca kullanıcının
+      // kurduğu parti her yerde "DNM" diye görünüyordu.
+      name,
       shortName,
       fullName: name,
       color: input.color,

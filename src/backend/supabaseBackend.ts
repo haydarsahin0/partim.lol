@@ -510,7 +510,8 @@ export class SupabaseBackend implements Backend {
       owner_handle: string | null;
     }>).map((row) => ({
       id: row.id,
-      name: row.short_name,
+      // Ad görünür, kısaltma rozete basılır — hazır partilerdeki gibi.
+      name: row.name,
       shortName: row.short_name,
       fullName: row.name,
       color: row.color,
