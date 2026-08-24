@@ -133,6 +133,8 @@ Deno.serve(async (req) => {
       success_url: successUrl,
       cancel_url: cancelUrl,
       client_reference_id: profileId,
+      // Makbuz kullanıcıya gitsin.
+      customer_email: user.email ?? undefined,
       // Koltuk fiyatı her devirde değiştiği için sabit Price nesnesi yerine anlık fiyat.
       line_items: [
         {

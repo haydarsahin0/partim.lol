@@ -1,18 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Check,
-  Copy,
-  ImagePlus,
-  Infinity as InfinityIcon,
-  KeyRound,
-  Loader2,
-  RotateCcw,
-  ShieldQuestion,
-} from "lucide-react";
+import { Check, ImagePlus, Loader2, RotateCcw, ShieldQuestion } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import { fileToSquareDataUrl } from "@/lib/image";
 import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,7 +10,7 @@ import { XLogo } from "@/components/XLogo";
 
 /** Profil düzenleme: kullanıcı adı, görünen ad, X hesabı ve avatar. */
 export function ProfileEditor() {
-  const { profile, updateProfile, getRecoveryCode, restoreAccount, claimUnlimited } = useGame();
+  const { profile, updateProfile } = useGame();
 
   const [handle, setHandle] = useState(profile?.handle ?? "");
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "");
@@ -30,7 +20,7 @@ export function ProfileEditor() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  // Profil dışarıdan değişirse (kurtarma, ilk yükleme) alanları eşitle.
+  // Profil dışarıdan değişirse (ilk yükleme, giriş) alanları eşitle.
   useEffect(() => {
     if (!profile) return;
     setHandle(profile.handle);
@@ -77,8 +67,8 @@ export function ProfileEditor() {
       <div>
         <h2 className="font-display text-base font-semibold tracking-[-0.02em]">Profilini düzenle</h2>
         <p className="mt-1 text-[13px] text-muted-foreground">
-          Hesabın bu cihazda açıldı ve burada hatırlanıyor. Görünüşünü istediğin zaman
-          değiştirebilirsin.
+          Hesabın Google kimliğine bağlı; nereden girersen gir aynı profil. Görünüşünü
+          istediğin zaman değiştirebilirsin.
         </p>
       </div>
 
@@ -167,177 +157,6 @@ export function ProfileEditor() {
         )}
       </div>
 
-      <RecoverySection getRecoveryCode={getRecoveryCode} restoreAccount={restoreAccount} />
-      <OwnerSection unlimited={profile.unlimitedVotes} claimUnlimited={claimUnlimited} />
     </Card>
-  );
-}
-
-/**
- * Kurtarma kodu.
- *
- * Hesap tarayıcıdaki kimliğe bağlı olduğu için, kullanıcı site verisini
- * silerse ya da başka bir cihaza geçerse hesabına ulaşamaz. Kod bunun tek
- * çıkış yolu; XP ve satın alınmış koltuklar buna bağlı.
- */
-function RecoverySection({
-  getRecoveryCode,
-  restoreAccount,
-}: {
-  getRecoveryCode: () => Promise<string | null>;
-  restoreAccount: (code: string) => Promise<{ ok: boolean }>;
-}) {
-  const [code, setCode] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const reveal = async () => {
-    setCode(await getRecoveryCode());
-    setRevealed(true);
-  };
-
-  const copy = async () => {
-    if (!code) return;
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* pano kapalıysa kullanıcı elle kopyalar */
-    }
-  };
-
-  return (
-    <div className="glass-soft space-y-3 p-4">
-      <div className="flex items-center gap-2">
-        <KeyRound className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold">Hesap kurtarma</h3>
-        <Badge variant="secondary">önemli</Badge>
-      </div>
-      <p className="text-[13px] leading-relaxed text-muted-foreground">
-        Hesabın bu cihaza bağlı. Tarayıcı verilerini silersen ya da başka bir cihaza geçersen
-        seviyeni ve il başkanlıklarını yalnızca bu kodla geri alabilirsin. Kod yalnızca
-        üretildiği anda gösterilir, bir yere kaydet. Yeniden ürettiğinde eskisi geçersiz olur.
-      </p>
-
-      {revealed && code ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <code className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm tracking-[0.12em]">
-            {code}
-          </code>
-          <Button variant="outline" size="sm" onClick={() => void copy()}>
-            {copied ? <Check /> : <Copy />}
-            {copied ? "Kopyalandı" : "Kopyala"}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => void reveal()}>
-            <RotateCcw />
-            Yenile
-          </Button>
-        </div>
-      ) : (
-        <Button variant="outline" size="sm" onClick={() => void reveal()}>
-          <KeyRound />
-          Kurtarma kodu üret
-        </Button>
-      )}
-
-      <div className="border-t border-white/[0.07] pt-3">
-        <span className="stat-label">Başka bir cihazdaki hesabını buraya taşı</span>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value.toUpperCase())}
-            placeholder="XXXX-XXXX-XXXX"
-            className="w-full font-mono sm:w-56"
-          />
-          <Button
-            variant="secondary"
-            disabled={input.replace(/[^A-Z0-9]/g, "").length < 12 || busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                const result = await restoreAccount(input);
-                if (result.ok) setInput("");
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {busy ? <Loader2 className="animate-spin" /> : <RotateCcw />}
-            Geri yükle
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Sahip kodu.
- *
- * Sınırsız oy hakkı oyunun dengesini doğrudan etkilediği için kod pakete
- * gömülmez — paket herkese açık, gömülü kodu okuyan herkes hakkı alırdı.
- * Kod veritabanında durur (bkz. set_owner_code) ve sunucuda doğrulanır;
- * burası yalnızca giriş alanı.
- */
-function OwnerSection({
-  unlimited,
-  claimUnlimited,
-}: {
-  unlimited: boolean;
-  claimUnlimited: (code: string) => Promise<{ ok: boolean }>;
-}) {
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  if (unlimited) {
-    return (
-      <div className="glass-soft flex items-center gap-2 p-4">
-        <InfinityIcon className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold">Sınırsız oy hakkı</h3>
-        <Badge variant="success">etkin</Badge>
-        <span className="ml-auto text-[13px] text-muted-foreground">Bekleme süresi yok.</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="glass-soft space-y-3 p-4">
-      <div className="flex items-center gap-2">
-        <InfinityIcon className="size-4 text-primary" />
-        <h3 className="text-sm font-semibold">Sahip kodu</h3>
-      </div>
-      <p className="text-[13px] leading-relaxed text-muted-foreground">
-        Site sahibinin belirlediği kod. Doğru girilirse bu hesap oy bekleme süresinden muaf olur.
-        Hak kullanıcı adına değil hesaba tanımlanır; kullanıcı adını değiştirsen de kalır.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <Input
-          type="password"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Sahip kodu"
-          className="w-full sm:w-56"
-        />
-        <Button
-          variant="secondary"
-          disabled={input.trim().length < 8 || busy}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              const result = await claimUnlimited(input);
-              if (result.ok) setInput("");
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          {busy ? <Loader2 className="animate-spin" /> : <InfinityIcon />}
-          Doğrula
-        </Button>
-      </div>
-    </div>
   );
 }

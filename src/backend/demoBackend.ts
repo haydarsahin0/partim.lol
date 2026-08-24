@@ -99,6 +99,8 @@ type DemoState = {
   fastVotesUntil: string | null;
   /** Bağlı kimlik sağlayıcısı ("google") */
   linkedProvider: string | null;
+  /** Hızlı oy aboneliğinin başladığı an (ISO) */
+  fastVotesSince: string | null;
   recent: Array<{
     provinceId: string;
     handle: string;
@@ -125,6 +127,7 @@ function emptyState(): DemoState {
     unlimitedVotes: false,
     fastVotesUntil: null,
     linkedProvider: null,
+    fastVotesSince: null,
     recent: [],
   };
 }
@@ -511,6 +514,7 @@ export class DemoBackend implements Backend {
       unlimitedVotes: this.state.unlimitedVotes ?? false,
       fastVotesUntil: this.state.fastVotesUntil ?? null,
       linkedProvider: this.state.linkedProvider ?? null,
+      fastVotesSince: this.state.fastVotesSince ?? null,
       createdAt: this.state.createdAt,
     };
   }
@@ -617,6 +621,7 @@ export class DemoBackend implements Backend {
     // Demo modda ödeme yok: hak anında bir günlüğüne veriliyor.
     const now = Date.now();
     this.state.fastVotesUntil = new Date(now + 24 * 60 * 60 * 1000).toISOString();
+    this.state.fastVotesSince ??= new Date(now).toISOString();
     // Elindeki uzun bekleme yeni süreye kısaltılıyor.
     const next = this.state.nextVoteAt ? Date.parse(this.state.nextVoteAt) : 0;
     if (next > now + FAST_VOTE_COOLDOWN_MS) {

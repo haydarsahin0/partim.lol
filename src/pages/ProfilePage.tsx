@@ -4,6 +4,7 @@ import { Crown, Sparkles, Timer, Vote } from "lucide-react";
 import { CreatePartyDialog } from "@/components/CreatePartyDialog";
 import { ProfileEditor } from "@/components/ProfileEditor";
 import { GoogleLink } from "@/components/GoogleLink";
+import { SubscriptionCard } from "@/components/SubscriptionCard";
 import { GoogleG } from "@/components/GoogleG";
 import { PartyMark } from "@/components/PartyMark";
 import { useGame } from "@/backend/GameProvider";
@@ -131,6 +132,8 @@ export default function ProfilePage() {
       </div>
 
       <GoogleLink />
+
+      <SubscriptionCard />
 
       <ProfileEditor />
 

@@ -152,6 +152,8 @@ Deno.serve(async (req) => {
       success_url: body.successUrl,
       cancel_url: body.cancelUrl,
       client_reference_id: profileId,
+      // Makbuz kullanıcıya gitsin ve müşteri Stripe panelinde kimliksiz kalmasın.
+      customer_email: user.email ?? undefined,
       line_items: [
         {
           quantity: 1,

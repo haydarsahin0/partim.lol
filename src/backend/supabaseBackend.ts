@@ -69,6 +69,7 @@ type ProfileRow = {
   next_vote_at: string | null;
   unlimited_votes?: boolean | null;
   fast_votes_until?: string | null;
+  fast_votes_since?: string | null;
   linked_provider?: string | null;
   is_bot?: boolean | null;
   created_at: string;
@@ -346,7 +347,7 @@ export class SupabaseBackend implements Backend {
     const { data, error } = await this.db
       .from("profiles")
       .select(
-        "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at,unlimited_votes,fast_votes_until,linked_provider,created_at",
+        "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at,unlimited_votes,fast_votes_until,fast_votes_since,linked_provider,created_at",
       )
       .eq("auth_user_id", sessionData.session.user.id)
       .maybeSingle();
@@ -365,6 +366,7 @@ export class SupabaseBackend implements Backend {
       unlimitedVotes: row.unlimited_votes ?? false,
       fastVotesUntil: row.fast_votes_until ?? null,
       linkedProvider: row.linked_provider ?? null,
+      fastVotesSince: row.fast_votes_since ?? null,
       createdAt: row.created_at,
     };
     return this.cachedProfile;

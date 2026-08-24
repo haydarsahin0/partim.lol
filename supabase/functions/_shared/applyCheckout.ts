@@ -61,17 +61,56 @@ export function faturaAboneligi(invoice: Stripe.Invoice): string | null {
   return satir?.subscription ?? null;
 }
 
+/** Aboneliğin müşteri kimliği — API sürümüne göre nesne ya da metin olabilir. */
+export function musteriKimligi(
+  kaynak: { customer?: string | { id: string } | null },
+): string | null {
+  const c = kaynak.customer;
+  if (typeof c === "string") return c;
+  if (c && typeof c === "object" && "id" in c) return c.id;
+  return null;
+}
+
+/**
+ * Ödemenin sahibini bul.
+ *
+ * Önce metadata'daki profil kimliği; yoksa Stripe müşterisinin e-postası.
+ * İkinci yol elle açılmış ya da metadata'sı kaybolmuş abonelikler için:
+ * kullanıcı Google ile girdiği için e-posta ikisinde de aynı.
+ */
+export async function sahibiBul(
+  stripe: Stripe,
+  admin: SupabaseClient,
+  meta: Record<string, string>,
+  customerId: string | null,
+): Promise<string | null> {
+  if (meta.user_id) return meta.user_id;
+  if (!customerId) return null;
+
+  try {
+    const musteri = await stripe.customers.retrieve(customerId);
+    const eposta = (musteri as Stripe.Customer).email;
+    if (!eposta) return null;
+    const { data } = await admin.rpc("find_profile_by_email", { p_email: eposta });
+    return (data as string | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Hızlı oy aboneliğini uygular. */
 export async function hizliOyUygula(
   admin: SupabaseClient,
   subscriptionId: string,
   userId: string,
   periodEnd: string,
+  customerId: string | null = null,
 ): Promise<UygulamaSonucu> {
   const { data, error } = await admin.rpc("apply_fast_votes_subscription", {
     p_subscription_id: subscriptionId,
     p_user_id: userId,
     p_period_end: periodEnd,
+    p_customer_id: customerId,
   });
   if (error) return { ok: false, kind: "fast_votes", message: error.message };
   return { ok: true, kind: "fast_votes", detay: data };
@@ -149,8 +188,12 @@ export async function oturumuUygula(
     const abonelikMeta = { ...meta, ...(subscription.metadata ?? {}) } as Record<string, string>;
     const periodEnd = donemSonu(subscription, abonelikMeta.kind === "custom_party" ? 7 : 1);
 
+    const musteri = musteriKimligi(subscription) ?? musteriKimligi(session);
+
     if (abonelikMeta.kind === "fast_votes") {
-      return hizliOyUygula(admin, subId, abonelikMeta.user_id, periodEnd);
+      const sahip = await sahibiBul(stripe, admin, abonelikMeta, musteri);
+      if (!sahip) return { ok: false, kind: "fast_votes", message: "Ödemenin sahibi bulunamadı." };
+      return hizliOyUygula(admin, subId, sahip, periodEnd, musteri);
     }
     if (abonelikMeta.kind === "custom_party") {
       // İlk ödemede logo, Checkout oturumuna bağlı geçici satırda duruyor.

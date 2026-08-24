@@ -83,6 +83,12 @@ Deno.serve(async (req) => {
       success_url: body.successUrl,
       cancel_url: body.cancelUrl,
       client_reference_id: profileId,
+      /*
+       * Kullanıcının Google e-postası. Üç işe yarıyor: makbuz kendisine
+       * gidiyor, Stripe panelinde müşteri kimliksiz görünmüyor ve metadata
+       * bir şekilde kaybolursa ödeme e-postadan sahibine bağlanabiliyor.
+       */
+      customer_email: user.email ?? undefined,
       line_items: [
         {
           quantity: 1,

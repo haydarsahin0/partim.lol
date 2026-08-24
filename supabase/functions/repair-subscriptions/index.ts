@@ -20,7 +20,13 @@
  */
 import Stripe from "https://esm.sh/stripe@17.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
-import { donemSonu, hizliOyUygula, partiUygula } from "../_shared/applyCheckout.ts";
+import {
+  donemSonu,
+  hizliOyUygula,
+  musteriKimligi,
+  partiUygula,
+  sahibiBul,
+} from "../_shared/applyCheckout.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   apiVersion: "2024-12-18.acacia",
@@ -52,18 +58,26 @@ Deno.serve(async (req) => {
     for await (const sub of stripe.subscriptions.list({ status: durum, limit: 100 })) {
       taranan++;
       const meta = (sub.metadata ?? {}) as Record<string, string>;
-      if (!meta.kind || !meta.user_id) {
-        rapor.push({ id: sub.id, durum, sonuc: "atlandı", sebep: "metadata yok" });
+      const musteri = musteriKimligi(sub);
+
+      if (!meta.kind) {
+        rapor.push({ id: sub.id, durum, sonuc: "atlandı", sebep: "tür yok" });
         continue;
       }
 
       if (meta.kind === "fast_votes") {
-        const sonuc = await hizliOyUygula(admin, sub.id, meta.user_id, donemSonu(sub, 1));
-        rapor.push({ id: sub.id, durum, kind: meta.kind, user: meta.user_id, sonuc });
+        // Metadata'sı eksik abonelikler müşteri e-postasından sahibine bağlanır.
+        const sahip = await sahibiBul(stripe, admin, meta, musteri);
+        if (!sahip) {
+          rapor.push({ id: sub.id, durum, sonuc: "atlandı", sebep: "sahip bulunamadı" });
+          continue;
+        }
+        const sonuc = await hizliOyUygula(admin, sub.id, sahip, donemSonu(sub, 1), musteri);
+        rapor.push({ id: sub.id, durum, kind: meta.kind, user: sahip, sonuc });
         continue;
       }
 
-      if (meta.kind === "custom_party") {
+      if (meta.kind === "custom_party" && meta.user_id) {
         const sonuc = await partiUygula(admin, sub.id, meta, donemSonu(sub, 7), null);
         rapor.push({ id: sub.id, durum, kind: meta.kind, user: meta.user_id, sonuc });
         continue;

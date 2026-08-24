@@ -21,8 +21,10 @@ import {
   donemSonu,
   faturaAboneligi,
   hizliOyUygula,
+  musteriKimligi,
   oturumuUygula,
   partiUygula,
+  sahibiBul,
 } from "../_shared/applyCheckout.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
@@ -85,11 +87,19 @@ Deno.serve(async (req) => {
     const meta = (subscription.metadata ?? {}) as Record<string, string>;
 
     if (meta.kind === "fast_votes") {
+      const musteri = musteriKimligi(subscription);
+      // Metadata kaybolsa bile yenileme sahibine bağlansın.
+      const sahip = await sahibiBul(stripe, admin, meta, musteri);
+      if (!sahip) {
+        console.error("Yenilemenin sahibi bulunamadı", { subscriptionId });
+        return ok({ received: true, ignored: "sahip yok" });
+      }
       const sonuc = await hizliOyUygula(
         admin,
         subscriptionId,
-        meta.user_id,
+        sahip,
         donemSonu(subscription, 1),
+        musteri,
       );
       if (!sonuc.ok) {
         console.error("apply_fast_votes_subscription hatası", sonuc);

@@ -44,6 +44,8 @@ export type Profile = AuthUser & {
   fastVotesUntil: string | null;
   /** Hesap bir kimlik sağlayıcısına bağlıysa adı ("google"), yoksa null. */
   linkedProvider: string | null;
+  /** Hızlı oy aboneliğinin başladığı an (ISO); yoksa null. */
+  fastVotesSince: string | null;
   createdAt: string;
 };
 
