@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Crown, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { Crown, Loader2, Megaphone, ShieldCheck, Sparkles } from "lucide-react";
 import { PARTY_BY_ID } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
 import type { LeaderSeat } from "@/backend/types";
@@ -14,12 +14,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { XP_PER_LEADER_HOUR, checkLeaderBid, formatSince, formatUsd } from "@/lib/game";
+import {
+  RALLY_VOTES,
+  XP_PER_LEADER_HOUR,
+  checkLeaderBid,
+  formatNumber,
+  formatSince,
+  formatUsd,
+} from "@/lib/game";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { BotDot } from "@/components/BotDot";
 import { PartyMark } from "@/components/PartyMark";
 import { SeatCardButton } from "@/components/SeatCardButton";
+import { RallyButton } from "@/components/Rally";
 
 /** Bir ildeki tüm partilerin il başkanlığı koltukları. */
 export function SeatList({
@@ -122,6 +130,7 @@ export function SeatList({
                     <Badge variant="success" className="gap-1">
                       <Crown className="size-3" /> başkansın
                     </Badge>
+                    <RallyButton seat={seat} onDone={onChanged} />
                     <SeatCardButton seat={seat} />
                   </div>
                 ) : (
@@ -199,6 +208,17 @@ export function SeatList({
               </div>
 
               <ul className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm">
+                {/* Mitingi ilk sıraya koyduk: koltuğun asıl satın alma sebebi bu,
+                    diğerleri yanında rozet kalıyor. */}
+                <li className="flex items-start gap-2">
+                  <Megaphone className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <span>
+                    <strong className="text-foreground">Günde bir miting</strong> düzenler,{" "}
+                    {PARTY_BY_ID[target.partyId]?.name}&apos;ye {provinceName}&apos;da{" "}
+                    <strong className="text-foreground">{formatNumber(RALLY_VOTES)} oy</strong>{" "}
+                    eklersin. Bu ilde bunu senden başkası yapamaz.
+                  </span>
+                </li>
                 <li className="flex items-center gap-2">
                   <Crown className="size-4 text-primary" />
                   Adın bu ilde partinin yanında görünür.

@@ -74,13 +74,20 @@ export type LeaderSeat = {
   heldSince: string | null;
   /** Kaç kez el değiştirdi */
   takeovers: number;
+  /**
+   * Bu koltuğun bir sonraki mitingi düzenleyebileceği an (ISO).
+   * null ise hak hazır. Hak koltuğa bağlı, sahibine değil: koltuk el
+   * değiştirince sıfırlanmıyor, yoksa alıp satarak günde birkaç miting
+   * yapılabilirdi.
+   */
+  nextRallyAt: string | null;
 };
 
 export type ProvinceDetail = {
   standing: ProvinceStanding;
   seats: LeaderSeat[];
   /** Son oylar (canlı akış hissi için) */
-  recentVotes: Array<{ handle: string; partyId: string; at: string }>;
+  recentVotes: Array<{ handle: string; partyId: string; at: string; source?: "vote" | "rally" }>;
 };
 
 /** Ana sayfadaki başkanlık vitrini için tek satır */
@@ -110,6 +117,8 @@ export type LiveVote = {
   provinceId: string;
   partyId: string;
   at: string;
+  /** "rally" ise bu bir miting; akışta tek olay ve toplu oy olarak görünür. */
+  source?: "vote" | "rally";
 };
 
 /** Zaman tünelinin tek bir zaman kovası */
@@ -143,6 +152,17 @@ export type VoteResult = {
   /** Hata durumunda kullanıcıya gösterilecek mesaj */
   message?: string;
   profile?: Profile;
+  standing?: ProvinceStanding;
+};
+
+export type RallyResult = {
+  ok: boolean;
+  /** Hata durumunda kullanıcıya gösterilecek mesaj */
+  message?: string;
+  /** Eklenen oy sayısı */
+  votes?: number;
+  /** Bir sonraki miting hakkının açılacağı an (ISO) */
+  nextRallyAt?: string | null;
   standing?: ProvinceStanding;
 };
 
@@ -249,4 +269,9 @@ export interface Backend {
   claimSeat(provinceId: string, partyId: string, amount?: number): Promise<CheckoutResult>;
   /** Haftalık abonelikle yeni bir parti kurar */
   createParty(input: CustomPartyInput): Promise<CreatePartyResult>;
+  /**
+   * Miting düzenler: başkanı olunan il + parti için partiye toplu oy ekler.
+   * Günde bir kez; hak sunucuda da denetlenir, istemciye güvenilmez.
+   */
+  holdRally(provinceId: string, partyId: string): Promise<RallyResult>;
 }

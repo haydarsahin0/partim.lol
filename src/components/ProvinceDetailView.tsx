@@ -13,8 +13,16 @@ import { SeatList } from "@/components/SeatList";
 import { VoteBallot } from "@/components/VoteBallot";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RallyCallout, myRallySeats } from "@/components/Rally";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LEADER_BASE_PRICE, formatNumber, formatPercent, formatSince, formatUsd } from "@/lib/game";
+import {
+  LEADER_BASE_PRICE,
+  RALLY_VOTES,
+  formatNumber,
+  formatPercent,
+  formatSince,
+  formatUsd,
+} from "@/lib/game";
 import { cn } from "@/lib/utils";
 
 /** Bir ilin tüm detayları — hem yan panelde hem /il/:id sayfasında kullanılır. */
@@ -31,7 +39,7 @@ export function ProvinceDetailView({
   onClose?: () => void;
 }) {
   const province = PROVINCE_BY_ID[provinceId];
-  const { standings, refresh } = useGame();
+  const { standings, refresh, user } = useGame();
   // Sekme adres çubuğunda tutulur: bir ilin "Başkanlar" görünümü paylaşılabilir olsun.
   const [params, setParams] = useSearchParams();
   const tab = params.get("sekme") ?? "sonuclar";
@@ -172,6 +180,14 @@ export function ProvinceDetailView({
           </TabsList>
 
           <TabsContent value="sonuclar" className="space-y-5">
+            {/* Başkanın elindeki güç, oy oranlarının bile üstünde: mitingin
+                bütün değeri "bugün kullandın mı" sorusunda. */}
+            <RallyCallout
+              seats={myRallySeats(detail?.seats ?? null, user?.id)}
+              provinceName={province.name}
+              onDone={afterAction}
+            />
+
             {standing ? (
               <ResultsBoard standing={standing} max={8} />
             ) : (
@@ -200,9 +216,18 @@ export function ProvinceDetailView({
                         style={{ background: partyColor(row.partyId) }}
                       />
                       <span className="font-semibold">@{row.handle}</span>
-                      <span className="text-muted-foreground">
-                        {PARTY_BY_ID[row.partyId]?.name} oyu verdi
-                      </span>
+                      {row.source === "rally" ? (
+                        // Miting akışta ayrı okunuyor: koltuğu satın almanın ne
+                        // işe yaradığını en iyi anlatan yer burası.
+                        <span className="text-muted-foreground">
+                          <strong className="text-foreground">miting düzenledi</strong> ·{" "}
+                          {PARTY_BY_ID[row.partyId]?.name} +{formatNumber(RALLY_VOTES)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {PARTY_BY_ID[row.partyId]?.name} oyu verdi
+                        </span>
+                      )}
                       <span className="ml-auto text-muted-foreground">{formatSince(row.at)} önce</span>
                     </li>
                   ))}
@@ -278,9 +303,13 @@ function SeatCallout({
             {provinceName} il başkanı ol
           </div>
           <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">
+            Başkan olduğun ilde <strong className="text-foreground">günde bir miting</strong>{" "}
+            düzenleyip partine{" "}
+            <strong className="text-foreground">{formatNumber(RALLY_VOTES)} oy</strong>{" "}
+            eklersin — bunu o ilde senden başkası yapamaz.{" "}
             {dolu.length > 0
-              ? `${dolu.length} koltuk dolu, ${bos} koltuk boş. Adın ve X hesabın bu sayfada partinin yanında görünür.`
-              : `${bos} koltuğun hepsi boş. İlk başkan sen ol; adın bu sayfada partinin yanında görünür.`}
+              ? `${dolu.length} koltuk dolu, ${bos} koltuk boş.`
+              : `${bos} koltuğun hepsi boş, ilk başkan sen ol.`}
           </div>
         </div>
         <span className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-transform group-hover:scale-105">

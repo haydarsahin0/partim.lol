@@ -5,7 +5,13 @@ import { useGame } from "@/backend/GameProvider";
 import type { SeatMarketSummary } from "@/backend/types";
 import { PARTY_BY_ID } from "@/data/parties";
 import { PROVINCE_BY_ID, PROVINCES } from "@/data/provinces";
-import { LEADER_BASE_PRICE, XP_PER_LEADER_HOUR, formatUsd } from "@/lib/game";
+import {
+  LEADER_BASE_PRICE,
+  RALLY_VOTES,
+  XP_PER_LEADER_HOUR,
+  formatNumber,
+  formatUsd,
+} from "@/lib/game";
 import { Button } from "@/components/ui/button";
 import { PartyMark } from "@/components/PartyMark";
 import { cn } from "@/lib/utils";
@@ -156,12 +162,15 @@ export function LeaderReminder() {
           </span>
           <div className="min-w-0">
             <h2 id="baskanlik-hatirlatma-baslik" className="font-display text-base font-bold">
-              İl başkanı oldun mu?
+              Bir ilin kaderini eline al
             </h2>
             <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-              Boş koltuk {formatUsd(LEADER_BASE_PRICE)}. Koltuk sende kaldığı her saat +
-              {XP_PER_LEADER_HOUR} XP; adın ve X hesabın o ilin sayfasında partinin yanında
-              herkese görünür.
+              İl başkanı olursan o ilde{" "}
+              <strong className="text-foreground">günde bir miting</strong> düzenleyip partine{" "}
+              <strong className="text-foreground">{formatNumber(RALLY_VOTES)} oy</strong>{" "}
+              eklersin — bir ili tek başına çevirmeye yeter ve o ilde bunu senden başkası yapamaz.
+              Boş koltuk {formatUsd(LEADER_BASE_PRICE)}; sende kaldığı her saat +
+              {XP_PER_LEADER_HOUR} XP.
               {bosKoltuk !== null && bosKoltuk > 0 && (
                 <> Şu an <strong className="text-foreground">{bosKoltuk}</strong> koltuk boş.</>
               )}

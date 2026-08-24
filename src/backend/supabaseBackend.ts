@@ -7,7 +7,14 @@
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { PARTY_IDS, readableTextTone, type Party } from "@/data/parties";
 import { fallbackAvatar } from "@/lib/avatar";
-import { LEADER_BASE_PRICE, formatUsd, levelFromXp, minLeaderPrice } from "@/lib/game";
+import {
+  LEADER_BASE_PRICE,
+  RALLY_COOLDOWN_MS,
+  RALLY_VOTES,
+  formatUsd,
+  levelFromXp,
+  minLeaderPrice,
+} from "@/lib/game";
 import { getSupabase } from "./supabaseClient";
 import { normalizeRecoveryCode, type DeviceIdentity } from "@/lib/device";
 import type {
@@ -27,6 +34,7 @@ import type {
   ProvinceStanding,
   VoteHistory,
   VoteHistoryBucket,
+  RallyResult,
   SeatMarketSummary,
   VoteResult,
 } from "./types";
@@ -38,6 +46,7 @@ type SeatRow = {
   price: number | string;
   held_since: string | null;
   takeovers: number;
+  last_rally_at?: string | null;
   holder: {
     id: string;
     handle: string;
@@ -96,6 +105,9 @@ function seatFromRow(row: SeatRow): LeaderSeat {
     nextPrice: minLeaderPrice(price),
     heldSince: row.held_since,
     takeovers: row.takeovers ?? 0,
+    nextRallyAt: row.last_rally_at
+      ? new Date(Date.parse(row.last_rally_at) + RALLY_COOLDOWN_MS).toISOString()
+      : null,
   };
 }
 
@@ -108,6 +120,7 @@ function emptySeat(provinceId: string, partyId: string): LeaderSeat {
     nextPrice: LEADER_BASE_PRICE,
     heldSince: null,
     takeovers: 0,
+    nextRallyAt: null,
   };
 }
 
@@ -329,11 +342,11 @@ export class SupabaseBackend implements Backend {
       this.db.from("province_tallies").select("province_id,party_id,votes").eq("province_id", provinceId),
       this.db
         .from("leader_seats")
-        .select("province_id,party_id,price,held_since,takeovers,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)")
+        .select("province_id,party_id,price,held_since,takeovers,last_rally_at,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)")
         .eq("province_id", provinceId),
       this.db
         .from("recent_votes")
-        .select("handle,party_id,created_at")
+        .select("handle,party_id,created_at,source")
         .eq("province_id", provinceId)
         .order("created_at", { ascending: false })
         .limit(12),
@@ -348,9 +361,17 @@ export class SupabaseBackend implements Backend {
     return {
       standing: standingFromRows(provinceId, (talliesRes.data ?? []) as TallyRow[]),
       seats: PARTY_IDS.map((partyId) => byParty.get(partyId) ?? emptySeat(provinceId, partyId)),
-      recentVotes: ((recentRes.data ?? []) as Array<{ handle: string; party_id: string; created_at: string }>).map(
-        (r) => ({ handle: r.handle, partyId: r.party_id, at: r.created_at }),
-      ),
+      recentVotes: ((recentRes.data ?? []) as Array<{
+        handle: string;
+        party_id: string;
+        created_at: string;
+        source?: string;
+      }>).map((r) => ({
+        handle: r.handle,
+        partyId: r.party_id,
+        at: r.created_at,
+        source: r.source === "rally" ? ("rally" as const) : ("vote" as const),
+      })),
     };
   }
 
@@ -359,7 +380,7 @@ export class SupabaseBackend implements Backend {
     if (!user) return [];
     const { data, error } = await this.db
       .from("leader_seats")
-      .select("province_id,party_id,price,held_since,takeovers,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)")
+      .select("province_id,party_id,price,held_since,takeovers,last_rally_at,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)")
       .eq("user_id", user.id)
       .order("held_since", { ascending: false });
     if (error) throw error;
@@ -371,7 +392,7 @@ export class SupabaseBackend implements Backend {
       this.db
         .from("leader_seats")
         .select(
-          "province_id,party_id,price,held_since,takeovers,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)",
+          "province_id,party_id,price,held_since,takeovers,last_rally_at,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)",
         )
         .order("price", { ascending: false })
         .limit(limit),
@@ -393,7 +414,7 @@ export class SupabaseBackend implements Backend {
   async getLiveVotes(limit = 14): Promise<LiveVote[]> {
     const { data, error } = await this.db
       .from("recent_votes")
-      .select("handle,province_id,party_id,created_at")
+      .select("handle,province_id,party_id,created_at,source")
       .order("created_at", { ascending: false })
       .limit(limit);
     if (error) return [];
@@ -402,11 +423,13 @@ export class SupabaseBackend implements Backend {
       province_id: string;
       party_id: string;
       created_at: string;
+      source?: string;
     }>).map((row) => ({
       handle: row.handle,
       provinceId: row.province_id,
       partyId: row.party_id,
       at: row.created_at,
+      source: row.source === "rally" ? ("rally" as const) : ("vote" as const),
     }));
   }
 
@@ -479,6 +502,31 @@ export class SupabaseBackend implements Backend {
       this.getProvinceDetail(provinceId),
     ]);
     return { ok: true, profile: profile ?? undefined, standing: detail.standing };
+  }
+
+  async holdRally(provinceId: string, partyId: string): Promise<RallyResult> {
+    const { data, error } = await this.db.rpc("hold_rally", {
+      p_province_id: provinceId,
+      p_party_id: partyId,
+    });
+    if (error) return { ok: false, message: error.message };
+    const res = data as
+      | { ok: boolean; message?: string; votes?: number; next_rally_at?: string }
+      | null;
+    if (!res?.ok) {
+      return {
+        ok: false,
+        message: res?.message ?? "Miting düzenlenemedi.",
+        nextRallyAt: res?.next_rally_at ?? null,
+      };
+    }
+    const detail = await this.getProvinceDetail(provinceId);
+    return {
+      ok: true,
+      votes: res.votes ?? RALLY_VOTES,
+      nextRallyAt: res.next_rally_at ?? null,
+      standing: detail.standing,
+    };
   }
 
   async getStats(): Promise<SiteStats> {

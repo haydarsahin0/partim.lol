@@ -1,13 +1,15 @@
-import { Crown, MousePointerClick, Plug, Sparkles, Vote } from "lucide-react";
+import { Crown, Megaphone, MousePointerClick, Plug, Sparkles, Vote } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import { supabaseHost } from "@/backend/supabaseClient";
 import { Card } from "@/components/ui/card";
 import {
   LEADER_BASE_PRICE,
   LEADER_PRICE_STEP,
+  RALLY_VOTES,
   VOTE_COOLDOWN_LABEL,
   XP_PER_LEADER_HOUR,
   XP_PER_VOTE,
+  formatNumber,
   formatUsd,
   totalXpForLevel,
 } from "@/lib/game";
@@ -31,6 +33,13 @@ const RULES = [
     )}. Dolu bir koltuğu devralmak için son ödenen bedelin en az ${formatUsd(
       LEADER_PRICE_STEP,
     )} üstüne çıkman gerekir — ama tavan yok, istediğin kadar yüksek ödeyebilirsin. Ödediğin tutar koltuğun yeni değeri olur; yüksek ödemek koltuğu almanın yanında savunmanın da yolu.`,
+  },
+  {
+    icon: Megaphone,
+    title: "Miting düzenle",
+    body: `Başkanlığın asıl gücü bu: başkanı olduğun ilde günde bir kez miting düzenleyip partine ${formatNumber(
+      RALLY_VOTES,
+    )} oy eklersin. O ilde o partinin mitingini senden başkası düzenleyemez — koltuk sadece bir rozet değil, haritayı çevirmenin yolu. Hak koltuğa bağlıdır: koltuğu devralan, o günün mitingi yapılmışsa yarını bekler.`,
   },
   {
     icon: Sparkles,

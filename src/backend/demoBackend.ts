@@ -17,6 +17,8 @@ import { pick, seededRng } from "@/lib/rng";
 import { syntheticHistory } from "@/lib/timelapse";
 import {
   LEADER_BASE_PRICE,
+  RALLY_COOLDOWN_MS,
+  RALLY_VOTES,
   checkLeaderBid,
   VOTE_COOLDOWN_MS,
   hasUnlimitedVotes,
@@ -51,6 +53,7 @@ import type {
   ProvinceDetail,
   LiveVote,
   ProvinceStanding,
+  RallyResult,
   VoteHistory,
   SeatMarketSummary,
   VoteResult,
@@ -58,7 +61,14 @@ import type {
 
 const KEY = "partim.lol/demo/v1";
 
-type OwnedSeat = { price: number; heldSince: string; takeovers: number; xpPaidUntil: string };
+type OwnedSeat = {
+  price: number;
+  heldSince: string;
+  takeovers: number;
+  xpPaidUntil: string;
+  /** Son mitingin anı (ISO). Yoksa hak hazır. */
+  lastRallyAt?: string;
+};
 
 type DemoState = {
   v: 1;
@@ -81,7 +91,13 @@ type DemoState = {
   deviceId: string | null;
   /** Sahip kodu girilmiş mi? Demo modda veri zaten yalnızca bu tarayıcıda. */
   unlimitedVotes: boolean;
-  recent: Array<{ provinceId: string; handle: string; partyId: string; at: string }>;
+  recent: Array<{
+    provinceId: string;
+    handle: string;
+    partyId: string;
+    at: string;
+    source?: "vote" | "rally";
+  }>;
 };
 
 function emptyState(): DemoState {
@@ -306,6 +322,9 @@ export class DemoBackend implements Backend {
         nextPrice: minLeaderPrice(mine.price),
         heldSince: mine.heldSince,
         takeovers: mine.takeovers,
+        nextRallyAt: mine.lastRallyAt
+          ? new Date(Date.parse(mine.lastRallyAt) + RALLY_COOLDOWN_MS).toISOString()
+          : null,
       };
     }
     const released = this.state.releasedSeats[provinceId]?.includes(partyId);
@@ -325,6 +344,7 @@ export class DemoBackend implements Backend {
         nextPrice: minLeaderPrice(seeded.price),
         heldSince: seeded.heldSince,
         takeovers: seeded.takeovers,
+        nextRallyAt: null,
       };
     }
     return {
@@ -335,6 +355,7 @@ export class DemoBackend implements Backend {
       nextPrice: LEADER_BASE_PRICE,
       heldSince: null,
       takeovers: 0,
+      nextRallyAt: null,
     };
   }
 
@@ -422,7 +443,7 @@ export class DemoBackend implements Backend {
     const recentVotes = this.state.recent
       .filter((r) => r.provinceId === provinceId)
       .slice(0, 12)
-      .map(({ handle, partyId, at }) => ({ handle, partyId, at }));
+      .map(({ handle, partyId, at, source }) => ({ handle, partyId, at, source }));
     return { standing, seats, recentVotes };
   }
 
@@ -549,6 +570,43 @@ export class DemoBackend implements Backend {
     };
   }
 
+  async holdRally(provinceId: string, partyId: string): Promise<RallyResult> {
+    if (!this.state.user) return { ok: false, message: "Önce giriş yapmalısın." };
+
+    const seat = this.seatFor(provinceId, partyId);
+    if (seat.holder?.id !== this.state.user.id) {
+      return { ok: false, message: "Bu ilde o partinin başkanı sen değilsin." };
+    }
+    if (seat.nextRallyAt && Date.parse(seat.nextRallyAt) > Date.now()) {
+      return { ok: false, message: "Bugünkü mitingini yaptın.", nextRallyAt: seat.nextRallyAt };
+    }
+
+    const now = Date.now();
+    const provinceVotes = (this.state.myVotes[provinceId] ??= {});
+    provinceVotes[partyId] = (provinceVotes[partyId] ?? 0) + RALLY_VOTES;
+
+    const owned = this.state.mySeats[provinceId]?.[partyId];
+    if (owned) owned.lastRallyAt = new Date(now).toISOString();
+
+    // Akışta miting tek olay olarak görünsün; 100 satır şeridi yutardı.
+    this.state.recent.unshift({
+      provinceId,
+      partyId,
+      handle: this.state.user.handle,
+      at: new Date(now).toISOString(),
+      source: "rally",
+    });
+    this.state.recent = this.state.recent.slice(0, 80);
+    save(this.state);
+
+    return {
+      ok: true,
+      votes: RALLY_VOTES,
+      nextRallyAt: new Date(now + RALLY_COOLDOWN_MS).toISOString(),
+      standing: this.standingFor(provinceId),
+    };
+  }
+
   async claimSeat(provinceId: string, partyId: string, amount?: number): Promise<CheckoutResult> {
     if (!this.state.user) return { kind: "error", message: "Önce giriş yapmalısın." };
     const seat = this.seatFor(provinceId, partyId);
@@ -572,6 +630,11 @@ export class DemoBackend implements Backend {
       heldSince: now,
       takeovers: seat.takeovers + 1,
       xpPaidUntil: now,
+      // Miting hakkı koltuğa bağlı: devralan, koltuğun bugünkü hakkı
+      // kullanıldıysa yarını bekler.
+      lastRallyAt: seat.nextRallyAt
+        ? new Date(Date.parse(seat.nextRallyAt) - RALLY_COOLDOWN_MS).toISOString()
+        : undefined,
     };
     save(this.state);
 

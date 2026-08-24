@@ -10,6 +10,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { PARTIES, partyName, setCustomParties, type Party } from "@/data/parties";
+import { RALLY_VOTES } from "@/lib/game";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { getDeviceIdentity } from "@/lib/device";
 import { getBackend } from "./index";
@@ -51,6 +52,8 @@ type GameContextValue = {
   vote: (provinceId: string, partyId: string) => Promise<boolean>;
   claimSeat: (provinceId: string, partyId: string, amount?: number) => Promise<LeaderSeat | null>;
   createParty: (input: CustomPartyInput) => Promise<CreatePartyResult>;
+  /** Miting düzenler; başarılıysa true döner */
+  holdRally: (provinceId: string, partyId: string) => Promise<boolean>;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -250,6 +253,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [backend, refresh],
   );
 
+  const holdRally = useCallback(
+    async (provinceId: string, partyId: string) => {
+      const result = await backend.holdRally(provinceId, partyId);
+      if (!result.ok) {
+        toast.error(result.message ?? "Miting düzenlenemedi.");
+        return false;
+      }
+      if (result.standing) {
+        setStandings((prev) => ({ ...prev, [provinceId]: result.standing! }));
+      } else {
+        void refresh();
+      }
+      toast.success(
+        `${PROVINCE_BY_ID[provinceId]?.name} mitingi! ${partyName(partyId)} +${
+          result.votes ?? RALLY_VOTES
+        } oy aldı.`,
+      );
+      return true;
+    },
+    [backend, refresh],
+  );
+
   const claimSeat = useCallback(
     async (provinceId: string, partyId: string, amount?: number) => {
       const result = await backend.claimSeat(provinceId, partyId, amount);
@@ -338,6 +363,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     vote,
     claimSeat,
     createParty,
+    holdRally,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

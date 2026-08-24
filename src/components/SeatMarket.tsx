@@ -5,7 +5,7 @@ import { useGame } from "@/backend/GameProvider";
 import type { SeatMarketSummary } from "@/backend/types";
 import { PARTY_BY_ID } from "@/data/parties";
 import { PROVINCE_BY_ID } from "@/data/provinces";
-import { LEADER_BASE_PRICE, formatUsd } from "@/lib/game";
+import { LEADER_BASE_PRICE, RALLY_VOTES, formatNumber, formatUsd } from "@/lib/game";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -62,10 +62,12 @@ export function SeatMarket({
             İl başkanlığı
           </h3>
           <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-            Boş koltuk {formatUsd(LEADER_BASE_PRICE)}. Dolu koltuğu devralmak için
-            <strong className="text-foreground"> son ödenen bedelin üstüne çıkman</strong> yeter —
-            tavan yok, ne kadar yüksek ödersen koltuğu o kadar zor kaptırırsın. Sende kaldığı her
-            saat +20 XP.
+            Başkanı olduğun ilde{" "}
+            <strong className="text-foreground">günde bir miting</strong> düzenler, partine{" "}
+            <strong className="text-foreground">{formatNumber(RALLY_VOTES)} oy</strong> eklersin —
+            o ilde bunu senden başkası yapamaz. Boş koltuk {formatUsd(LEADER_BASE_PRICE)}; dolu
+            koltuğu devralmak için son ödenen bedelin üstüne çıkman yeter. Tavan yok: ne kadar
+            yüksek ödersen koltuğu o kadar zor kaptırırsın.
           </p>
         </div>
       </div>

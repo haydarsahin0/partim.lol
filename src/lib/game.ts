@@ -44,6 +44,20 @@ export const XP_PER_VOTE = 1;
 /** İl başkanı olarak geçirilen her saat için XP */
 export const XP_PER_LEADER_HOUR = 20;
 
+/**
+ * Bir mitingin partiye o ilde eklediği oy.
+ *
+ * Miting, il başkanlığını haritanın koluna çeviren şey: koltuk parayla
+ * alınıyordu ama oyunun sonucuna hiç dokunmuyordu. Sayı buradan tek yerden
+ * ayarlanıyor — dengeyi değiştirmek isteyen tek satır düzeltir.
+ */
+export const RALLY_VOTES = 100;
+
+/** İki miting arasında beklenecek süre */
+export const RALLY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+export const RALLY_COOLDOWN_LABEL = "günde 1 miting";
+
 /** Kendi partisini kurmanın haftalık ücreti (USD) */
 export const PARTY_WEEKLY_PRICE = 9;
 
