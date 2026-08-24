@@ -26,6 +26,7 @@ import type {
   LiveVote,
   ProvinceStanding,
   VoteHistory,
+  VoteHistoryBucket,
   SeatMarketSummary,
   VoteResult,
 } from "./types";
@@ -409,7 +410,7 @@ export class SupabaseBackend implements Backend {
     }));
   }
 
-  async getVoteHistory(bucket: "minute" | "hour" | "day" = "hour"): Promise<VoteHistory> {
+  async getVoteHistory(bucket: VoteHistoryBucket = "hour"): Promise<VoteHistory> {
     const [seedRes, historyRes] = await Promise.all([
       this.db.from("seed_snapshot").select("province_id,party_id,votes"),
       this.db.rpc("vote_history", { p_bucket: bucket, p_since: null }),

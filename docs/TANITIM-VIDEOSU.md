@@ -24,10 +24,29 @@ görüntüye girmiyor, çözünürlük tam istenen ölçüde oluyor.
      geçmiş henüz kısa olduğu için var. Bu videoya **"ÖRNEK VERİ"** damgası
      basılır; damgayı kaldırmayın — tanıtım videosunun gerçek sonuç
      sanılması, oyunun kendisine güveni sarsar.
-2. **Ölçü** — `16:9` (YouTube, X), `9:16` (Reels, TikTok, Shorts),
+2. **Kalite** — `720p` (varsayılan) ya da `1080p`. Sosyal medyada 720p
+   fazlasıyla yeterli ve daha güvenli (aşağıya bakın).
+3. **Ölçü** — `16:9` (YouTube, X), `9:16` (Reels, TikTok, Shorts),
    `1:1` (akış gönderisi).
-3. **Hız** — saniyede kaç kare oynatılacağı. `1×` bir saati bir kare sayar.
-4. **Video oluştur** → oynatma başlar, bitince **Videoyu indir** düğmesi çıkar.
+4. **Çözünürlük** — kaç dakikada bir kare alınacağı. `10 dk` en akıcısı;
+   geçmiş uzadıkça `1 saat` yeter.
+5. **Süre** — videonun kaç saniye olacağı: `10`, `15`, `20`, `30`. Veri kaç
+   kare olursa olsun seçilen süreye yayılır; aradaki kareler üretilir.
+6. **Video oluştur** → oynatma başlar, bitince **Videoyu indir** düğmesi çıkar.
+
+## Süre neden kısa çıkabilir?
+
+Kayıt gerçek zamanda yapılıyor: tarayıcı canvas'a çizilen kareleri o an
+yakalıyor. Cihaz çizime yetişemezse yakalanan kare azalıyor ve video
+istenenden kısa çıkıyor.
+
+Sayfa bunu kendisi ölçüp söylüyor: kayıt bitince "Video 15,0 sn olarak hazır"
+ya da "Video 11,2 sn çıktı, oysa 15 sn istendi" yazıyor. Kısa çıkarsa:
+
+- **Kaliteyi 720p yapın** (kare başına yarı piksel).
+- Kayıt sürerken **sekmeyi öne alın**; arka plandaki sekmede tarayıcı çizimi
+  yavaşlatıyor.
+- Diğer ağır sekmeleri kapatın.
 
 Kayıt bitene kadar sekmeyi arka plana atmayın: tarayıcılar arka plandaki
 sekmede çizimi yavaşlatıyor ve video kekeme çıkıyor.
@@ -45,10 +64,8 @@ yapıp oynatın.
 
 ## Video daha iyi olsun
 
-- **Uzunluk**: 72 kare × `1×` ≈ 6 saniye. Sosyal medya için 6–15 saniye
-  ideal; daha uzun istiyorsanız hızı `0,5×` yapın.
-- **Sonu**: video son karede duruyor, yani son görüntü tablonun son hâli.
-  Kurguda o kareyi 1–2 saniye dondurmak iyi durur.
+- **Uzunluk**: sosyal medya için 10–15 saniye ideal; varsayılan 15.
+- **Sonu**: video son karede bir saniye kadar duruyor, ani kesilmiyor.
 - **Ses**: dosyada ses yok. Kurguda müzik ekleyin.
 - **Yazı**: videoda oyun adı, tarih ve toplam oy zaten var; üstüne yazı
   eklemek gerekmiyor.

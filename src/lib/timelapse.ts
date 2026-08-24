@@ -85,6 +85,43 @@ export function buildFrames(history: VoteHistory): Frame[] {
   return frames;
 }
 
+/**
+ * İki kare arasını doldurur.
+ *
+ * Veri kovaları saatlik: 72 kova var. Videoyu 15 saniye yapmak için bunları
+ * saniyede beş kare oynatmak gerekirdi ve sonuç takır takır akardı. Bunun
+ * yerine 30 kare/sn çiziyoruz ve aradaki kareleri buradan üretiyoruz —
+ * çubuklar ve sayaçlar süzülerek ilerliyor.
+ *
+ * İl renkleri sayıların KENDİSİ harmanlanıp lider yeniden hesaplanarak
+ * bulunuyor. Doğrudan lideri harmanlamak mümkün değil (renk ya odur ya bu);
+ * sayıları harmanlayınca il, gerçekten öne geçtiği anda renk değiştiriyor.
+ */
+export function lerpFrame(a: Frame, b: Frame, t: number): Frame {
+  if (t <= 0) return a;
+  if (t >= 1) return b;
+
+  const karisim: Tallies = {};
+  for (const province of PROVINCES) {
+    const ra = a.tallies[province.id];
+    const rb = b.tallies[province.id];
+    if (!ra && !rb) continue;
+    const satir: Record<string, number> = {};
+    const idler = new Set([...Object.keys(ra ?? {}), ...Object.keys(rb ?? {})]);
+    for (const partyId of idler) {
+      const va = ra?.[partyId] ?? 0;
+      const vb = rb?.[partyId] ?? 0;
+      satir[partyId] = va + (vb - va) * t;
+    }
+    karisim[province.id] = satir;
+  }
+
+  const at = new Date(
+    Date.parse(a.at) + (Date.parse(b.at) - Date.parse(a.at)) * t,
+  ).toISOString();
+  return summarize(at, karisim);
+}
+
 /* ----------------------------- örnek akış -------------------------------- */
 
 /** İl–parti yakınlığı: aynı çift her zaman aynı katsayıyı verir. */
@@ -123,9 +160,12 @@ export function syntheticHistory(options?: {
   buckets?: number;
   votesPerBucket?: number;
   seed?: number;
+  /** Kovalar arası süre (ms). Varsayılan bir saat. */
+  bucketMs?: number;
 }): VoteHistory {
   const buckets = options?.buckets ?? 72;
   const perBucket = options?.votesPerBucket ?? 90;
+  const bucketMs = options?.bucketMs ?? 3600_000;
   const random = rng(options?.seed ?? 20260824);
 
   const partyIds = PARTIES.map((p) => p.id);
@@ -144,7 +184,7 @@ export function syntheticHistory(options?: {
     hiz: 0.7 + random() * 2.4,
   }));
 
-  const start = Date.now() - buckets * 3600_000;
+  const start = Date.now() - buckets * bucketMs;
   const out: VoteHistory = { seed: {}, buckets: [] };
 
   for (let i = 0; i < buckets; i++) {
@@ -189,7 +229,7 @@ export function syntheticHistory(options?: {
       row[partyId] = (row[partyId] ?? 0) + 1;
     }
 
-    out.buckets.push({ at: new Date(start + i * 3600_000).toISOString(), delta });
+    out.buckets.push({ at: new Date(start + i * bucketMs).toISOString(), delta });
   }
 
   return out;

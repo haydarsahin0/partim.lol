@@ -27,10 +27,27 @@ const MUTED = "rgba(232,238,247,0.55)";
 
 export type Oran = "16:9" | "9:16" | "1:1";
 
-export const BOYUTLAR: Record<Oran, { width: number; height: number }> = {
-  "16:9": { width: 1920, height: 1080 },
-  "9:16": { width: 1080, height: 1920 },
-  "1:1": { width: 1080, height: 1080 },
+export type Kalite = "hd" | "fullhd";
+
+/**
+ * Kayıt ölçüleri.
+ *
+ * Varsayılan HD: video her karede baştan çiziliyor ve Full HD'de kare başına
+ * iki kat piksel demek. Yavaş bir cihazda çizim kare hızına yetişemeyince
+ * yakalanan kare sayısı düşüyor ve video istenenden kısa çıkıyor. Sosyal
+ * medyada 720p zaten fazlasıyla yeterli; Full HD isteyen seçebiliyor.
+ */
+export const BOYUTLAR: Record<Kalite, Record<Oran, { width: number; height: number }>> = {
+  hd: {
+    "16:9": { width: 1280, height: 720 },
+    "9:16": { width: 720, height: 1280 },
+    "1:1": { width: 720, height: 720 },
+  },
+  fullhd: {
+    "16:9": { width: 1920, height: 1080 },
+    "9:16": { width: 1080, height: 1920 },
+    "1:1": { width: 1080, height: 1080 },
+  },
 };
 
 /** `d` metinleri her karede yeniden ayrıştırılmasın diye bir kez kuruluyor. */
@@ -72,6 +89,7 @@ function kutu(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h:
 
 export type CizimSecenekleri = {
   oran: Oran;
+  kalite?: Kalite;
   /** "örnek veri" damgası basılsın mı? */
   ornek: boolean;
   baslik?: string;
@@ -87,9 +105,9 @@ export type CizimSecenekleri = {
 export function drawFrame(
   ctx: CanvasRenderingContext2D,
   frame: Frame,
-  { oran, ornek, baslik = "partim.lol" }: CizimSecenekleri,
+  { oran, kalite = "hd", ornek, baslik = "partim.lol" }: CizimSecenekleri,
 ): void {
-  const { width, height } = BOYUTLAR[oran];
+  const { width, height } = BOYUTLAR[kalite][oran];
   const dikey = oran !== "16:9";
 
   ctx.save();

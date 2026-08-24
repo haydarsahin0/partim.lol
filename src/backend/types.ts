@@ -120,6 +120,9 @@ export type HistoryBucket = {
   delta: Record<string, Record<string, number>>;
 };
 
+/** Zaman tüneli çözünürlüğü — kaç dakikada bir kare alınacağı */
+export type VoteHistoryBucket = "10min" | "minute" | "hour" | "day";
+
 export type VoteHistory = {
   /** Sıfırıncı kare: açılış tablosu */
   seed: Record<string, Record<string, number>>;
@@ -216,7 +219,7 @@ export interface Backend {
    * Geçmiş ayrıca kaydedilmiyor; her oyun zamanı zaten kayıtlı olduğu için
    * haritanın herhangi bir andaki hâli buradan yeniden kuruluyor.
    */
-  getVoteHistory(bucket?: "minute" | "hour" | "day"): Promise<VoteHistory>;
+  getVoteHistory(bucket?: VoteHistoryBucket): Promise<VoteHistory>;
   /** Profil alanlarını günceller (kullanıcı adı, görünen ad, X hesabı, avatar) */
   updateProfile(patch: ProfilePatch): Promise<ProfileUpdateResult>;
   /** Tarayıcı verisi silinmişse hesabı kurtarma koduyla geri alır */
