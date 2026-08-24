@@ -4,6 +4,7 @@ import { Crown, Sparkles, Timer, Vote } from "lucide-react";
 import { CreatePartyDialog } from "@/components/CreatePartyDialog";
 import { ProfileEditor } from "@/components/ProfileEditor";
 import { GoogleLink } from "@/components/GoogleLink";
+import { GoogleG } from "@/components/GoogleG";
 import { PartyMark } from "@/components/PartyMark";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
@@ -46,7 +47,7 @@ function Stat({
 }
 
 export default function ProfilePage() {
-  const { backend, user, profile } = useGame();
+  const { backend, user, profile, requireAuth, ready } = useGame();
   const [seats, setSeats] = useState<LeaderSeat[]>([]);
   const [partyOpen, setPartyOpen] = useState(false);
   const unlimited = hasUnlimitedVotes(profile);
@@ -66,12 +67,37 @@ export default function ProfilePage() {
     };
   }, [backend, user, profile?.leaderCount]);
 
-  // Hesap açılışta kendiliğinden oluşuyor; kısa bir an boş kalabilir.
-  if (!user || !profile) {
+  // Oturum yükleniyor olabilir; profil de hazır değilse iskelet göster.
+  if (!ready) {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-4 p-3 sm:p-5">
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  // Hesap artık kendiliğinden açılmıyor: profil sayfası girişe çağırıyor.
+  if (!user || !profile) {
+    return (
+      <div className="mx-auto w-full max-w-3xl p-3 sm:p-5">
+        <Card className="p-6 text-center">
+          <h1 className="font-display text-xl font-bold tracking-[-0.02em]">
+            Önce giriş yap
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-[13px] leading-relaxed text-muted-foreground">
+            Profilin, oyların, il başkanlıkların ve aboneliklerin Google hesabına bağlanıyor.
+            Böylece tarayıcı verini silsen ya da telefondan girsen de her şeyin yerinde kalıyor.
+          </p>
+          <Button
+            size="lg"
+            className="mt-4"
+            onClick={() => requireAuth("Profilini görmek için giriş yap.")}
+          >
+            <GoogleG className="size-4" />
+            Google ile giriş yap
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -119,7 +145,13 @@ export default function ProfilePage() {
               renginle boya.
             </p>
           </div>
-          <Button variant="primary" onClick={() => setPartyOpen(true)}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              if (!requireAuth("Partini hesabına bağlayabilmemiz için önce giriş yap.")) return;
+              setPartyOpen(true);
+            }}
+          >
             <Sparkles />
             Parti kur
           </Button>

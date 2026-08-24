@@ -200,11 +200,21 @@ export class SupabaseBackend implements Backend {
    * profil oluşturulur veya bulunur.
    */
   async ensureSession(device: DeviceIdentity): Promise<Profile | null> {
+    /*
+     * Hesap ARTIK KENDİLİĞİNDEN AÇILMIYOR.
+     *
+     * Önce oturumu olmayan herkese anonim bir hesap açılıp rastgele bir
+     * kullanıcı adı veriliyordu ("oyuncu41273"). Bu hesap yalnızca tarayıcıya
+     * bağlıydı: veri silinince ya da başka cihaza geçilince oyunla birlikte
+     * satın alımlar da gidiyordu. Artık kayıt Google üzerinden yürüyor.
+     *
+     * Oturumu olmayan ziyaretçi haritayı, sıralamayı ve sonuçları görmeye
+     * devam ediyor; giriş yalnızca bir şey YAPMAYA kalkınca isteniyor.
+     * Eskiden açılmış anonim oturumlar geçerliliğini koruyor — kimse
+     * hesabından edilmiyor.
+     */
     const { data: sessionData } = await this.db.auth.getSession();
-    if (!sessionData.session) {
-      const { error } = await this.db.auth.signInAnonymously();
-      if (error) throw error;
-    }
+    if (!sessionData.session) return null;
 
     const { data, error } = await this.db.rpc("ensure_profile", {
       p_device_id: device.deviceId,

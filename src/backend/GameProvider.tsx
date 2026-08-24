@@ -58,6 +58,16 @@ type GameContextValue = {
   startFastVotes: () => Promise<boolean>;
   /** Hesabı Google kimliğine bağlar */
   signInWithGoogle: () => Promise<boolean>;
+  /** Oturum açık mı? Kapalıysa oyun izlenebilir ama oynanamaz. */
+  signedIn: boolean;
+  /**
+   * Bir eylem hesap gerektiriyor. Oturum varsa true döner; yoksa giriş
+   * penceresini açıp false döner — çağıran eylemi yapmadan çıkar.
+   */
+  requireAuth: (sebep?: string) => boolean;
+  /** Giriş penceresinin açık olma sebebi; null ise kapalı. */
+  girisSebebi: string | null;
+  girisKapat: () => void;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -129,8 +139,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      // Giriş ekranı yok: hesap cihaz kimliğinden kendiliğinden açılır ya da
-      // önceki ziyaretten devam eder.
+      // Oturum varsa profili kur; yoksa ziyaretçi olarak devam — kayıt
+      // Google üzerinden yürüyor, kendiliğinden hesap açılmıyor.
       try {
         const profile = await backend.ensureSession(getDeviceIdentity());
         if (!cancelled && profile) {
@@ -257,14 +267,37 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [backend, refresh],
   );
 
+  /*
+   * Giriş kapısı.
+   *
+   * Hesap artık kendiliğinden açılmıyor: kayıt Google üzerinden yürüyor.
+   * Ama haritayı görmek için giriş istemiyoruz — insanlar oyunu görmeden
+   * gitmesin. Giriş yalnızca bir şey YAPMAYA kalkınca isteniyor.
+   */
+  const [girisSebebi, setGirisSebebi] = useState<string | null>(null);
+  const girisKapat = useCallback(() => setGirisSebebi(null), []);
+  const requireAuth = useCallback(
+    (sebep?: string) => {
+      if (user) return true;
+      setGirisSebebi(sebep ?? "Devam etmek için giriş yapman gerekiyor.");
+      return false;
+    },
+    [user],
+  );
+
   const signInWithGoogle = useCallback(async () => {
     const result = await backend.signInWithGoogle();
     if (!result.ok) {
       toast.error(result.message ?? "Google ile bağlanılamadı.");
       return false;
     }
-    // Gerçek modda tarayıcı Google'a gider; demo modda hemen tazeleyelim.
+    /*
+     * Gerçek modda tarayıcı Google'a gidiyor ve bu satırlara dönülmüyor.
+     * Demo modda hesap hemen açıldığı için profili tazeleyip pencereyi
+     * kapatıyoruz — açık kalırsa kullanıcı giriş yaptığı hâlde önünde duruyor.
+     */
     await refreshProfile();
+    setGirisSebebi(null);
     return true;
   }, [backend, refreshProfile]);
 
@@ -396,6 +429,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     holdRally,
     startFastVotes,
     signInWithGoogle,
+    signedIn: !!user,
+    requireAuth,
+    girisSebebi,
+    girisKapat,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

@@ -39,7 +39,7 @@ export function SeatList({
   seats: LeaderSeat[];
   onChanged?: () => void;
 }) {
-  const { user, isDemo, claimSeat } = useGame();
+  const { user, isDemo, claimSeat, requireAuth } = useGame();
   const [target, setTarget] = useState<LeaderSeat | null>(null);
   const [busy, setBusy] = useState(false);
   /* Teklif metin olarak tutuluyor: sayıya çevirince kullanıcı "12" yazarken
@@ -50,6 +50,7 @@ export function SeatList({
   const kontrol = target ? checkLeaderBid(tutar, target.nextPrice) : { ok: false as const, message: "" };
 
   const ac = (seat: LeaderSeat) => {
+    if (!requireAuth("Koltuğun sana geçebilmesi için önce giriş yap.")) return;
     setTarget(seat);
     setTeklif(String(seat.nextPrice));
   };

@@ -10,6 +10,7 @@ import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { fallbackAvatar, hashString } from "@/lib/avatar";
 import {
   generateRecoveryCode,
+  getDeviceIdentity,
   normalizeRecoveryCode,
   type DeviceIdentity,
 } from "@/lib/device";
@@ -170,27 +171,32 @@ export class DemoBackend implements Backend {
    * Giriş ekranı yok: ilk açılışta hesap kendiliğinden açılır, sonraki
    * ziyaretlerde cihazdaki kimlikten devam eder.
    */
-  async ensureSession(device: DeviceIdentity): Promise<Profile | null> {
-    if (!this.state.user || this.state.deviceId !== device.deviceId) {
-      // Cihaz kimliği yoksa ya da değiştiyse (tarayıcı verisi silinmiş) yeni
-      // hesap açılır; eskisi kurtarma koduyla geri alınabilir.
-      const handle = this.generateHandle();
-      this.state = {
-        ...emptyState(),
-        user: {
-          id: `cihaz:${hashString(device.deviceId)}`,
-          handle,
-          displayName: handle,
-          avatarUrl: fallbackAvatar(handle),
-          xHandle: null,
-        },
-        deviceId: device.deviceId,
-        recoveryCode: generateRecoveryCode(),
-      };
-      save(this.state);
-      this.emit();
-    }
-    return this.getProfile();
+  async ensureSession(_device: DeviceIdentity): Promise<Profile | null> {
+    /*
+     * Hesap ARTIK KENDİLİĞİNDEN AÇILMIYOR — gerçek moddaki davranışın aynısı.
+     * Ziyaretçi haritayı geziyor; hesap ancak giriş yapınca açılıyor.
+     */
+    return this.state.user ? this.getProfile() : null;
+  }
+
+  /** Demo modda "giriş": gerçek bir sağlayıcı yok, hesabı burada açıyoruz. */
+  private hesapAc(device: DeviceIdentity) {
+    const handle = this.generateHandle();
+    this.state = {
+      ...emptyState(),
+      user: {
+        id: `cihaz:${hashString(device.deviceId)}`,
+        handle,
+        displayName: handle,
+        avatarUrl: fallbackAvatar(handle),
+        xHandle: null,
+      },
+      deviceId: device.deviceId,
+      linkedProvider: "google",
+      recoveryCode: generateRecoveryCode(),
+    };
+    save(this.state);
+    this.emit();
   }
 
   /**
@@ -585,10 +591,15 @@ export class DemoBackend implements Backend {
   }
 
   async signInWithGoogle() {
-    // Demo modda gerçek bir kimlik sağlayıcısı yok; akışın görünür kısmı
-    // çalışsın diye bağlantı taklit ediliyor.
-    this.state.linkedProvider = "google";
-    save(this.state);
+    // Demo modda gerçek bir sağlayıcı yok; akışın görünür kısmı çalışsın diye
+    // giriş burada taklit ediliyor.
+    if (!this.state.user) {
+      this.hesapAc(getDeviceIdentity());
+    } else {
+      this.state.linkedProvider = "google";
+      save(this.state);
+      this.emit();
+    }
     return { ok: true };
   }
 

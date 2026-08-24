@@ -5,6 +5,7 @@ import { GameProvider } from "@/backend/GameProvider";
 import { Header } from "@/components/Header";
 import { LeaderReminder } from "@/components/LeaderReminder";
 import { useCheckoutConfirm } from "@/hooks/useCheckoutConfirm";
+import { SignInDialog } from "@/components/SignInDialog";
 import { NeuroNoise } from "@/components/ui/neuro-noise";
 import { Skeleton } from "@/components/ui/skeleton";
 import Home from "@/pages/Home";
@@ -97,6 +98,9 @@ export default function App() {
 
         {/* Saat başı il başkanlığı hatırlatması */}
         <LeaderReminder />
+
+        {/* Giriş penceresi: yalnızca hesap gerektiren bir eylemde açılır */}
+        <SignInDialog />
 
         <Toaster
           theme="dark"

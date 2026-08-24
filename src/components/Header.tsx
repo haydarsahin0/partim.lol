@@ -3,6 +3,8 @@ import { Crown, Map as MapIcon, Trophy, User } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Avatar } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { GoogleG } from "@/components/GoogleG";
 import { Badge } from "@/components/ui/badge";
 import { LevelBadge } from "@/components/LevelBadge";
 import { Wordmark } from "@/components/Logo";
@@ -28,7 +30,7 @@ const NAV = [
  * altına iniyor.
  */
 export function Header() {
-  const { user, profile, isDemo } = useGame();
+  const { user, profile, isDemo, requireAuth } = useGame();
   const unlimited = hasUnlimitedVotes(profile);
   const cooldown = useCountdown(unlimited ? null : profile?.nextVoteAt);
 
@@ -84,11 +86,21 @@ export function Header() {
               </>
             )}
 
-            {user && (
+            {user ? (
               <Link to="/profil" className="flex items-center gap-2">
                 <Avatar src={user.avatarUrl} handle={user.handle} size={32} />
                 <span className="hidden text-sm font-semibold sm:block">@{user.handle}</span>
               </Link>
+            ) : (
+              /* Hesap kendiliğinden açılmıyor; giriş her sayfadan bir tık uzakta. */
+              <Button
+                size="sm"
+                onClick={() => requireAuth("Oynamaya başlamak için giriş yap.")}
+              >
+                <GoogleG className="size-4" />
+                <span className="hidden sm:inline">Google ile giriş</span>
+                <span className="sm:hidden">Giriş</span>
+              </Button>
             )}
           </div>
         </div>

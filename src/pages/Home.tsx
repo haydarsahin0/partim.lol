@@ -21,7 +21,7 @@ import { PROVINCE_BY_ID } from "@/data/provinces";
 import { Card } from "@/components/ui/card";
 
 export default function Home() {
-  const { standings } = useGame();
+  const { standings, requireAuth } = useGame();
   const [params, setParams] = useSearchParams();
   const selected = params.get("il");
 
@@ -87,7 +87,10 @@ export default function Home() {
           <Button
             variant="primary"
             className="mt-3.5 w-full"
-            onClick={() => setPartyOpen(true)}
+            onClick={() => {
+              if (!requireAuth("Partini hesabına bağlayabilmemiz için önce giriş yap.")) return;
+              setPartyOpen(true);
+            }}
           >
             <Sparkles />
             Parti kur

@@ -28,7 +28,7 @@ export function VoteBallot({
   provinceName: string;
   onVoted?: () => void;
 }) {
-  const { profile, vote, parties, startFastVotes } = useGame();
+  const { profile, vote, parties, startFastVotes, requireAuth } = useGame();
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [partiKur, setPartiKur] = useState(false);
@@ -50,6 +50,7 @@ export function VoteBallot({
   const locked = !unlimited && cooldown > 0;
 
   const hizliAc = async () => {
+    if (!requireAuth("Aboneliğin hesabına bağlanması için önce giriş yap.")) return;
     setHizliBusy(true);
     try {
       await startFastVotes();
@@ -60,6 +61,7 @@ export function VoteBallot({
 
   const submit = async () => {
     if (!selected) return;
+    if (!requireAuth("Oyunun sayılması için hesabına ihtiyacımız var.")) return;
     setBusy(true);
     try {
       const ok = await vote(provinceId, selected);
@@ -88,7 +90,10 @@ export function VoteBallot({
       */}
       <button
         type="button"
-        onClick={() => setPartiKur(true)}
+        onClick={() => {
+          if (!requireAuth("Partini hesabına bağlayabilmemiz için önce giriş yap.")) return;
+          setPartiKur(true);
+        }}
         className="group flex w-full items-center gap-3 rounded-xl border border-dashed border-cyan-400/40 bg-cyan-400/[0.06] px-3 py-2.5 text-left transition-colors hover:border-cyan-300/70 hover:bg-cyan-400/[0.12]"
       >
         <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-cyan-400/15 text-cyan-300">
