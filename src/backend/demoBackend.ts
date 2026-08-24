@@ -96,6 +96,8 @@ type DemoState = {
   unlimitedVotes: boolean;
   /** Hızlı oy aboneliğinin bittiği an (ISO) */
   fastVotesUntil: string | null;
+  /** Bağlı kimlik sağlayıcısı ("google") */
+  linkedProvider: string | null;
   recent: Array<{
     provinceId: string;
     handle: string;
@@ -121,6 +123,7 @@ function emptyState(): DemoState {
     deviceId: null,
     unlimitedVotes: false,
     fastVotesUntil: null,
+    linkedProvider: null,
     recent: [],
   };
 }
@@ -501,6 +504,7 @@ export class DemoBackend implements Backend {
       nextVoteAt: this.state.nextVoteAt,
       unlimitedVotes: this.state.unlimitedVotes ?? false,
       fastVotesUntil: this.state.fastVotesUntil ?? null,
+      linkedProvider: this.state.linkedProvider ?? null,
       createdAt: this.state.createdAt,
     };
   }
@@ -578,6 +582,19 @@ export class DemoBackend implements Backend {
       profile: (await this.getProfile()) ?? undefined,
       standing: this.standingFor(provinceId),
     };
+  }
+
+  async signInWithGoogle() {
+    // Demo modda gerçek bir kimlik sağlayıcısı yok; akışın görünür kısmı
+    // çalışsın diye bağlantı taklit ediliyor.
+    this.state.linkedProvider = "google";
+    save(this.state);
+    return { ok: true };
+  }
+
+  async confirmCheckout(_sessionId: string) {
+    // Demo modda Stripe'a gidilmiyor; hak zaten anında veriliyor.
+    return { ok: true };
   }
 
   async startFastVotes(): Promise<FastVotesResult> {

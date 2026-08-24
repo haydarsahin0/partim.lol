@@ -42,6 +42,8 @@ export type Profile = AuthUser & {
    * için — istemci kendi bekleme süresini kısaltamaz.
    */
   fastVotesUntil: string | null;
+  /** Hesap bir kimlik sağlayıcısına bağlıysa adı ("google"), yoksa null. */
+  linkedProvider: string | null;
   createdAt: string;
 };
 
@@ -286,6 +288,22 @@ export interface Backend {
    * Hak ödeme onaylanınca webhook tarafından veriliyor.
    */
   startFastVotes(): Promise<FastVotesResult>;
+  /**
+   * Ödemeden dönen kullanıcının hakkını doğrulayıp işler.
+   *
+   * Webhook'a ek İKİNCİ yol. Ödeme yalnızca webhook'a bağlıyken, uç nokta
+   * yanlış kurulduysa ya da bir olay düştüyse kullanıcı parayı ödüyor ve
+   * hiçbir şey olmuyordu. Hak yine sunucuda, Stripe'a sorularak veriliyor.
+   */
+  confirmCheckout(sessionId: string): Promise<{ ok: boolean; kind?: string; message?: string }>;
+  /**
+   * Hesabı Google kimliğine bağlar.
+   *
+   * Cihaza bağlı hesap, tarayıcı verisi silinince ya da kullanıcı başka cihaza
+   * geçince kayboluyordu. Bağlandıktan sonra aynı Google hesabıyla nereden
+   * girilirse girilsin aynı profil — satın alımlar dâhil.
+   */
+  signInWithGoogle(): Promise<{ ok: boolean; message?: string }>;
   /**
    * Miting düzenler: başkanı olunan il + parti için partiye toplu oy ekler.
    * Günde bir kez; hak sunucuda da denetlenir, istemciye güvenilmez.

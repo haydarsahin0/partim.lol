@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { GameProvider } from "@/backend/GameProvider";
 import { Header } from "@/components/Header";
 import { LeaderReminder } from "@/components/LeaderReminder";
+import { useCheckoutConfirm } from "@/hooks/useCheckoutConfirm";
 import { NeuroNoise } from "@/components/ui/neuro-noise";
 import { Skeleton } from "@/components/ui/skeleton";
 import Home from "@/pages/Home";
@@ -53,10 +54,20 @@ function Footer() {
   );
 }
 
+/**
+ * Router ve GameProvider'ın İÇİNDE olmak zorunda olan kancalar.
+ * useSearchParams ve useGame ikisi de bağlamdan besleniyor.
+ */
+function Kancalar() {
+  useCheckoutConfirm();
+  return null;
+}
+
 export default function App() {
   return (
     <HashRouter>
       <GameProvider>
+        <Kancalar />
         {/* Arka plan sahnesi: sabit, etkileşimsiz, içeriğin arkasında */}
         <div className="pointer-events-none fixed inset-0 -z-10">
           <NeuroNoise className="absolute inset-0 h-full w-full" />

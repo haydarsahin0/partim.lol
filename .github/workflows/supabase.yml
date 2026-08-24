@@ -17,6 +17,8 @@ name: Supabase'e uygula
 #   fonksiyonlar edge fonksiyonlarını ve Stripe anahtarlarını yükler
 #   twitter-auth X (Twitter) girişini Yönetim API'siyle açar (panelden Save
 #                sessizce başarısız olduğunda güvenilir yol budur)
+#   abonelikleri-onar Stripe'ta ödenmiş ama hesaba işlenmemiş abonelikleri
+#                bulup uygular. Tekrar çalıştırmak zararsız.
 #   durum        hiçbir şeyi değiştirmez, yalnızca auth ayarlarını raporlar
 
 on:
@@ -31,6 +33,7 @@ on:
           - veritabani
           - fonksiyonlar
           - twitter-auth
+          - abonelikleri-onar
           - durum
 
 permissions:
@@ -108,6 +111,11 @@ jobs:
             supabase secrets set "STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET" --project-ref "$PROJECT_REF"
             echo "STRIPE_WEBHOOK_SECRET aktarıldı."
           fi
+          # Onarım işini koruyan anahtar. Tanımlı değilse veritabanı
+          # parolasından türetiliyor; iş akışı dışından tahmin edilemez.
+          REPAIR_KEY="${REPAIR_KEY:-$(printf '%s' "$SUPABASE_DB_PASSWORD-onarim" | sha256sum | cut -c1-48)}"
+          supabase secrets set "REPAIR_KEY=$REPAIR_KEY" --project-ref "$PROJECT_REF"
+          echo "REPAIR_KEY aktarıldı."
 
       - name: Edge fonksiyonlarını yükle
         if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' }}
@@ -118,8 +126,37 @@ jobs:
           supabase functions deploy create-checkout --project-ref "$PROJECT_REF"
           supabase functions deploy create-party-subscription --project-ref "$PROJECT_REF"
           supabase functions deploy create-fast-votes-subscription --project-ref "$PROJECT_REF"
-          # Webhook'u Stripe çağırır, kullanıcı JWT'si taşımaz.
+          supabase functions deploy confirm-checkout --project-ref "$PROJECT_REF"
+          # Webhook'u Stripe, onarım işini iş akışı çağırır: ikisi de kullanıcı
+          # JWT'si taşımaz, kendi anahtarlarıyla doğrulanır.
           supabase functions deploy stripe-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy repair-subscriptions --project-ref "$PROJECT_REF" --no-verify-jwt
+
+      - name: Abonelikleri onar
+        # Stripe'ta ödenmiş ama hesaba işlenmemiş abonelikleri uygular.
+        # "fonksiyonlar" hedefinde de çalışır: yeni yüklenen webhook'tan önce
+        # kaçırılmış ödemeler aynı koşuda kurtulsun.
+        if: ${{ inputs.hedef == 'abonelikleri-onar' || inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' }}
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$STRIPE_SECRET_KEY" ]; then
+            echo "STRIPE_SECRET_KEY yok — onarım atlanıyor."
+            exit 0
+          fi
+          REPAIR_KEY="${REPAIR_KEY:-$(printf '%s' "$SUPABASE_DB_PASSWORD-onarim" | sha256sum | cut -c1-48)}"
+          yanit=$(curl -sS -X POST \
+            "https://$PROJECT_REF.functions.supabase.co/repair-subscriptions" \
+            -H "x-repair-key: $REPAIR_KEY")
+          echo "$yanit"
+          {
+            echo "### Abonelik onarımı"
+            echo ""
+            echo '```json'
+            echo "$yanit"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Veritabanı denetimi
         # `db push` yeşil dönse bile ne uygulandığını söylemiyor: uygulanmış bir

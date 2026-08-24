@@ -69,6 +69,7 @@ type ProfileRow = {
   next_vote_at: string | null;
   unlimited_votes?: boolean | null;
   fast_votes_until?: string | null;
+  linked_provider?: string | null;
   is_bot?: boolean | null;
   created_at: string;
 };
@@ -301,7 +302,7 @@ export class SupabaseBackend implements Backend {
     const { data, error } = await this.db
       .from("profiles")
       .select(
-        "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at,unlimited_votes,fast_votes_until,created_at",
+        "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at,unlimited_votes,fast_votes_until,linked_provider,created_at",
       )
       .eq("auth_user_id", sessionData.session.user.id)
       .maybeSingle();
@@ -319,6 +320,7 @@ export class SupabaseBackend implements Backend {
       nextVoteAt: row.next_vote_at,
       unlimitedVotes: row.unlimited_votes ?? false,
       fastVotesUntil: row.fast_votes_until ?? null,
+      linkedProvider: row.linked_provider ?? null,
       createdAt: row.created_at,
     };
     return this.cachedProfile;
@@ -580,7 +582,7 @@ export class SupabaseBackend implements Backend {
       "create-party-subscription",
       {
         ...input,
-        successUrl: `${window.location.origin}${window.location.pathname}#/profil?parti=basarili`,
+        successUrl: `${window.location.origin}${window.location.pathname}#/profil?parti=basarili&session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${window.location.origin}${window.location.pathname}#/profil?parti=iptal`,
       },
     );
@@ -590,12 +592,53 @@ export class SupabaseBackend implements Backend {
     return { kind: "redirect", url };
   }
 
+  async signInWithGoogle() {
+    // Dönüş adresi hash yönlendirmesiyle uyumlu: Supabase PKCE akışında kodu
+    // sorgu dizesine koyuyor, detectSessionInUrl onu oradan okuyor.
+    const redirectTo = `${window.location.origin}${window.location.pathname}#/profil?google=basarili`;
+
+    /*
+     * Anonim oturum varken önce KİMLİK EKLEME deneniyor: auth kullanıcısı aynı
+     * kalıyor, dolayısıyla profil de aynı kalıyor. Bu kapalıysa ya da bu Google
+     * hesabı başka bir kullanıcıya bağlıysa normal girişe düşüyoruz; sunucudaki
+     * ensure_profile kimliğe göre doğru profili zaten buluyor.
+     */
+    const { data: oturum } = await this.db.auth.getSession();
+    const anonim = oturum.session?.user?.is_anonymous === true;
+
+    if (anonim) {
+      const { error } = await this.db.auth.linkIdentity({
+        provider: "google",
+        options: { redirectTo },
+      });
+      if (!error) return { ok: true };
+    }
+
+    const { error } = await this.db.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
+    if (error) return { ok: false, message: error.message };
+    return { ok: true };
+  }
+
+  async confirmCheckout(sessionId: string) {
+    const { data, message } = await invokeEdge<{ ok?: boolean; kind?: string }>(
+      this.db,
+      "confirm-checkout",
+      { sessionId },
+    );
+    if (message) return { ok: false, message };
+    this.cachedProfile = null;
+    return { ok: !!data?.ok, kind: data?.kind };
+  }
+
   async startFastVotes(): Promise<FastVotesResult> {
     const { data, message } = await invokeEdge<{ url?: string }>(
       this.db,
       "create-fast-votes-subscription",
       {
-        successUrl: `${window.location.origin}${window.location.pathname}#/profil?hizli=basarili`,
+        successUrl: `${window.location.origin}${window.location.pathname}#/profil?hizli=basarili&session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${window.location.origin}${window.location.pathname}#/profil?hizli=iptal`,
       },
     );
@@ -615,7 +658,7 @@ export class SupabaseBackend implements Backend {
         // Tutar ucu açık. Sunucu yine de alt sınırı kendisi hesaplayıp
         // doğruluyor — istemcinin gönderdiği sayıya güvenilmez.
         amount,
-        successUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=basarili`,
+        successUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=basarili&session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=iptal`,
       },
     );

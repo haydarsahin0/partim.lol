@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Crown, Sparkles, Timer, Vote } from "lucide-react";
 import { CreatePartyDialog } from "@/components/CreatePartyDialog";
 import { ProfileEditor } from "@/components/ProfileEditor";
+import { GoogleLink } from "@/components/GoogleLink";
 import { PartyMark } from "@/components/PartyMark";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
@@ -102,6 +103,8 @@ export default function ProfilePage() {
           value={unlimited ? "sınırsız" : cooldown > 0 ? formatDuration(cooldown) : "hazır"}
         />
       </div>
+
+      <GoogleLink />
 
       <ProfileEditor />
 

@@ -56,6 +56,8 @@ type GameContextValue = {
   holdRally: (provinceId: string, partyId: string) => Promise<boolean>;
   /** Hızlı oy aboneliğini başlatır; gerçek modda Stripe'a yönlendirir */
   startFastVotes: () => Promise<boolean>;
+  /** Hesabı Google kimliğine bağlar */
+  signInWithGoogle: () => Promise<boolean>;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -255,6 +257,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [backend, refresh],
   );
 
+  const signInWithGoogle = useCallback(async () => {
+    const result = await backend.signInWithGoogle();
+    if (!result.ok) {
+      toast.error(result.message ?? "Google ile bağlanılamadı.");
+      return false;
+    }
+    // Gerçek modda tarayıcı Google'a gider; demo modda hemen tazeleyelim.
+    await refreshProfile();
+    return true;
+  }, [backend, refreshProfile]);
+
   const startFastVotes = useCallback(async () => {
     const result = await backend.startFastVotes();
     if (result.kind === "error") {
@@ -382,6 +395,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     createParty,
     holdRally,
     startFastVotes,
+    signInWithGoogle,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
