@@ -3,7 +3,7 @@ import { Download, Loader2, Pause, Play, RotateCcw, Video } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import type { VoteHistory, VoteHistoryBucket } from "@/backend/types";
 import { buildFrames, lerpFrame, syntheticHistory, type Frame } from "@/lib/timelapse";
-import { BOYUTLAR, drawFrame, type Kalite, type Oran } from "@/lib/timelapseRenderer";
+import { BOYUTLAR, drawFrame, guvenliPay, type Kalite, type Oran } from "@/lib/timelapseRenderer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -184,6 +184,9 @@ export default function TimelapsePage() {
   const [kaydedildi, setKaydedildi] = useState<"paylasildi" | "indirildi" | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const paylasimVar = useMemo(paylasimDesteginiOlc, []);
+  /** Sosyal medya güvenli alan kılavuzu — yalnızca önizlemede, kayda girmiyor. */
+  const [kilavuz, setKilavuz] = useState(false);
+  const pay = guvenliPay(oran);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef(0);
@@ -443,14 +446,50 @@ export default function TimelapsePage() {
 
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-center bg-black/40 p-3">
-          <canvas
-            ref={canvasRef}
+          <div
             className={cn(
-              "h-auto w-full rounded-xl",
+              "relative w-full",
               oran === "9:16" && "max-w-[min(100%,360px)]",
               oran === "1:1" && "max-w-[min(100%,560px)]",
             )}
-          />
+          >
+            <canvas ref={canvasRef} className="block h-auto w-full rounded-xl" />
+
+            {/*
+             * Kılavuz yalnızca önizlemede: canvas'ın üstünde ayrı bir katman
+             * olduğu için kayda girmiyor. Sosyal medyanın kendi arayüzünün
+             * karenin neresini yiyeceğini gösteriyor.
+             */}
+            {kilavuz && (
+              <div className="pointer-events-none absolute inset-0 rounded-xl">
+                <div
+                  className="absolute inset-x-0 top-0 bg-rose-500/15"
+                  style={{ height: `${pay.ust * 100}%` }}
+                />
+                <div
+                  className="absolute inset-x-0 bottom-0 bg-rose-500/15"
+                  style={{ height: `${pay.alt * 100}%` }}
+                />
+                <div
+                  className="absolute inset-y-0 left-0 bg-rose-500/15"
+                  style={{ width: `${pay.yan * 100}%` }}
+                />
+                <div
+                  className="absolute inset-y-0 right-0 bg-rose-500/15"
+                  style={{ width: `${pay.yan * 100}%` }}
+                />
+                <div
+                  className="absolute rounded-sm border border-dashed border-emerald-400/70"
+                  style={{
+                    top: `${pay.ust * 100}%`,
+                    bottom: `${pay.alt * 100}%`,
+                    left: `${pay.yan * 100}%`,
+                    right: `${pay.yan * 100}%`,
+                  }}
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4 p-4">
@@ -570,7 +609,23 @@ export default function TimelapsePage() {
                 {kaynak === "ornek" && (
                   <Badge variant="warning">örnek veri — gerçek sonuç değildir</Badge>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setKilavuz((v) => !v)}
+                  className="rounded-full border border-white/12 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-white/25 hover:text-foreground"
+                >
+                  {kilavuz ? "Güvenli alanı gizle" : "Güvenli alanı göster"}
+                </button>
               </div>
+
+              {kilavuz && (
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  Kırmızı bantlar, videoyu sosyal medyaya yüklediğinde platformun kendi arayüzünün
+                  (beğeni/yorum sütunu, açıklama metni, üstteki sekmeler) karenin üstüne bindiği
+                  yerler. Yazılar ve harita yeşil çerçevenin içinde kalıyor — kılavuz yalnızca
+                  önizlemede görünür, videoya girmez.
+                </p>
+              )}
 
               {kaynak === "gercek" && frames.length <= 1 && (
                 <p className="text-[13px] leading-relaxed text-muted-foreground">
