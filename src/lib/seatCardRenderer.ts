@@ -174,8 +174,7 @@ export function drawSeatCard(ctx: CanvasRenderingContext2D, data: SeatCardData):
   ctx.fillText("ÖDENEN BEDEL", bX + bW / 2, bY + 108);
 
   /* --------------------------------- altlık -------------------------------- */
-  // Örnek kartta en alt satırı damga alıyor; künye bir satır yukarı çıkıyor.
-  const altY = data.ornek ? H - pad - 26 : H - pad + 6;
+  const altY = H - pad + 6;
 
   ctx.textAlign = "left";
   ctx.font = '600 21px "SF Pro Text", Inter, system-ui, sans-serif';
@@ -193,33 +192,30 @@ export function drawSeatCard(ctx: CanvasRenderingContext2D, data: SeatCardData):
   ctx.fillText("Bir siyaset simülasyonu oyunu · gerçek seçim sonucu değildir", W - pad, altY);
 
   if (data.ornek) {
-    // Çapraz, iri ve kaçınılmaz: bu kartın gerçek bir satın alma sanılmaması şart.
-    ctx.save();
-    ctx.translate(W * 0.62, H * 0.42);
-    ctx.rotate(-Math.PI / 9);
-    ctx.textAlign = "center";
-    ctx.font = '900 108px "SF Pro Display", Inter, system-ui, sans-serif';
-    ctx.fillStyle = "rgba(251,191,36,0.16)";
-    ctx.fillText("ÖRNEK", 0, 0);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(251,191,36,0.42)";
-    ctx.strokeText("ÖRNEK", 0, 0);
-    ctx.restore();
+    /*
+     * Örnek işareti.
+     *
+     * Önce çapraz iri bir damga ve alt şerit vardı; tasarımı eziyordu.
+     * Şimdi sağ altta küçük bir nokta ve tek kelime. Yalnız nokta bırakmadık:
+     * oyunun içinde nokta zaten "oyunun kendi hesabı" demek ve ipucu var,
+     * ama bu kart tek başına dolaşıyor. Kartı gören biri koltuğun gerçekten
+     * bu bedele satıldığını sanıp aynı seviyeden ödemeye kalkarsa parasıyla
+     * yanılmış olur; tek kelime bunu engelliyor ve tasarımdan bir şey
+     * götürmüyor.
+     */
+    const nokta = 7;
+    const nx = W - pad;
+    const ny = H - pad - 26;
 
-    // Alt şerit: damganın kartın dışına taşındığı hâlde de okunur kalması için.
-    const seritY = H - pad - 4;
-    ctx.fillStyle = "rgba(251,191,36,0.14)";
-    kutu(ctx, pad, seritY, W - pad * 2, 42, 21);
+    ctx.textAlign = "right";
+    ctx.font = '600 17px "SF Pro Text", Inter, system-ui, sans-serif';
+    ctx.fillStyle = "rgba(232,238,247,0.55)";
+    ctx.fillText("örnek", nx - nokta * 2 - 8, ny + 6);
+
+    ctx.beginPath();
+    ctx.arc(nx - nokta, ny, nokta / 2 + 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
     ctx.fill();
-    ctx.strokeStyle = "rgba(251,191,36,0.4)";
-    ctx.lineWidth = 1.5;
-    kutu(ctx, pad, seritY, W - pad * 2, 42, 21);
-    ctx.stroke();
-
-    ctx.textAlign = "center";
-    ctx.font = '800 20px "SF Pro Text", Inter, system-ui, sans-serif';
-    ctx.fillStyle = "rgba(251,191,36,0.95)";
-    ctx.fillText("ÖRNEK KART — GERÇEK BİR SATIN ALMA DEĞİLDİR", W / 2, seritY + 28);
   }
 
   ctx.restore();

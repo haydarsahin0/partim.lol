@@ -7,7 +7,7 @@
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { PARTY_IDS, readableTextTone, type Party } from "@/data/parties";
 import { fallbackAvatar } from "@/lib/avatar";
-import { LEADER_BASE_PRICE, levelFromXp, minLeaderPrice } from "@/lib/game";
+import { LEADER_BASE_PRICE, formatUsd, levelFromXp, minLeaderPrice } from "@/lib/game";
 import { getSupabase } from "./supabaseClient";
 import { normalizeRecoveryCode, type DeviceIdentity } from "@/lib/device";
 import type {
@@ -538,18 +538,46 @@ export class SupabaseBackend implements Backend {
   }
 
   async claimSeat(provinceId: string, partyId: string, amount?: number): Promise<CheckoutResult> {
-    const { data, message } = await invokeEdge<{ url?: string }>(this.db, "create-checkout", {
-      provinceId,
-      partyId,
-      // Tutar ucu açık. Sunucu yine de alt sınırı kendisi hesaplayıp
-      // doğruluyor — istemcinin gönderdiği sayıya güvenilmez.
-      amount,
-      successUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=basarili`,
-      cancelUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=iptal`,
-    });
+    const { data, message } = await invokeEdge<{ url?: string; price?: number }>(
+      this.db,
+      "create-checkout",
+      {
+        provinceId,
+        partyId,
+        // Tutar ucu açık. Sunucu yine de alt sınırı kendisi hesaplayıp
+        // doğruluyor — istemcinin gönderdiği sayıya güvenilmez.
+        amount,
+        successUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=basarili`,
+        cancelUrl: `${window.location.origin}${window.location.pathname}#/il/${provinceId}?odeme=iptal`,
+      },
+    );
     if (message) return { kind: "error", message };
     const url = data?.url;
     if (!url) return { kind: "error", message: "Ödeme oturumu açılamadı." };
+
+    /*
+     * Açılacak tutar istenenle aynı mı?
+     *
+     * Fonksiyonun eski sürümü `amount` alanını hiç okumuyor ve her zaman alt
+     * sınırı kullanıyordu: kullanıcı $10 yazsa da Stripe $1 açıyordu. Sessizce
+     * yanlış tutara yönlendirmek, karşısındakinin parasıyla oynamak demek —
+     * o yüzden fark varsa yönlendirmiyoruz ve sebebini söylüyoruz.
+     */
+    const istenen = amount ?? data?.price;
+    if (
+      istenen !== undefined &&
+      typeof data?.price === "number" &&
+      Math.abs(data.price - istenen) > 0.005
+    ) {
+      return {
+        kind: "error",
+        message:
+          `Ödeme ekranı ${formatUsd(data.price)} olarak açılacaktı, oysa ${formatUsd(istenen)} ` +
+          "istendi. Ödeme servisi eski sürümde: GitHub → Actions → \"Supabase'e uygula\" → " +
+          "hedef: fonksiyonlar.",
+      };
+    }
+
     return { kind: "redirect", url };
   }
 }
