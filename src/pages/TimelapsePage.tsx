@@ -58,8 +58,11 @@ const BITIS_DURAKLAMA_MS = 1200;
  * yakaladığı için yavaş bir cihazda video istenenden kısa çıkabiliyor.
  * Kullanıcı bunu ancak dosyayı açınca fark ederdi — ölçüp söylüyoruz.
  */
-async function videoSuresi(url: string): Promise<number | null> {
+async function videoSuresi(blob: Blob): Promise<number | null> {
   return new Promise((resolve) => {
+    // Ölçüm kendi geçici adresini kullanıyor: indirme bağlantısının adresini
+    // ödünç alıp sonra kapatmak, Safari'de indirmeyi bozuyordu.
+    const url = URL.createObjectURL(blob);
     const v = document.createElement("video");
     v.preload = "metadata";
     v.muted = true;
@@ -68,6 +71,7 @@ async function videoSuresi(url: string): Promise<number | null> {
       if (bitti) return;
       bitti = true;
       v.removeAttribute("src");
+      URL.revokeObjectURL(url);
       resolve(d && Number.isFinite(d) && d > 0 ? d : null);
     };
     v.onloadedmetadata = () => {
@@ -86,16 +90,63 @@ async function videoSuresi(url: string): Promise<number | null> {
 }
 
 /** MediaRecorder'ın bu tarayıcıda desteklediği ilk biçim. */
-function kayitBicimi(): { mime: string; uzanti: string } | null {
+function kayitBicimi(): { mime: string; kap: string; uzanti: string } | null {
   if (typeof MediaRecorder === "undefined") return null;
-  const adaylar: Array<{ mime: string; uzanti: string }> = [
-    { mime: "video/mp4;codecs=avc1", uzanti: "mp4" },
-    { mime: "video/mp4", uzanti: "mp4" },
-    { mime: "video/webm;codecs=vp9", uzanti: "webm" },
-    { mime: "video/webm;codecs=vp8", uzanti: "webm" },
-    { mime: "video/webm", uzanti: "webm" },
+  const adaylar: Array<{ mime: string; kap: string; uzanti: string }> = [
+    { mime: "video/mp4;codecs=avc1", kap: "video/mp4", uzanti: "mp4" },
+    { mime: "video/mp4", kap: "video/mp4", uzanti: "mp4" },
+    { mime: "video/webm;codecs=vp9", kap: "video/webm", uzanti: "webm" },
+    { mime: "video/webm;codecs=vp8", kap: "video/webm", uzanti: "webm" },
+    { mime: "video/webm", kap: "video/webm", uzanti: "webm" },
   ];
   return adaylar.find((a) => MediaRecorder.isTypeSupported(a.mime)) ?? null;
+}
+
+/** Cihaz dosya paylaşımını destekliyor mu (iOS'ta indirme yerine bu kullanılıyor). */
+function paylasimDesteginiOlc(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  if (typeof nav.canShare !== "function" || typeof nav.share !== "function") return false;
+  try {
+    return nav.canShare({ files: [new File([new Uint8Array(1)], "a.mp4", { type: "video/mp4" })] });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Videoyu cihaza kaydet.
+ *
+ * iOS Safari `<a download>` başlığını blob adreslerinde yok sayıyor: bağlantıya
+ * dokununca dosyayı indirmek yerine adrese gidiyor, bu da boş bir sayfa ya da
+ * "WebKitBlobResource" hatası oluyor. Orada tek güvenilir yol paylaşım sayfası
+ * — kullanıcı videoyu Fotoğraflar'a ya da Dosyalar'a oradan kaydediyor.
+ * Masaüstünde paylaşım yoksa klasik indirme bağlantısına düşüyoruz.
+ */
+async function videoyuKaydet(blob: Blob, ad: string): Promise<"paylasildi" | "indirildi" | "iptal"> {
+  const dosya = new File([blob], ad, { type: blob.type });
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  if (typeof nav.canShare === "function" && nav.canShare({ files: [dosya] })) {
+    try {
+      await nav.share({ files: [dosya], title: "partim.lol zaman tüneli" });
+      return "paylasildi";
+    } catch (e) {
+      // Kullanıcı paylaşım sayfasını kapattıysa hata değil.
+      if (e instanceof DOMException && e.name === "AbortError") return "iptal";
+      // Paylaşım başarısızsa indirmeyi dene.
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = ad;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // İndirme başlamadan adresi kapatmak dosyayı bozuyor; tarayıcıya süre tanı.
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return "indirildi";
 }
 
 /**
@@ -122,10 +173,17 @@ export default function TimelapsePage() {
   /** 0–1 arası ilerleme. Kare sayısından bağımsız: süre neyse ona yayılıyor. */
   const [ilerleme, setIlerleme] = useState(0);
   const [kaydediyor, setKaydediyor] = useState(false);
-  const [video, setVideo] = useState<{ url: string; uzanti: string; sure: number | null } | null>(
+  /**
+   * Hazır video. Geçici adres (blob:) yerine dosyanın kendisi tutuluyor —
+   * adres bir kez kapatılınca (revoke) geri gelmiyor ve indirme "WebKitBlobResource"
+   * hatası veriyordu. Adresi artık yalnızca kaydetme anında, o an için üretiyoruz.
+   */
+  const [video, setVideo] = useState<{ blob: Blob; uzanti: string; sure: number | null } | null>(
     null,
   );
+  const [kaydedildi, setKaydedildi] = useState<"paylasildi" | "indirildi" | null>(null);
   const [hata, setHata] = useState<string | null>(null);
+  const paylasimVar = useMemo(paylasimDesteginiOlc, []);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef(0);
@@ -326,8 +384,8 @@ export default function TimelapsePage() {
     }
 
     setHata(null);
-    if (video) URL.revokeObjectURL(video.url);
     setVideo(null);
+    setKaydedildi(null);
 
     const stream = canvas.captureStream(KARE_HIZI);
     const parcalar: Blob[] = [];
@@ -338,12 +396,14 @@ export default function TimelapsePage() {
     recorder.ondataavailable = (e) => e.data.size > 0 && parcalar.push(e.data);
     recorder.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
-      const url = URL.createObjectURL(new Blob(parcalar, { type: bicim.mime }));
-      setVideo({ url, uzanti: bicim.uzanti, sure: null });
+      // Kap tipi sade tutuluyor: Safari, ";codecs=" ekli tipteki dosyayı
+      // oynatılabilir bir video olarak tanımıyor.
+      const blob = new Blob(parcalar, { type: bicim.kap });
+      setVideo({ blob, uzanti: bicim.uzanti, sure: null });
       setKaydediyor(false);
       recorderRef.current = null;
-      void videoSuresi(url).then((sure) =>
-        setVideo((onceki) => (onceki && onceki.url === url ? { ...onceki, sure } : onceki)),
+      void videoSuresi(blob).then((sure) =>
+        setVideo((onceki) => (onceki && onceki.blob === blob ? { ...onceki, sure } : onceki)),
       );
     };
     recorderRef.current = recorder;
@@ -352,14 +412,21 @@ export default function TimelapsePage() {
     setKaydediyor(true);
     recorder.start();
     setOynuyor(true);
-  }, [frames.length, video]);
+  }, [frames.length]);
 
-  useEffect(
-    () => () => {
-      if (video) URL.revokeObjectURL(video.url);
-    },
-    [video],
-  );
+  const indir = useCallback(async () => {
+    if (!video) return;
+    setHata(null);
+    try {
+      const sonuc = await videoyuKaydet(video.blob, `partim-lol-zaman-tuneli.${video.uzanti}`);
+      if (sonuc !== "iptal") setKaydedildi(sonuc);
+    } catch {
+      setHata(
+        "Video kaydedilemedi. Sayfayı yenilemeden tekrar deneyin; " +
+          "sorun sürerse videoyu yeniden oluşturun.",
+      );
+    }
+  }, [video]);
 
   const kovaSayisi = frames.length;
 
@@ -424,11 +491,9 @@ export default function TimelapsePage() {
                 </Button>
 
                 {video && (
-                  <Button asChild variant="primary">
-                    <a href={video.url} download={`partim-lol-zaman-tuneli.${video.uzanti}`}>
-                      <Download />
-                      Videoyu indir
-                    </a>
+                  <Button variant="primary" onClick={() => void indir()}>
+                    <Download />
+                    {paylasimVar ? "Videoyu kaydet" : "Videoyu indir"}
                   </Button>
                 )}
               </div>
@@ -530,6 +595,20 @@ export default function TimelapsePage() {
                       ya da başka sekmeleri kapatıp tekrar dene.
                     </>
                   )}
+                </p>
+              )}
+
+              {kaydedildi === "paylasildi" && (
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  Video paylaşım sayfasına gönderildi —{" "}
+                  <strong className="text-foreground">Videoyu Kaydet</strong> ile Fotoğraflar'a,{" "}
+                  <strong className="text-foreground">Dosyalara Kaydet</strong> ile Dosyalar'a
+                  alabilirsin.
+                </p>
+              )}
+              {kaydedildi === "indirildi" && (
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  Video indirilenler klasörüne kaydedildi.
                 </p>
               )}
 
