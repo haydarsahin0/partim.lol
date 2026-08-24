@@ -58,7 +58,8 @@ function provincePaths() {
 }
 
 function formatSayi(n: number): string {
-  return n.toLocaleString("tr-TR");
+  // Oy sayısı her zaman tam sayıdır; ara karelerde kesir kalırsa yuvarla.
+  return Math.round(n).toLocaleString("tr-TR");
 }
 
 function formatYuzde(n: number): string {

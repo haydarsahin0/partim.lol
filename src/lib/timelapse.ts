@@ -54,11 +54,44 @@ function summarize(at: string, tallies: Tallies): Frame {
     leaders[province.id] = best;
   }
 
-  const national = [...byParty.entries()]
-    .map(([partyId, votes]) => ({ partyId, votes, pct: total ? (votes / total) * 100 : 0 }))
+  /*
+   * OY SAYILARI TAM SAYI OLMAK ZORUNDA.
+   *
+   * Ara kareler üretilirken sayılar kesirli oluyor ve ekranda "365,72 oy" gibi
+   * saçma bir şey çıkıyordu — yarım oy diye bir şey yok. Burada yuvarlıyoruz,
+   * ama tek tek değil: önce ülke toplamı yuvarlanıyor, sonra partilere en
+   * büyük kalan yöntemiyle dağıtılıyor. Tek tek yuvarlasaydık parti
+   * sayılarının toplamı ülke toplamını tutmazdı ve yüzdeler %100'e oturmazdı.
+   *
+   * Yuvarlama yalnızca GÖSTERİLEN sayıları etkiliyor; il liderini kesirli
+   * değerler belirliyor, böylece renk tam öne geçildiği anda dönüyor.
+   */
+  const toplamTam = Math.round(total);
+  const ham = [...byParty.entries()].map(([partyId, votes]) => ({
+    partyId,
+    tam: total > 0 ? (votes / total) * toplamTam : 0,
+  }));
+
+  const sayilar = ham.map((r) => ({ partyId: r.partyId, votes: Math.floor(r.tam) }));
+  let kalan = toplamTam - sayilar.reduce((a, r) => a + r.votes, 0);
+  const kesirSirasi = ham
+    .map((r, i) => ({ i, kesir: r.tam - Math.floor(r.tam) }))
+    .sort((a, b) => b.kesir - a.kesir);
+  for (let k = 0; kalan > 0 && kesirSirasi.length > 0; k++) {
+    sayilar[kesirSirasi[k % kesirSirasi.length].i].votes += 1;
+    kalan -= 1;
+  }
+
+  const national = sayilar
+    .filter((r) => r.votes > 0)
+    .map((r) => ({
+      partyId: r.partyId,
+      votes: r.votes,
+      pct: toplamTam ? (r.votes / toplamTam) * 100 : 0,
+    }))
     .sort((a, b) => b.votes - a.votes);
 
-  return { at, tallies, leaders, national, totalVotes: total };
+  return { at, tallies, leaders, national, totalVotes: toplamTam };
 }
 
 /**

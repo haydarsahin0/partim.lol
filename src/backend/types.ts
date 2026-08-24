@@ -121,7 +121,7 @@ export type HistoryBucket = {
 };
 
 /** Zaman tüneli çözünürlüğü — kaç dakikada bir kare alınacağı */
-export type VoteHistoryBucket = "10min" | "minute" | "hour" | "day";
+export type VoteHistoryBucket = "5min" | "10min" | "30min" | "hour" | "day";
 
 export type VoteHistory = {
   /** Sıfırıncı kare: açılış tablosu */

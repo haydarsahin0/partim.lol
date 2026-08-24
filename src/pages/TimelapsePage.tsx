@@ -13,17 +13,28 @@ import { cn } from "@/lib/utils";
 type Kaynak = "gercek" | "ornek";
 
 /**
- * Video süresi saniye cinsinden seçiliyor, kare hızı değil.
+ * Video süresi ARTIK SEÇİLMİYOR, veriden hesaplanıyor.
  *
- * "2× hız" demek videonun kaç saniye süreceğini söylemiyordu; sosyal medyada
- * istenen şey ise doğrudan süre. Oynatıcı seçilen süreyi bir saat gibi
- * kullanıyor ve veriyi o süreye yayıyor.
+ * Kullanıcının ilgilendiği şey "kaç dakikalık dilimler" — süre onun için bir
+ * ayrıntı. Kaç veri karesi varsa saniyede yaklaşık altısını gösteriyoruz;
+ * sonuç 8 saniyenin altına inmiyor, 20 saniyenin üstüne çıkmıyor. Kısa video
+ * anlaşılmıyor, uzun video sosyal medyada izlenmiyor.
  */
-const SURELER = [10, 15, 20, 30];
+const SANIYEDE_VERI_KARESI = 6;
+const EN_KISA_SN = 8;
+const EN_UZUN_SN = 20;
+
+function sureHesapla(kareSayisi: number): number {
+  if (kareSayisi <= 1) return EN_KISA_SN;
+  const ham = kareSayisi / SANIYEDE_VERI_KARESI;
+  return Math.round(Math.min(EN_UZUN_SN, Math.max(EN_KISA_SN, ham)));
+}
 
 /** Kaç dakikada bir kare alınacağı. Kısa geçmişte ince kova daha çok kare verir. */
-const COZUNURLUKLER: Array<{ deger: VoteHistoryBucket; etiket: string; ms: number }> = [
+const DILIMLER: Array<{ deger: VoteHistoryBucket; etiket: string; ms: number }> = [
+  { deger: "5min", etiket: "5 dk", ms: 300_000 },
   { deger: "10min", etiket: "10 dk", ms: 600_000 },
+  { deger: "30min", etiket: "30 dk", ms: 1_800_000 },
   { deger: "hour", etiket: "1 saat", ms: 3_600_000 },
   { deger: "day", etiket: "1 gün", ms: 86_400_000 },
 ];
@@ -103,7 +114,6 @@ export default function TimelapsePage() {
 
   const [kaynak, setKaynak] = useState<Kaynak>(isDemo ? "ornek" : "gercek");
   const [oran, setOran] = useState<Oran>("16:9");
-  const [sureSn, setSureSn] = useState(15);
   const [kalite, setKalite] = useState<Kalite>("hd");
   const [cozunurluk, setCozunurluk] = useState<VoteHistoryBucket>("10min");
   const [history, setHistory] = useState<VoteHistory | null>(null);
@@ -139,7 +149,7 @@ export default function TimelapsePage() {
     setYukleniyor(true);
     setHata(null);
 
-    const kova = COZUNURLUKLER.find((c) => c.deger === cozunurluk) ?? COZUNURLUKLER[1];
+    const kova = DILIMLER.find((c) => c.deger === cozunurluk) ?? DILIMLER[1];
 
     const yukle = async () => {
       if (kaynak === "ornek") {
@@ -172,6 +182,9 @@ export default function TimelapsePage() {
   }, [backend, kaynak, cozunurluk]);
 
   const frames: Frame[] = useMemo(() => (history ? buildFrames(history) : []), [history]);
+
+  /** Video süresi: seçilen dilime göre kendiliğinden. */
+  const sureSn = useMemo(() => sureHesapla(frames.length), [frames.length]);
 
   /**
    * O anki kare. İlerleme kesirli olduğu için iki veri karesinin arası
@@ -434,7 +447,7 @@ export default function TimelapsePage() {
                 className="w-full accent-primary"
               />
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Secim
                   baslik="Kaynak"
                   secenekler={[
@@ -470,8 +483,8 @@ export default function TimelapsePage() {
                   kilitli={kaydediyor}
                 />
                 <Secim
-                  baslik="Çözünürlük"
-                  secenekler={COZUNURLUKLER.map((c) => ({ deger: c.deger, etiket: c.etiket }))}
+                  baslik="Zaman dilimi"
+                  secenekler={DILIMLER.map((c) => ({ deger: c.deger, etiket: c.etiket }))}
                   secili={cozunurluk}
                   onSec={(v) => {
                     setOynuyor(false);
@@ -479,18 +492,13 @@ export default function TimelapsePage() {
                   }}
                   kilitli={kaydediyor}
                 />
-                <Secim
-                  baslik="Süre"
-                  secenekler={SURELER.map((sn) => ({ deger: String(sn), etiket: `${sn} sn` }))}
-                  secili={String(sureSn)}
-                  onSec={(v) => setSureSn(Number(v))}
-                  kilitli={kaydediyor}
-                />
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Badge variant="secondary">{kovaSayisi} veri karesi</Badge>
-                <Badge variant="secondary">{sureSn} sn · {KARE_HIZI} kare/sn</Badge>
+                <Badge variant="secondary">
+                  ≈{sureSn} sn · {KARE_HIZI} kare/sn
+                </Badge>
                 <Badge variant="secondary">
                   {BOYUTLAR[kalite][oran].width}×{BOYUTLAR[kalite][oran].height}
                 </Badge>
