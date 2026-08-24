@@ -41,7 +41,7 @@ const TERMS: Section[] = [
   {
     title: "3. Oyun kuralları",
     body: [
-      "Her oyuncu beş dakikada bir oy kullanabilir ve her oy 1 XP kazandırır. Kurallar, oyunun dengesi için önceden haber verilmeksizin değiştirilebilir.",
+      "Her oyuncu bir dakikada bir oy kullanabilir ve her oy 1 XP kazandırır. Kurallar, oyunun dengesi için önceden haber verilmeksizin değiştirilebilir.",
       `İl başkanlığı koltukları oyun içi dijital konumlardır. Boş bir koltuk ${formatUsd(LEADER_BASE_PRICE)}'dır. Dolu bir koltuğu devralmak için son ödenen bedelin en az ${formatUsd(LEADER_PRICE_STEP)} üstünde bir tutar ödenir; üst sınır ${formatUsd(LEADER_MAX_PRICE)}'dır. Ödenen tutar koltuğun yeni bedeli olur. Koltuğu elinizde tuttuğunuz her saat ${XP_PER_LEADER_HOUR} XP kazandırır. Koltuk başkası tarafından devralındığında ödediğiniz bedel iade edilmez.`,
       "Bir koltuğu satın almanız onun kalıcı olarak sizde kalacağı anlamına gelmez: başka bir oyuncu her zaman daha yüksek bedel ödeyip devralabilir. Bu, oyunun temel kuralıdır.",
     ],

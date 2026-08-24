@@ -3,8 +3,17 @@
  * kullanır; sunucu tarafı SQL kopyası `supabase/migrations/20260823120000_init.sql` içinde yorumla işaretlidir.
  */
 
-/** İki oy arasındaki bekleme süresi */
-export const VOTE_COOLDOWN_MS = 5 * 60 * 1000;
+/**
+ * İki oy arasındaki bekleme süresi.
+ *
+ * Sunucudaki karşılığı cast_vote içinde ayrıca yazılı (bkz. migrations).
+ * Burayı değiştirirken oraya da yeni bir migration yazmak gerekir; istemci
+ * yalnızca sayacı gösteriyor, kuralı sunucu uyguluyor.
+ */
+export const VOTE_COOLDOWN_MS = 60 * 1000;
+
+/** Bekleme süresinin insan diliyle karşılığı — arayüz metinlerinde kullanılır. */
+export const VOTE_COOLDOWN_LABEL = "1 dakikada 1 oy";
 
 /**
  * Bekleme süresi uygulanmayan kullanıcı adları.

@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import {
   LEADER_BASE_PRICE,
   LEADER_PRICE_STEP,
+  VOTE_COOLDOWN_LABEL,
   XP_PER_LEADER_HOUR,
   XP_PER_VOTE,
   formatUsd,
@@ -19,8 +20,8 @@ const RULES = [
   },
   {
     icon: Vote,
-    title: "5 dakikada 1 oy",
-    body: `Hesabın siteyi açtığın anda kendiliğinden oluşur — giriş ekranı yok. İstediğin ilde istediğin partiye oy verebilirsin; her oy +${XP_PER_VOTE} XP getirir ve bir sonraki oy hakkın 5 dakika sonra açılır.`,
+    title: VOTE_COOLDOWN_LABEL,
+    body: `Hesabın siteyi açtığın anda kendiliğinden oluşur — giriş ekranı yok. İstediğin ilde istediğin partiye oy verebilirsin; her oy +${XP_PER_VOTE} XP getirir ve bir sonraki oy hakkın bir dakika sonra açılır.`,
   },
   {
     icon: Crown,

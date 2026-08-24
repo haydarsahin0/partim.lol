@@ -4,7 +4,12 @@ import { partyColor, partyTextColor } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Button } from "@/components/ui/button";
-import { XP_PER_VOTE, formatDuration, hasUnlimitedVotes } from "@/lib/game";
+import {
+  VOTE_COOLDOWN_LABEL,
+  XP_PER_VOTE,
+  formatDuration,
+  hasUnlimitedVotes,
+} from "@/lib/game";
 import { cn } from "@/lib/utils";
 import { PartyMark } from "@/components/PartyMark";
 
@@ -45,7 +50,7 @@ export function VoteBallot({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-base font-bold">Oy pusulası</h3>
         <span className="text-xs text-muted-foreground">
-          {unlimited ? "Sınırsız oy hakkı" : "5 dakikada 1 oy"} · oy başına +{XP_PER_VOTE} XP
+          {unlimited ? "Sınırsız oy hakkı" : VOTE_COOLDOWN_LABEL} · oy başına +{XP_PER_VOTE} XP
         </span>
       </div>
 
