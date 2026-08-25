@@ -21,6 +21,20 @@ export const FAST_VOTE_COOLDOWN_MS = 15 * 1000;
 export const FAST_VOTE_COOLDOWN_LABEL = "15 saniyede 1 oy";
 
 /**
+ * Kısa süre etiketi ("1 dk", "15 sn").
+ *
+ * Değerden türetiliyor: arayüzde elle yazılan "15 sn" gibi metinler, bekleme
+ * süresi değiştiği gün sessizce yalan söylemeye başlıyordu.
+ */
+export function shortDuration(ms: number): string {
+  if (ms >= 60_000) return `${Math.round(ms / 60_000)} dk`;
+  return `${Math.round(ms / 1000)} sn`;
+}
+
+/** Hızlı oy normalin kaç katı? Rozetteki "4×" bundan geliyor. */
+export const FAST_VOTE_MULTIPLIER = Math.round(VOTE_COOLDOWN_MS / FAST_VOTE_COOLDOWN_MS);
+
+/**
  * Hızlı oy aboneliğinin günlük ücreti (USD).
  *
  * Arayüzde bilerek yazmıyor: düğmede yalnızca ne kazandırdığı duruyor, ücreti

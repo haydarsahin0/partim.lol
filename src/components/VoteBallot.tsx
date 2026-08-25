@@ -1,11 +1,15 @@
 import { useMemo, useState } from "react";
-import { Check, Loader2, Sparkles, Vote, Zap } from "lucide-react";
+import { ArrowRight, Check, ChevronRight, Loader2, Sparkles, Vote, Zap } from "lucide-react";
 import { partyColor, partyTextColor } from "@/data/parties";
 import { useGame } from "@/backend/GameProvider";
 import { useCountdown } from "@/hooks/useCountdown";
 import { Button } from "@/components/ui/button";
 import {
   FAST_VOTE_COOLDOWN_LABEL,
+  FAST_VOTE_COOLDOWN_MS,
+  FAST_VOTE_MULTIPLIER,
+  VOTE_COOLDOWN_MS,
+  shortDuration,
   PARTY_WEEKLY_PRICE,
   VOTE_COOLDOWN_LABEL,
   XP_PER_VOTE,
@@ -183,30 +187,70 @@ export function VoteBallot({
             </span>
           </div>
         ) : (
+          /*
+             Satılan şey bir SÜRE KISALMASI. Onu cümleyle anlatmak yerine
+             gösteriyoruz: eski süre soluk ve üstü çizili, yeni süre parlak.
+             Göz iki sayıyı yan yana görünce farkı okumadan anlıyor.
+          */
           <button
             type="button"
             onClick={() => void hizliAc()}
             disabled={hizliBusy}
-            className="group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-amber-300/30 bg-gradient-to-r from-amber-300/[0.14] via-amber-300/[0.06] to-transparent px-3 py-2.5 text-left transition-colors hover:border-amber-300/60 hover:from-amber-300/[0.2] disabled:opacity-60"
+            className={cn(
+              "group relative isolate w-full overflow-hidden rounded-2xl px-3.5 py-3 text-left",
+              "border border-amber-300/25 bg-[radial-gradient(120%_140%_at_0%_0%,hsl(43_96%_56%_/_0.16)_0%,hsl(43_96%_56%_/_0.05)_45%,transparent_75%)]",
+              "shadow-[inset_0_1px_0_0_hsl(43_96%_80%_/_0.16)]",
+              "transition-all duration-200 hover:border-amber-300/55 hover:shadow-[inset_0_1px_0_0_hsl(43_96%_80%_/_0.28),0_8px_24px_-12px_hsl(43_96%_56%_/_0.5)]",
+              "disabled:pointer-events-none disabled:opacity-60",
+            )}
           >
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-amber-300/20 text-amber-300">
-              {hizliBusy ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Zap className="size-4 fill-current" />
-              )}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-bold text-foreground">
-                Bekleme süresini 15 saniyeye indir
+            {/* Üstünden geçen ışık: yalnızca imleç üzerindeyken, tek sefer. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 -left-full -z-10 w-1/2 skew-x-[-20deg] bg-gradient-to-r from-transparent via-amber-200/[0.14] to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[300%] motion-reduce:hidden"
+            />
+
+            <span className="flex items-start gap-3">
+              <span className="relative mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl bg-amber-300/15 text-amber-300 ring-1 ring-amber-300/25 transition-transform duration-200 group-hover:scale-105">
+                {hizliBusy ? (
+                  <Loader2 className="size-[18px] animate-spin" />
+                ) : (
+                  <Zap className="size-[18px] fill-current" />
+                )}
               </span>
-              <span className="block text-[11px] leading-tight text-muted-foreground">
-                {VOTE_COOLDOWN_LABEL} yerine {FAST_VOTE_COOLDOWN_LABEL} — günlük abonelik,
-                istediğin an iptal
+
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="text-[13px] font-bold tracking-[-0.01em] text-foreground">
+                    Hızlı oy
+                  </span>
+                  <span className="rounded-full bg-amber-300/90 px-1.5 py-px font-mono text-[10px] font-bold leading-[1.4] text-[#2a1e00]">
+                    {FAST_VOTE_MULTIPLIER}× hızlı
+                  </span>
+                </span>
+
+                {/* Asıl mesaj: süre bu kadardan buna iniyor. */}
+                <span className="mt-1 flex items-center gap-1.5">
+                  <span className="font-mono text-[11px] text-muted-foreground line-through decoration-white/30">
+                    {shortDuration(VOTE_COOLDOWN_MS)}
+                  </span>
+                  <ArrowRight className="size-3 shrink-0 text-amber-300/70" />
+                  <span className="font-mono text-[13px] font-bold leading-none text-amber-200">
+                    {shortDuration(FAST_VOTE_COOLDOWN_MS)}
+                  </span>
+                  <span className="truncate text-[11px] text-muted-foreground">
+                    · bir oydan diğerine
+                  </span>
+                </span>
+
+                {/* İnce yazı da metin sütununda: ikonun altından başlayınca
+                    kartın sol kenarı iki farklı hizada kırılıyordu. */}
+                <span className="mt-1.5 block text-[11px] leading-tight text-muted-foreground">
+                  Günlük abonelik, istediğin an iptal edebilirsin.
+                </span>
               </span>
-            </span>
-            <span className="shrink-0 rounded-full bg-amber-300 px-2.5 py-1 font-mono text-[11px] font-bold text-[#241a00] transition-transform group-hover:scale-105">
-              4× hızlı
+
+              <ChevronRight className="size-4 shrink-0 self-center text-amber-300/50 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-amber-300" />
             </span>
           </button>
         ))}
