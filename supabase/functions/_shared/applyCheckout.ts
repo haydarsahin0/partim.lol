@@ -112,8 +112,31 @@ export async function hizliOyUygula(
     p_period_end: periodEnd,
     p_customer_id: customerId,
   });
-  if (error) return { ok: false, kind: "fast_votes", message: error.message };
-  return { ok: true, kind: "fast_votes", detay: data };
+  if (!error) return { ok: true, kind: "fast_votes", detay: data };
+
+  /*
+   * ESKİ İMZAYA DÜŞ.
+   *
+   * Fonksiyona dördüncü parametre (müşteri kimliği) sonradan eklendi. Edge
+   * fonksiyonları ile veritabanı ayrı ayrı dağıtıldığı için, fonksiyonlar
+   * yüklenmiş ama migration henüz uygulanmamış olabiliyor. O aralıkta PostgREST
+   * "böyle bir fonksiyon yok" diyor ve ÖDEME ALINMIŞ ABONELİK HESABA
+   * DÜŞMÜYORDU — sessizce. Üç parametreli sürümle tekrar deniyoruz: müşteri
+   * kimliği kaydedilmez ama kullanıcı hakkını alır, ki asıl önemli olan bu.
+   */
+  const bulunamadi = /could not find the function|does not exist|schema cache/i.test(
+    error.message ?? "",
+  );
+  if (!bulunamadi) return { ok: false, kind: "fast_votes", message: error.message };
+
+  const yedek = await admin.rpc("apply_fast_votes_subscription", {
+    p_subscription_id: subscriptionId,
+    p_user_id: userId,
+    p_period_end: periodEnd,
+  });
+  if (yedek.error) return { ok: false, kind: "fast_votes", message: yedek.error.message };
+  console.warn("apply_fast_votes_subscription eski imzayla uygulandı (migration bekliyor)");
+  return { ok: true, kind: "fast_votes", detay: yedek.data };
 }
 
 /** Parti aboneliğini uygular. */
