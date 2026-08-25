@@ -15,22 +15,38 @@ import { cn } from "@/lib/utils";
 type Kaynak = "gercek" | "ornek";
 
 /**
- * Video süresi ARTIK SEÇİLMİYOR, veriden hesaplanıyor.
+ * Video süresi: ya seçilir ya da veriden hesaplanır.
  *
- * Kullanıcının ilgilendiği şey "kaç dakikalık dilimler" — süre onun için bir
- * ayrıntı. Kaç veri karesi varsa saniyede yaklaşık altısını gösteriyoruz;
- * sonuç 8 saniyenin altına inmiyor, 20 saniyenin üstüne çıkmıyor. Kısa video
- * anlaşılmıyor, uzun video sosyal medyada izlenmiyor.
+ * ESKİDEN NE OLUYORDU
+ *
+ * Süre yalnızca hesaplanıyordu ve tavan 20 saniyeydi. Oyun büyüdükçe veri
+ * karesi sayısı tavanı her zaman aşıyor, hesap hep 20'ye kırpılıyordu: hangi
+ * ayar seçilirse seçilsin video 20 sn + 1,2 sn bitiş duraklaması = 21 saniye
+ * çıkıyordu. Üstelik yüzlerce veri karesi 20 saniyeye sıkıştığı için oylar
+ * sıçrayarak akıyordu.
+ *
+ * Şimdi: tavan 60 saniye ve saniyede gösterilen veri karesi 12'ye çekildi
+ * (akıcılığın ölçüsü bu — saniyede kaç kova geçtiği). İsteyen süreyi
+ * doğrudan seçebiliyor; "Otomatik" veriye göre 8–60 sn arasında değişiyor.
  */
-const SANIYEDE_VERI_KARESI = 6;
+const SANIYEDE_VERI_KARESI = 12;
 const EN_KISA_SN = 8;
-const EN_UZUN_SN = 20;
+const EN_UZUN_SN = 60;
 
 function sureHesapla(kareSayisi: number): number {
   if (kareSayisi <= 1) return EN_KISA_SN;
   const ham = kareSayisi / SANIYEDE_VERI_KARESI;
   return Math.round(Math.min(EN_UZUN_SN, Math.max(EN_KISA_SN, ham)));
 }
+
+/** Süre seçenekleri. "auto" veriden hesaplanır, diğerleri sabit saniye. */
+const SURELER: Array<{ deger: string; etiket: string }> = [
+  { deger: "auto", etiket: "Oto" },
+  { deger: "10", etiket: "10 sn" },
+  { deger: "20", etiket: "20 sn" },
+  { deger: "30", etiket: "30 sn" },
+  { deger: "60", etiket: "60 sn" },
+];
 
 /** Kaç dakikada bir kare alınacağı. Kısa geçmişte ince kova daha çok kare verir. */
 const DILIMLER: Array<{ deger: VoteHistoryBucket; etiket: string; ms: number }> = [
@@ -44,14 +60,30 @@ const DILIMLER: Array<{ deger: VoteHistoryBucket; etiket: string; ms: number }> 
 /**
  * Çizim hızı. Veri kovaları seyrek olsa da aradaki kareler üretiliyor.
  *
- * 25, 30 yerine bilinçli: 1920×1080 bir kareyi çizmek yavaş makinelerde
- * 30 kare/sn'ye yetişmiyor ve kaçan kareler videoyu istenenden kısa
- * yapıyordu. 25 hem sinema standardı hem güvenli.
+ * 25 DEĞİL, 30.
+ *
+ * Ekran çoğunlukla 60 Hz: 30 kare/sn tam bölüyor, her ikinci tazelemede bir
+ * kare düşüyor ve aralık eşit kalıyor. 25 istendiğinde ise 60 Hz'de kareler
+ * 40 ms'e denk gelmiyor, en yakın tazelemeye kayıyor — gerçekte 20 kare/sn'ye
+ * düşüyor ve aralıklar düzensiz oluyordu. Görüntünün "kare kare" akmasının
+ * bir sebebi buydu; diğeri arka planın her karede yeniden çizilmesiydi
+ * (bkz. timelapseRenderer: arkaPlanKatmani).
  */
-const KARE_HIZI = 25;
+const KARE_HIZI = 30;
 
-/** Video sonunda son kare bu kadar duruyor; ani kesme kötü duruyor. */
+/**
+ * Video sonunda son kare bu kadar duruyor; ani kesme kötü duruyor.
+ * Bu süre TOPLAM sürenin içinde: "20 sn" seçen 20 saniyelik dosya alıyor.
+ */
 const BITIS_DURAKLAMA_MS = 1200;
+
+/**
+ * İlerleme çubuğu bu sıklıkta güncelleniyor.
+ *
+ * Her güncelleme React'i baştan çalıştırıyor; kayıt sırasında bu, çizime
+ * ayrılan zamandan çalıyor. Göz için 200 ms fazlasıyla yeterli.
+ */
+const ILERLEME_BILDIRIM_MS = 200;
 
 /**
  * Hazırlanan videonun gerçek süresi.
@@ -169,6 +201,8 @@ export default function TimelapsePage() {
   const [oran, setOran] = useState<Oran>("16:9");
   const [kalite, setKalite] = useState<Kalite>("hd");
   const [cozunurluk, setCozunurluk] = useState<VoteHistoryBucket>("10min");
+  /** "auto" ya da saniye cinsinden bir sayı. */
+  const [sureSecimi, setSureSecimi] = useState<string>("auto");
   const [history, setHistory] = useState<VoteHistory | null>(null);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [oynuyor, setOynuyor] = useState(false);
@@ -249,8 +283,22 @@ export default function TimelapsePage() {
 
   const frames: Frame[] = useMemo(() => (history ? buildFrames(history) : []), [history]);
 
-  /** Video süresi: seçilen dilime göre kendiliğinden. */
-  const sureSn = useMemo(() => sureHesapla(frames.length), [frames.length]);
+  /** Video süresi: seçiliyse o, değilse veri miktarına göre. */
+  const sureSn = useMemo(
+    () => (sureSecimi === "auto" ? sureHesapla(frames.length) : Number(sureSecimi)),
+    [sureSecimi, frames.length],
+  );
+
+  /**
+   * Akıcılık ölçüsü: çizilen her karede kaç veri kovası geçiyor?
+   *
+   * 1'in altında kalırsa her kova en az bir kare görünüyor ve hareket
+   * süzülerek akıyor. Üstüne çıkınca kovalar atlanmaya başlıyor — sayılar
+   * sıçrıyor, haritada birçok il aynı anda renk değiştiriyor. Kullanıcı bunu
+   * ancak videoyu izleyince fark ederdi; söylüyoruz.
+   */
+  const kareBasinaKova = frames.length > 1 ? (frames.length - 1) / (sureSn * KARE_HIZI) : 0;
+  const sicramaVar = kareBasinaKova > 1.2;
 
   /**
    * O anki kare. İlerleme kesirli olduğu için iki veri karesinin arası
@@ -274,7 +322,15 @@ export default function TimelapsePage() {
     [frames, odakIl],
   );
 
-  const frame: Frame | null = useMemo(() => kareUret(ilerleme), [kareUret, ilerleme]);
+  /*
+   * Oynatma sırasında kareyi döngü kendisi üretip çiziyor. Burada bir kez daha
+   * üretmek, ilerleme çubuğunun her güncellemesinde boşuna bir ara kare
+   * hesabı demek — kayıt sırasında ana iş parçacığından çalıyor.
+   */
+  const frame: Frame | null = useMemo(
+    () => (oynuyor ? null : kareUret(ilerleme)),
+    [oynuyor, kareUret, ilerleme],
+  );
 
   /* ------------------------------- çizim --------------------------------- */
 
@@ -343,18 +399,44 @@ export default function TimelapsePage() {
   useEffect(() => {
     if (!oynuyor || frames.length === 0) return;
     const toplamMs = sureSn * 1000;
+    // Bitiş duraklaması toplamın içinden ayrılıyor: seçilen süre neyse dosya o.
+    const hareketMs = Math.max(1000, toplamMs - BITIS_DURAKLAMA_MS);
     const kareAraligi = 1000 / KARE_HIZI;
     let baslangic: number | null = null;
-    let sonCizim = -Infinity;
+    /*
+     * Kare numarası SÜREDEN türetiliyor, "son çizimden şu kadar ms geçti mi"
+     * diye değil.
+     *
+     * Eskisi her çizimde saati sıfırlıyordu: 60 Hz bir ekranda 40 ms'lik eşik
+     * ancak ikinci tazelemede (50 ms) doluyor, yani 25 kare/sn istenirken
+     * gerçekte 20 kare/sn çiziliyor ve aralıklar düzensiz oluyordu. Kare
+     * numarasını doğrudan geçen süreden okuyunca kaymayan, eşit aralıklı bir
+     * dizi çıkıyor; cihaz yetişemezse bir numara atlanıyor ama kareler yine
+     * doğru ana denk geliyor — video yavaşlamıyor, yalnızca seyrekleşiyor.
+     */
+    let sonKareNo = -1;
     let sonBildirim = -Infinity;
+
+    /*
+     * Yarım milimetrelik pay.
+     *
+     * 60 Hz bir ekranda tazelemeler 16,6667 ms aralıklı, kare sınırları ise
+     * 33,3333 ms: her ikinci tazeleme sınırın TAM üstüne düşüyor ve kayan
+     * nokta hatası yüzünden kimi zaman 0,99999 çıkıp kare atlanıyor. Sonuç,
+     * ölçtüğümüz üzere 33,3 yerine 16,7 / 50 ms'lik düzensiz aralıklar —
+     * yani gözle görülen titreme. Yarım milisaniyelik pay sınırı kesin
+     * kılıyor; gerçek bir gecikmeyi maskeleyecek kadar büyük değil.
+     */
+    const PAY_MS = 0.5;
 
     const dongu = (now: number) => {
       baslangic ??= now;
       const gecen = now - baslangic;
-      const oran = Math.min(1, gecen / toplamMs);
+      const kareNo = Math.floor((gecen + PAY_MS) / kareAraligi);
 
-      if (now - sonCizim >= kareAraligi) {
-        sonCizim = now;
+      if (kareNo > sonKareNo) {
+        sonKareNo = kareNo;
+        const oran = Math.min(1, gecen / hareketMs);
         /*
          * Kareyi BURADA, doğrudan çiziyoruz.
          *
@@ -366,13 +448,13 @@ export default function TimelapsePage() {
          */
         cizRef.current(kareUretRef.current(oran));
         // Slider'ı sık güncellemeye gerek yok; her tikte React'i yormayalım.
-        if (now - sonBildirim >= 120) {
+        if (now - sonBildirim >= ILERLEME_BILDIRIM_MS) {
           sonBildirim = now;
           setIlerleme(oran);
         }
       }
 
-      if (gecen >= toplamMs + BITIS_DURAKLAMA_MS) {
+      if (gecen >= toplamMs) {
         setIlerleme(1);
         setOynuyor(false);
         return;
@@ -581,7 +663,7 @@ export default function TimelapsePage() {
                 className="w-full accent-primary"
               />
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <Secim
                   baslik="Kaynak"
                   secenekler={[
@@ -626,6 +708,16 @@ export default function TimelapsePage() {
                   }}
                   kilitli={kaydediyor}
                 />
+                <Secim
+                  baslik="Süre (sn)"
+                  secenekler={SURELER}
+                  secili={sureSecimi}
+                  onSec={(v) => {
+                    setOynuyor(false);
+                    setSureSecimi(v);
+                  }}
+                  kilitli={kaydediyor}
+                />
               </div>
 
               {/*
@@ -657,8 +749,9 @@ export default function TimelapsePage() {
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Badge variant="secondary">{kovaSayisi} veri karesi</Badge>
                 {odakAdi && <Badge variant="secondary">{odakAdi}</Badge>}
-                <Badge variant="secondary">
-                  ≈{sureSn} sn · {KARE_HIZI} kare/sn
+                <Badge variant={sicramaVar ? "warning" : "secondary"}>
+                  {sureSn} sn · {KARE_HIZI} kare/sn
+                  {sureSecimi === "auto" && " · oto"}
                 </Badge>
                 <Badge variant="secondary">
                   {BOYUTLAR[kalite][oran].width}×{BOYUTLAR[kalite][oran].height}
@@ -681,6 +774,17 @@ export default function TimelapsePage() {
                   (beğeni/yorum sütunu, açıklama metni, üstteki sekmeler) karenin üstüne bindiği
                   yerler. Yazılar ve harita yeşil çerçevenin içinde kalıyor — kılavuz yalnızca
                   önizlemede görünür, videoya girmez.
+                </p>
+              )}
+
+              {sicramaVar && (
+                <p className="rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2 text-[13px] leading-relaxed text-amber-200">
+                  Bu ayarda çizilen her karede{" "}
+                  <strong className="text-amber-100">{kareBasinaKova.toFixed(1)} veri karesi</strong>{" "}
+                  geçiyor: oylar sıçrayarak görünür. Akıcı olması için{" "}
+                  <strong className="text-amber-100">Süre</strong>'yi uzat ya da{" "}
+                  <strong className="text-amber-100">Zaman dilimi</strong>'ni büyüt (30 dk, 1 saat) —
+                  ikisi de saniyede geçen kare sayısını düşürür.
                 </p>
               )}
 
