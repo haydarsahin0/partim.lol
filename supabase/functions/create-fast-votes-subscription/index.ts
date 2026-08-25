@@ -12,8 +12,16 @@
 import Stripe from "https://esm.sh/stripe@17.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
 
-/** Günlük ücret. Arayüzde yazmıyor; kullanıcı Stripe sayfasında görüyor. */
-const DAILY_PRICE_USD = 2;
+/**
+ * Günlük ücret. Arayüzde yazmıyor; kullanıcı Stripe sayfasında görüyor.
+ *
+ * Buradaki değer TAHSİLATI belirleyen tek yer. src/lib/game.ts içindeki
+ * FAST_VOTE_DAILY_PRICE yalnızca bir kopya; ikisi birlikte değişmeli.
+ *
+ * Değişiklik yalnızca YENİ aboneliklere işliyor: Stripe fiyatı abonelik
+ * kurulurken saklıyor, mevcut aboneler eski ücretten devam ediyor.
+ */
+const DAILY_PRICE_USD = 3;
 const COOLDOWN_SECONDS = 15;
 
 const CORS = {

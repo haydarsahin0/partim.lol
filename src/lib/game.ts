@@ -41,7 +41,7 @@ export const FAST_VOTE_MULTIPLIER = Math.round(VOTE_COOLDOWN_MS / FAST_VOTE_COOL
  * kullanıcı Stripe sayfasında görüyor. Buradaki değer sunucu tarafındaki
  * create-fast-votes-subscription ile aynı olmalı; ödeme oradan geçiyor.
  */
-export const FAST_VOTE_DAILY_PRICE = 2;
+export const FAST_VOTE_DAILY_PRICE = 3;
 
 /** Hızlı oy aboneliği şu an geçerli mi? */
 export function hasFastVotes(
