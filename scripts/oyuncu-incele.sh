@@ -59,6 +59,7 @@ echo "════ @$kullanici · il: $il ════"
 sor "1. Hesap" "
 select p.handle, p.display_name, p.is_bot, p.vote_count, p.leader_count,
        coalesce(p.linked_provider, '-')                as saglayici,
+       coalesce(p.unlimited_votes, false)              as sinirsiz_oy,
        (p.device_id is not null)                       as cihaz_kayitli,
        left(coalesce(p.signup_device_hash, '-'), 8)    as kayit_imzasi,
        to_char(p.created_at,   'DD.MM HH24:MI')        as acildi,
@@ -125,7 +126,18 @@ join public.profiles p on p.id = s.user_id
 where s.province_id = '${guvenliIl}'
 order by s.price desc"
 
-sor "7. Toplam tablo gerçek oylarla tutuyor mu?" "
+sor "7. SINIRSIZ OY HAKKI OLAN HERKES (bekleme süresi 0, cihaz bütçesinden muaf)" "
+select p.handle, p.vote_count,
+       coalesce(p.unlimited_votes, false)                     as sutun_hakki,
+       (vp.handle is not null)                                as eski_liste,
+       to_char(p.created_at,   'DD.MM HH24:MI')               as acildi,
+       to_char(p.last_seen_at, 'DD.MM HH24:MI')               as son_gorulme
+from public.profiles p
+left join public.vote_privileges vp on lower(vp.handle) = lower(p.handle) and vp.unlimited
+where coalesce(p.unlimited_votes, false) or vp.handle is not null
+order by p.vote_count desc"
+
+sor "8. Toplam tablo gerçek oylarla tutuyor mu?" "
 select coalesce(t.party_id, g.party_id)          as parti,
        coalesce(t.votes, 0)                      as tabloda,
        coalesce(g.n, 0)                          as gercek_oy,
