@@ -24,6 +24,9 @@ name: Supabase'e uygula
 #                SALT OKUNUR — hiçbir kaydı değiştirmez. "şu kişi şu ile bot
 #                atmış" gibi bir şüpheyi veriye bakarak doğrulamak için.
 #                kullanici / il girdileriyle çalışır.
+#   oy-temizle   bir hesabın oylarını siler ve sayaçları onarır. VARSAYILAN
+#                KURU ÇALIŞMA: yalnızca ne silineceğini gösterir. Gerçekten
+#                silmek için "uygula" kutusunu işaretleyin. GERİ ALINAMAZ.
 
 on:
   workflow_dispatch:
@@ -40,15 +43,20 @@ on:
           - abonelikleri-onar
           - durum
           - oyuncu-incele
+          - oy-temizle
       kullanici:
         description: "oyuncu-incele için kullanıcı adı (ör. oyuncu32661)"
         type: string
         required: false
       il:
-        description: "oyuncu-incele için il kimliği (ör. bartin)"
+        description: "il kimliği (ör. bartin). oy-temizle'de boş bırakılırsa TÜM iller."
         type: string
         default: bartin
         required: false
+      uygula:
+        description: "oy-temizle: gerçekten sil (işaretsizken yalnızca rapor)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -105,10 +113,25 @@ jobs:
             | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Oyları temizle
+        if: ${{ inputs.hedef == 'oy-temizle' }}
+        # Kuru çalışma varsayılan. Silme yalnızca "uygula" işaretliyken.
+        run: |
+          if [ -z "${{ inputs.kullanici }}" ]; then
+            echo "::error::kullanici girdisi boş — temizlenecek hesabın adını yazın."
+            exit 1
+          fi
+          bayrak=""
+          if [ "${{ inputs.uygula }}" = "true" ]; then bayrak="--uygula"; fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          scripts/oy-temizle.sh "${{ inputs.kullanici }}" "${{ inputs.il }}" $bayrak \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Auth durumunu oku
         # Önceki adım patlasa da çalışsın: teşhis için asıl değerli çıktı bu.
         # Yalnızca oyuncu incelemesinde atlanıyor; oradaki çıktıyı boğuyor.
-        if: ${{ always() && inputs.hedef != 'oyuncu-incele' }}
+        if: ${{ always() && inputs.hedef != 'oyuncu-incele' && inputs.hedef != 'oy-temizle' }}
         run: |
           scripts/supabase-auth.sh oku > auth.json
           python3 scripts/auth-status.py auth.json | tee -a "$GITHUB_STEP_SUMMARY"
