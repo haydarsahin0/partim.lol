@@ -33,6 +33,18 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
   httpClient: Stripe.createFetchHttpClient(),
 });
 
+/**
+ * Stripe'a gönderilebilecek bir e-posta mı?
+ *
+ * `user.email` anonim oturumda BOŞ DİZE olarak geliyor, null değil. `?? undefined`
+ * boş dizeyi yakalamadığı için Stripe'a `customer_email: ""` gidiyordu ve Stripe
+ * "Invalid email address" deyip oturumu hiç açmıyordu: ödeme penceresi açılmıyordu.
+ */
+function epostaVarsa(eposta: string | null | undefined): string | undefined {
+  const e = (eposta ?? "").trim();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : undefined;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Yalnızca POST." }, 405);
@@ -88,7 +100,7 @@ Deno.serve(async (req) => {
        * gidiyor, Stripe panelinde müşteri kimliksiz görünmüyor ve metadata
        * bir şekilde kaybolursa ödeme e-postadan sahibine bağlanabiliyor.
        */
-      customer_email: user.email ?? undefined,
+      customer_email: epostaVarsa(user.email),
       line_items: [
         {
           quantity: 1,

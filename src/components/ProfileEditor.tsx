@@ -28,7 +28,7 @@ export function ProfileEditor() {
    * ve alınmışsa kaydet düğmesi açılmıyor.
    */
   const [adDurumu, setAdDurumu] = useState<{
-    durum: "bos" | "sorgu" | "uygun" | "dolu";
+    durum: "bos" | "sorgu" | "uygun" | "dolu" | "bilinmiyor";
     mesaj?: string;
   }>({ durum: "bos" });
 
@@ -64,14 +64,23 @@ export function ProfileEditor() {
     setAdDurumu({ durum: "sorgu" });
     let iptal = false;
     const zamanlayici = window.setTimeout(() => {
-      void checkHandle(ad).then((sonuc) => {
-        if (iptal) return;
-        setAdDurumu(
-          sonuc.ok
-            ? { durum: "uygun" }
-            : { durum: "dolu", mesaj: sonuc.message ?? "Bu kullanıcı adı alınmış." },
-        );
-      });
+      void checkHandle(ad)
+        .then((sonuc) => {
+          if (iptal) return;
+          if (sonuc.kontrolEdilemedi) {
+            // Sunucuya ulaşılamadı: engelleme, kaydetmeyi dene. Kararı sunucu verir.
+            setAdDurumu({ durum: "bilinmiyor" });
+            return;
+          }
+          setAdDurumu(
+            sonuc.ok
+              ? { durum: "uygun" }
+              : { durum: "dolu", mesaj: sonuc.message ?? "Bu kullanıcı adı alınmış." },
+          );
+        })
+        .catch(() => {
+          if (!iptal) setAdDurumu({ durum: "bilinmiyor" });
+        });
     }, 400);
 
     return () => {
@@ -181,6 +190,11 @@ export function ProfileEditor() {
             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Loader2 className="size-3 shrink-0 animate-spin" />
               bakılıyor…
+            </span>
+          ) : adDurumu.durum === "bilinmiyor" ? (
+            <span className="block text-[11px] text-muted-foreground">
+              Müsaitlik şu an sorulamıyor. Kaydete basabilirsin — ad alınmışsa sunucu
+              kabul etmez.
             </span>
           ) : (
             <span className="block text-[11px] text-muted-foreground">

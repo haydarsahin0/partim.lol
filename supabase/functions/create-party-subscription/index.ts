@@ -67,6 +67,18 @@ function colorDistance(a: string, b: string) {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Stripe'a gönderilebilecek bir e-posta mı?
+ *
+ * `user.email` anonim oturumda BOŞ DİZE olarak geliyor, null değil. `?? undefined`
+ * boş dizeyi yakalamadığı için Stripe'a `customer_email: ""` gidiyordu ve Stripe
+ * "Invalid email address" deyip oturumu hiç açmıyordu: ödeme penceresi açılmıyordu.
+ */
+function epostaVarsa(eposta: string | null | undefined): string | undefined {
+  const e = (eposta ?? "").trim();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : undefined;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Yalnızca POST" }, 405);
@@ -153,7 +165,7 @@ Deno.serve(async (req) => {
       cancel_url: body.cancelUrl,
       client_reference_id: profileId,
       // Makbuz kullanıcıya gitsin ve müşteri Stripe panelinde kimliksiz kalmasın.
-      customer_email: user.email ?? undefined,
+      customer_email: epostaVarsa(user.email),
       line_items: [
         {
           quantity: 1,

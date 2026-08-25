@@ -265,7 +265,16 @@ export interface Backend {
    * Asıl karar yine sunucuda: update_profile aynı kuralı bir kez daha
    * uyguluyor ve benzersiz dizin arkada tutuyor.
    */
-  checkHandle(handle: string): Promise<{ ok: boolean; message?: string }>;
+  checkHandle(handle: string): Promise<{
+    ok: boolean;
+    message?: string;
+    /**
+     * Kural değil, ULAŞAMAMA. Sunucu yanıt vermediyse ya da fonksiyon henüz
+     * yüklenmediyse true olur. Bu durumda kaydetmek engellenmemeli: benzersizlik
+     * asıl olarak sunucuda ve benzersiz dizinde zaten güvence altında.
+     */
+    kontrolEdilemedi?: boolean;
+  }>;
   /** Tarayıcı verisi silinmişse hesabı kurtarma koduyla geri alır */
   restoreAccount(code: string, device: DeviceIdentity): Promise<ProfileUpdateResult>;
   /** Kullanıcıya gösterilecek kurtarma kodu */

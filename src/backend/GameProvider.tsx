@@ -47,7 +47,9 @@ type GameContextValue = {
   ready: boolean;
   updateProfile: (patch: ProfilePatch) => Promise<ProfileUpdateResult>;
   /** Kullanıcı adı müsait mi? Kaydetmeden önce sorulur. */
-  checkHandle: (handle: string) => Promise<{ ok: boolean; message?: string }>;
+  checkHandle: (
+    handle: string,
+  ) => Promise<{ ok: boolean; message?: string; kontrolEdilemedi?: boolean }>;
   restoreAccount: (code: string) => Promise<ProfileUpdateResult>;
   claimUnlimited: (code: string) => Promise<ProfileUpdateResult>;
   getRecoveryCode: () => Promise<string | null>;

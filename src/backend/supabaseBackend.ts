@@ -155,6 +155,36 @@ function standingFromRows(provinceId: string, rows: TallyRow[]): ProvinceStandin
  * yapılacağını söyleyen bir metin dönüyoruz — bu, "parti kur ödemeye
  * yönlendirmiyor" hatasının tam olarak sebebiydi.
  */
+/**
+ * Bir sorgunun BÜTÜN satırlarını getirir.
+ *
+ * NEDEN
+ *
+ * PostgREST tek istekte dönen satır sayısını sınırlayabiliyor (db-max-rows).
+ * Zaman tünelinin iki kaynağı da sınırsız büyüyor: açılış tablosu 81 il × parti,
+ * oy geçmişi ise kova × il × parti. Sınıra takılırsa yanıt SESSİZCE kırpılıyor —
+ * hata yok, eksik veri var. Videodaki il oranları da bu yüzden gerçeğiyle
+ * tutmuyordu: kırpılan illerin oyları hiç gelmiyordu.
+ *
+ * Sayfalayarak okumak bu riski tümüyle ortadan kaldırıyor; sunucunun sınırı ne
+ * olursa olsun son sayfaya kadar gidiyoruz.
+ */
+const SAYFA = 1000;
+
+async function tumSatirlar<T>(
+  sorguKur: (bas: number, son: number) => PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<T[]> {
+  const hepsi: T[] = [];
+  for (let bas = 0; ; bas += SAYFA) {
+    const { data, error } = await sorguKur(bas, bas + SAYFA - 1);
+    if (error) throw error;
+    const parca = (data ?? []) as T[];
+    hepsi.push(...parca);
+    // Sayfa dolmadıysa son sayfadayız.
+    if (parca.length < SAYFA) return hepsi;
+  }
+}
+
 async function invokeEdge<T>(
   db: SupabaseClient,
   name: string,
@@ -304,9 +334,17 @@ export class SupabaseBackend implements Backend {
 
   async checkHandle(handle: string) {
     const { data, error } = await this.db.rpc("handle_available", { p_handle: handle });
-    if (error) return { ok: false, message: error.message };
+    /*
+     * Sunucuya ulaşılamadıysa (ağ hatası ya da fonksiyon henüz yüklenmemiş)
+     * bu bir RET DEĞİL. Önceden hata mesajı "alınmış" gibi gösteriliyor ve
+     * Kaydet kapalı kalıyordu; fonksiyon yüklenene kadar kimse kullanıcı adını
+     * değiştiremiyordu. Karar yine sunucuda: update_profile aynı kuralı
+     * uyguluyor ve benzersiz dizin arkada tutuyor.
+     */
+    if (error) return { ok: true, kontrolEdilemedi: true, message: error.message };
     const res = data as { ok: boolean; message?: string } | null;
-    return { ok: !!res?.ok, message: res?.message };
+    if (!res) return { ok: true, kontrolEdilemedi: true };
+    return { ok: !!res.ok, message: res.message };
   }
 
   async claimUnlimited(code: string): Promise<ProfileUpdateResult> {
@@ -492,27 +530,32 @@ export class SupabaseBackend implements Backend {
   }
 
   async getVoteHistory(bucket: VoteHistoryBucket = "hour"): Promise<VoteHistory> {
-    const [seedRes, historyRes] = await Promise.all([
-      this.db.from("seed_snapshot").select("province_id,party_id,votes"),
-      this.db.rpc("vote_history", { p_bucket: bucket, p_since: null }),
+    // İkisi de sayfalanarak okunuyor: kırpılan tek satır bile videodaki il
+    // oranlarını gerçeğinden kaydırıyor (bkz. tumSatirlar).
+    const [seedRows, historyRows] = await Promise.all([
+      // Sayfalama ancak sıralama kesinse doğru: sıra belirsizse sayfa
+      // sınırındaki satırlar ya iki kez gelir ya hiç gelmez.
+      tumSatirlar<{ province_id: string; party_id: string; votes: number }>((bas, son) =>
+        this.db
+          .from("seed_snapshot")
+          .select("province_id,party_id,votes")
+          .order("province_id")
+          .order("party_id")
+          .range(bas, son),
+      ),
+      tumSatirlar<{ bucket: string; province_id: string; party_id: string; votes: number }>(
+        (bas, son) =>
+          this.db.rpc("vote_history", { p_bucket: bucket, p_since: null }).range(bas, son),
+      ),
     ]);
 
     const seed: VoteHistory["seed"] = {};
-    for (const row of (seedRes.data ?? []) as Array<{
-      province_id: string;
-      party_id: string;
-      votes: number;
-    }>) {
+    for (const row of seedRows) {
       (seed[row.province_id] ??= {})[row.party_id] = row.votes;
     }
 
     const byBucket = new Map<string, VoteHistory["seed"]>();
-    for (const row of (historyRes.data ?? []) as Array<{
-      bucket: string;
-      province_id: string;
-      party_id: string;
-      votes: number;
-    }>) {
+    for (const row of historyRows) {
       const at = new Date(row.bucket).toISOString();
       const delta = byBucket.get(at) ?? {};
       (delta[row.province_id] ??= {})[row.party_id] = row.votes;

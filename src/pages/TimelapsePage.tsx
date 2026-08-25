@@ -3,6 +3,7 @@ import { Download, Loader2, Pause, Play, RotateCcw, Video } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import type { VoteHistory, VoteHistoryBucket } from "@/backend/types";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
+import { formatNumber } from "@/lib/game";
 import { buildFrames, lerpFrame, scopeFrame, syntheticHistory, type Frame } from "@/lib/timelapse";
 import { BOYUTLAR, drawFrame, guvenliPay, type Kalite, type Oran } from "@/lib/timelapseRenderer";
 import { Button } from "@/components/ui/button";
@@ -162,7 +163,7 @@ async function videoyuKaydet(blob: Blob, ad: string): Promise<"paylasildi" | "in
  * 1:1) kaydedilebiliyor ve ekran paylaşımı izni gerekmiyor.
  */
 export default function TimelapsePage() {
-  const { backend, isDemo } = useGame();
+  const { backend, isDemo, totalVotes } = useGame();
 
   const [kaynak, setKaynak] = useState<Kaynak>(isDemo ? "ornek" : "gercek");
   const [oran, setOran] = useState<Oran>("16:9");
@@ -450,6 +451,18 @@ export default function TimelapsePage() {
 
   const kovaSayisi = frames.length;
 
+  /*
+   * SESSİZCE YANLIŞ OLMASIN.
+   *
+   * Videonun verisi (açılış tablosu + oy geçmişi) ile sitenin canlı sayacı ayrı
+   * yollardan geliyor. Bir gün yeniden ayrışırlarsa — eksik sayfa, bozuk
+   * toplam — kullanıcı bunu ancak videoyu yayımladıktan sonra fark eder.
+   * Karşılaştırıp söylüyoruz.
+   */
+  const videoToplami = frames.length > 0 ? frames[frames.length - 1].totalVotes : 0;
+  const tutarsiz =
+    kaynak === "gercek" && !yukleniyor && totalVotes > 0 && videoToplami !== totalVotes;
+
   return (
     <div className="mx-auto w-full max-w-[1100px] space-y-4 p-3 sm:p-5">
       <div>
@@ -668,6 +681,15 @@ export default function TimelapsePage() {
                   (beğeni/yorum sütunu, açıklama metni, üstteki sekmeler) karenin üstüne bindiği
                   yerler. Yazılar ve harita yeşil çerçevenin içinde kalıyor — kılavuz yalnızca
                   önizlemede görünür, videoya girmez.
+                </p>
+              )}
+
+              {tutarsiz && (
+                <p className="rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2 text-[13px] leading-relaxed text-amber-200">
+                  Videodaki toplam ({formatNumber(videoToplami)} oy) sitedeki toplamla (
+                  {formatNumber(totalVotes)} oy) tutmuyor. Oranlar da kayabilir — bu videoyu
+                  yayımlamadan önce sayfayı yenile; sürerse veri kaynağında bir sorun var
+                  demektir.
                 </p>
               )}
 
