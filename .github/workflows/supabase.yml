@@ -27,6 +27,7 @@ name: Supabase'e uygula
 #   oy-temizle   bir hesabın oylarını siler ve sayaçları onarır. VARSAYILAN
 #                KURU ÇALIŞMA: yalnızca ne silineceğini gösterir. Gerçekten
 #                silmek için "uygula" kutusunu işaretleyin. GERİ ALINAMAZ.
+#   buyume-kontrol  "oyuncu sayısı neden artmıyor?" sorusunu ölçer. SALT OKUNUR.
 
 on:
   workflow_dispatch:
@@ -44,6 +45,7 @@ on:
           - durum
           - oyuncu-incele
           - oy-temizle
+          - buyume-kontrol
       kullanici:
         description: "oyuncu-incele için kullanıcı adı (ör. oyuncu32661)"
         type: string
@@ -128,10 +130,17 @@ jobs:
             | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Büyümeyi kontrol et
+        if: ${{ inputs.hedef == 'buyume-kontrol' }}
+        run: |
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          scripts/buyume-kontrol.sh | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Auth durumunu oku
         # Önceki adım patlasa da çalışsın: teşhis için asıl değerli çıktı bu.
         # Yalnızca oyuncu incelemesinde atlanıyor; oradaki çıktıyı boğuyor.
-        if: ${{ always() && inputs.hedef != 'oyuncu-incele' && inputs.hedef != 'oy-temizle' }}
+        if: ${{ always() && inputs.hedef != 'oyuncu-incele' && inputs.hedef != 'oy-temizle' && inputs.hedef != 'buyume-kontrol' }}
         run: |
           scripts/supabase-auth.sh oku > auth.json
           python3 scripts/auth-status.py auth.json | tee -a "$GITHUB_STEP_SUMMARY"
