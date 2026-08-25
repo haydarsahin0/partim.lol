@@ -5,13 +5,18 @@ import type { LeaderboardEntry } from "@/backend/types";
 import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatNumber, levelTitle } from "@/lib/game";
+import {
+  LEADERBOARD_MIN_VOTES,
+  formatNumber,
+  isLeaderboardVisible,
+  levelTitle,
+} from "@/lib/game";
 import { cn } from "@/lib/utils";
 
 const MEDALS = ["text-amber-300", "text-slate-300", "text-orange-400"];
 
 export default function LeaderboardPage() {
-  const { backend, user } = useGame();
+  const { backend, user, profile } = useGame();
   const [rows, setRows] = useState<LeaderboardEntry[] | null>(null);
 
   useEffect(() => {
@@ -32,6 +37,21 @@ export default function LeaderboardPage() {
           XP'ye göre ilk 50 oyuncu. Oy başına 1 XP, il başkanlığında geçirilen her saat 20 XP.
         </p>
       </div>
+
+      {/*
+        Eşiği geçmemiş oyuncu kendini listede bulamayınca "bozuk" sanıyor.
+        Kaç oy kaldığını söylemek hem açıklıyor hem oynamaya çağırıyor.
+      */}
+      {profile && !isLeaderboardVisible(profile) && (
+        <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[13px] leading-relaxed text-muted-foreground">
+          Sıralamaya girmek için{" "}
+          <strong className="text-foreground">
+            {Math.max(0, LEADERBOARD_MIN_VOTES - profile.voteCount)} oy
+          </strong>{" "}
+          daha kullan ya da bir il başkanlığı al. Liste böylece gerçekten oynayanları
+          gösteriyor.
+        </p>
+      )}
 
       <Card className="p-2 sm:p-3">
         {!rows ? (

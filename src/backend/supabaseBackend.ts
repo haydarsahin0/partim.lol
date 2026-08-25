@@ -571,11 +571,17 @@ export class SupabaseBackend implements Backend {
   }
 
   async getLeaderboard(limit = 25): Promise<LeaderboardEntry[]> {
+    /*
+     * Sıralama `leaderboard` görünümünden okunuyor, tablodan değil.
+     *
+     * Görünüm iki kuralı birden uyguluyor: oyunun kendi hesapları listede yer
+     * almıyor ve bir hesap ancak eşiği geçtikten sonra görünüyor (10 oy ya da
+     * bir il başkanlığı). Kural görünümde durduğu için istemci onu atlayamıyor
+     * — toplu açılmış hesaplar sıralamayı dolduramıyor.
+     */
     const { data, error } = await this.db
-      .from("profiles")
+      .from("leaderboard")
       .select("id,handle,display_name,avatar_url,x_handle,is_bot,xp,vote_count,leader_count")
-      // Oyunun kendi hesapları sıralamada yer almaz: liste gerçek oyuncular içindir.
-      .eq("is_bot", false)
       .order("xp", { ascending: false })
       .limit(limit);
     if (error) throw error;

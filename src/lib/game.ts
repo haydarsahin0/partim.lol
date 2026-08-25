@@ -71,6 +71,25 @@ export function hasUnlimitedVotes(
   return UNLIMITED_VOTE_HANDLES.some((h) => h === normalized);
 }
 
+/**
+ * Sıralamada görünmek için gereken en az oy.
+ *
+ * Toplu açılmış hesaplar sıralamayı dolduruyordu ("imamoglu1, imamoglu2…").
+ * Eşik bilerek düşük: gerçekten oynayan biri ilk birkaç dakikada geçiyor ve
+ * farkına bile varmıyor; onlarca hesabı tek tek bu eşiğin üstüne çıkarmak ise
+ * işi bedava olmaktan çıkarıyor. Kural asıl olarak sunucudaki `leaderboard`
+ * görünümünde; buradaki değer yalnızca doğru metni göstermek için.
+ */
+export const LEADERBOARD_MIN_VOTES = 10;
+
+/** Bu profil sıralamada görünür mü? */
+export function isLeaderboardVisible(
+  profile: { voteCount?: number; leaderCount?: number } | null | undefined,
+): boolean {
+  if (!profile) return false;
+  return (profile.voteCount ?? 0) >= LEADERBOARD_MIN_VOTES || (profile.leaderCount ?? 0) > 0;
+}
+
 /** Oy başına kazanılan XP */
 export const XP_PER_VOTE = 1;
 

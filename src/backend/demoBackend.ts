@@ -19,6 +19,7 @@ import { syntheticHistory } from "@/lib/timelapse";
 import {
   FAST_VOTE_COOLDOWN_MS,
   LEADER_BASE_PRICE,
+  isLeaderboardVisible,
   RALLY_COOLDOWN_MS,
   RALLY_VOTES,
   checkLeaderBid,
@@ -545,6 +546,7 @@ export class DemoBackend implements Backend {
   }
 
   async getLeaderboard(limit = 25): Promise<LeaderboardEntry[]> {
+    // Gerçek moddaki eşiğin aynısı: eşiği geçmeyen hesap listede yok.
     const rivals: LeaderboardEntry[] = buildRivals(this.seed.seats, Date.now()).map((r) => ({
       user: {
         id: `seed:${r.handle}`,
@@ -560,7 +562,7 @@ export class DemoBackend implements Backend {
     }));
 
     const me = await this.getProfile();
-    if (me) {
+    if (me && isLeaderboardVisible(me)) {
       rivals.push({
         user: {
           id: me.id,
