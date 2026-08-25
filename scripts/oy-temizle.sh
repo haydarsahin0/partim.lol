@@ -92,7 +92,7 @@ begin
 
   -- 1. Sınırsız hakkı al: silip bırakırsak aynı betik yeniden doldurur.
   update public.profiles
-     set unlimited_votes = false, unlimited_granted_at = null
+     set unlimited_votes = false
    where id = v_id;
   delete from public.vote_privileges where profile_id = v_id;
 

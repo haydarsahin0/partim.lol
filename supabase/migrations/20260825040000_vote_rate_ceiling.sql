@@ -24,7 +24,16 @@
 --   3. vote_privileges KULLANICI ADINA değil profil kimliğine bağlandı.
 --      Ad değiştirilebiliyor: ayrıcalıklı adı bırakan biri olsa, o adı alan
 --      sonraki kişi sınırsız oy hakkını devralırdı.
---   4. Hak kimde, ne zaman verildi — artık kayıtlı.
+--   4. Hak kimde, ne zaman verildi — vote_privileges.created_at'te kayıtlı.
+
+/*
+ * Kilit beklemesi kilitlenmeye dönüşmesin.
+ *
+ * Bu göç canlı bir veritabanına, üstelik oy akarken uygulanıyor. Bir kilidi
+ * dakikalarca beklemektense saniyeler içinde vazgeçip anlaşılır bir hatayla
+ * düşmek daha iyi: tekrar çalıştırmak zaten güvenli.
+ */
+set local lock_timeout = '5s';
 
 -- ---------------------------------------------------------------------------
 -- 1. Dakikalık tavan — sınırsız hak dâhil herkese
@@ -74,14 +83,17 @@ update public.vote_privileges vp
  where vp.profile_id is null
    and lower(p.handle) = lower(vp.handle);
 
--- Hak kime, ne zaman verildi?
-alter table public.profiles
-  add column if not exists unlimited_granted_at timestamptz;
-
-update public.profiles
-   set unlimited_granted_at = coalesce(unlimited_granted_at, now())
- where coalesce(unlimited_votes, false) and unlimited_granted_at is null;
-
+/*
+ * "Hak ne zaman verildi" bilgisi profiles'a DEĞİL buraya yazılıyor.
+ *
+ * İlk denemede profiles'a bir sütun ekliyordu ve göç kilitlenmeye düştü:
+ * ALTER TABLE, tabloda AccessExclusiveLock istiyor; oy yağdıran betik ise
+ * cast_vote içinden aynı tabloda satır kilidi tutuyordu. Yani saldırı, tam
+ * kendisini durduracak düzeltmenin uygulanmasını engelliyordu.
+ *
+ * vote_privileges yoğun bir tablo değil ve zaten created_at taşıyor; bilgi
+ * orada dursun. Denetim kaydı için sıcak tabloyu kilitlemeye değmez.
+ */
 -- ---------------------------------------------------------------------------
 -- 3. Sınırsız hak yalnızca elle verilsin
 -- ---------------------------------------------------------------------------
@@ -130,7 +142,6 @@ begin
 
   update public.profiles
      set unlimited_votes = true,
-         unlimited_granted_at = now(),
          next_vote_at = null
    where id = v_id;
 
@@ -158,8 +169,7 @@ begin
   end if;
 
   update public.profiles
-     set unlimited_votes = false,
-         unlimited_granted_at = null
+     set unlimited_votes = false
    where id = v_id;
 
   delete from public.vote_privileges where profile_id = v_id or lower(handle) = lower(trim(p_handle));
