@@ -137,7 +137,20 @@ left join public.vote_privileges vp on lower(vp.handle) = lower(p.handle) and vp
 where coalesce(p.unlimited_votes, false) or vp.handle is not null
 order by p.vote_count desc"
 
-sor "8. Toplam tablo gerçek oylarla tutuyor mu?" "
+sor "8. SON 25 DAKİKA — dakika başına oy (tavan 30; üstü betik demektir)" "
+select to_char(date_trunc('minute', v.created_at), 'HH24:MI') as dakika,
+       p.handle,
+       count(*) as oy
+from public.votes v
+join public.profiles p on p.id = v.user_id
+where v.created_at > now() - interval '25 minutes'
+  and v.source is distinct from 'rally'
+group by 1, 2
+having count(*) > 5
+order by 1 desc, 3 desc
+limit 40"
+
+sor "9. Toplam tablo gerçek oylarla tutuyor mu?" "
 select coalesce(t.party_id, g.party_id)          as parti,
        coalesce(t.votes, 0)                      as tabloda,
        coalesce(g.n, 0)                          as gercek_oy,
