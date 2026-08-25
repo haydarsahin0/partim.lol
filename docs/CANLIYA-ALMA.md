@@ -197,8 +197,13 @@ mevcut partilerden algısal olarak yeterince uzak değilse ödeme başlatılmaz.
 
 ### 2.5 Abonelik iptali
 
-Kullanıcı hızlı oy aboneliğini **profil sayfasından** iptal edebiliyor
-(`cancel-fast-votes-subscription` fonksiyonu). İptal aboneliği anında silmiyor:
+Kullanıcı hızlı oy aboneliğini **profil sayfasındaki abonelik kartından**,
+"Aboneliği yönet" başlığının altından iptal edebiliyor
+(`cancel-fast-votes-subscription` fonksiyonu). İptal kartın üzerinde bir düğme
+olarak durmuyor — önce ne kaybedileceğini gösteren bir adım var ve sürdürme
+düğmesi öne çıkıyor. Yine de iki tıklamayla ulaşılıyor: iptalin abonelik kadar
+kolay olması hem Stripe'ın hem tüketici mevzuatının şartı, ayrıca bulunamayan
+iptal düğmesi churn değil **kart itirazı** üretiyor. İptal aboneliği anında silmiyor:
 Stripe'ta `cancel_at_period_end` işaretleniyor, kullanıcı ödediği günün sonuna
 kadar hakkını kullanıyor, dönem bitince `customer.subscription.deleted` geliyor
 ve hak orada kapanıyor. İade gerekmiyor.
