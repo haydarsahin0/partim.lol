@@ -20,6 +20,10 @@ name: Supabase'e uygula
 #   abonelikleri-onar Stripe'ta ödenmiş ama hesaba işlenmemiş abonelikleri
 #                bulup uygular. Tekrar çalıştırmak zararsız.
 #   durum        hiçbir şeyi değiştirmez, yalnızca auth ayarlarını raporlar
+#   oyuncu-incele  bir kullanıcıyı ve bir ildeki oy hareketini raporlar.
+#                SALT OKUNUR — hiçbir kaydı değiştirmez. "şu kişi şu ile bot
+#                atmış" gibi bir şüpheyi veriye bakarak doğrulamak için.
+#                kullanici / il girdileriyle çalışır.
 
 on:
   workflow_dispatch:
@@ -35,6 +39,16 @@ on:
           - twitter-auth
           - abonelikleri-onar
           - durum
+          - oyuncu-incele
+      kullanici:
+        description: "oyuncu-incele için kullanıcı adı (ör. oyuncu32661)"
+        type: string
+        required: false
+      il:
+        description: "oyuncu-incele için il kimliği (ör. bartin)"
+        type: string
+        default: bartin
+        required: false
 
 permissions:
   contents: read
@@ -78,9 +92,23 @@ jobs:
           X_CONSUMER_SECRET: ${{ secrets.X_CONSUMER_SECRET }}
         run: scripts/supabase-auth.sh ac
 
+      - name: Oyuncuyu incele
+        if: ${{ inputs.hedef == 'oyuncu-incele' }}
+        # Salt okunur. Çıktı iş özetine de yazılıyor ki telefondan bakılabilsin.
+        run: |
+          if [ -z "${{ inputs.kullanici }}" ]; then
+            echo "::error::kullanici girdisi boş — incelenecek hesabın adını yazın."
+            exit 1
+          fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          scripts/oyuncu-incele.sh "${{ inputs.kullanici }}" "${{ inputs.il }}" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Auth durumunu oku
         # Önceki adım patlasa da çalışsın: teşhis için asıl değerli çıktı bu.
-        if: ${{ always() }}
+        # Yalnızca oyuncu incelemesinde atlanıyor; oradaki çıktıyı boğuyor.
+        if: ${{ always() && inputs.hedef != 'oyuncu-incele' }}
         run: |
           scripts/supabase-auth.sh oku > auth.json
           python3 scripts/auth-status.py auth.json | tee -a "$GITHUB_STEP_SUMMARY"
