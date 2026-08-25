@@ -195,6 +195,30 @@ mevcut partilerden algısal olarak yeterince uzak değilse ödeme başlatılmaz.
 
 ---
 
+### 2.45 Bot şüphesi: inceleme ve temizlik
+
+Bir hesabın betikle oy attığından şüpheleniyorsan **Actions → "Supabase'e uygula"**
+altında iki hedef var. İkisi de telefondan çalıştırılabiliyor.
+
+**`oyuncu-incele`** — salt okunur, hiçbir kaydı değiştirmez. `kullanici` ve `il`
+girdilerini doldur. Dokuz soruyu birden cevaplıyor; en önemlisi ikisi:
+
+| Bakılacak yer | Ne aranıyor |
+| --- | --- |
+| Oylar arası aralık | Tek bir saniyede yığılma. İnsan düzensiz oy verir; betik hep aynı saniyede döner. **0 saniyede yüzlerce aralık = kesin betik.** |
+| Dakika başına oy | 30 tavanı var. Tavana **yapışık** durmak, betiğin hâlâ çalıştığı anlamına gelir. |
+
+**`oy-temizle`** — bir hesabın oylarını siler, sınırsız hakkını alır ve üç
+sayacı birden onarır (il toplamı, hesabın oy sayısı, XP). Hepsi tek işlemde.
+
+- **Varsayılan kuru çalışma:** ne silineceğini gösterir, dokunmaz. Silmek için
+  `uygula` kutusunu işaretle. **Geri alınamaz.**
+- Tek il için il kimliğini yaz; hesabın **bütün** oyları için `il` alanına
+  `hepsi` yaz. (Boş bırakmak işe yaramaz: Actions boş girdiyi "verilmemiş"
+  sayıp varsayılanı koyar.)
+- Masum oyuncuların oyları ve açılış tablosu (seed) korunur; yalnızca o
+  hesabın oyları düşülür.
+
 ### 2.5 Abonelik iptali
 
 Kullanıcı hızlı oy aboneliğini **profil sayfasındaki abonelik kartından**,
