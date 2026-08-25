@@ -16,7 +16,8 @@
 #   oy-temizle.sh <kullanıcı_adı> [il_id]            → yalnızca raporlar
 #   oy-temizle.sh <kullanıcı_adı> [il_id] --uygula   → gerçekten siler
 #
-# il_id verilmezse hesabın BÜTÜN oyları kapsama girer.
+# il_id yerine "hepsi" yazılırsa (ya da hiç verilmezse) hesabın BÜTÜN oyları
+# kapsama girer.
 # Ortam: SUPABASE_ACCESS_TOKEN, PROJECT_REF
 
 set -euo pipefail
@@ -26,6 +27,12 @@ il="${2:-}"
 uygula="no"
 for a in "$@"; do [ "$a" = "--uygula" ] && uygula="yes"; done
 [ "$il" = "--uygula" ] && il=""
+# "hepsi" = bütün iller.
+#
+# Boş dize işe yaramıyor: GitHub Actions, boş bir girdiyi "verilmemiş" sayıp
+# varsayılanı (bartin) koyuyor. Bir kez bu yüzden yalnızca Bartın temizlendi,
+# hesabın diğer illerdeki 2347 oyu yerinde kaldı. Açık bir kelime gerekiyordu.
+case "$il" in hepsi | HEPSI | tum | all | -) il="" ;; esac
 
 betikler="$(cd "$(dirname "$0")" && pwd)"
 guvenli="$(printf '%s' "$kullanici" | sed "s/'/''/g")"

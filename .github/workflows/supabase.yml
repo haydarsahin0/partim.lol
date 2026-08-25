@@ -49,7 +49,7 @@ on:
         type: string
         required: false
       il:
-        description: "il kimliği (ör. bartin). oy-temizle'de boş bırakılırsa TÜM iller."
+        description: "il kimliği (ör. bartin). oy-temizle'de TÜM iller için: hepsi"
         type: string
         default: bartin
         required: false
