@@ -293,6 +293,16 @@ export interface Backend {
   getStandings(): Promise<Record<string, ProvinceStanding>>;
   getProvinceDetail(provinceId: string): Promise<ProvinceDetail>;
   getLeaderboard(limit?: number): Promise<LeaderboardEntry[]>;
+  /**
+   * Başkanlar tablosu: en çok il başkanlığı tutandan aza.
+   *
+   * XP sıralamasından ayrı duruyor çünkü ölçtükleri şey farklı. XP'yi oy
+   * kullanarak da biriktirebiliyorsun; il başkanlığı ise satın alınıyor ve
+   * elde tutuluyor. "Haritanın kaçta kaçı kimin" sorusunun cevabı burada.
+   *
+   * Yalnızca en az bir koltuğu olanlar listeleniyor.
+   */
+  getChairmen(limit?: number): Promise<LeaderboardEntry[]>;
   /** Kullanıcının sahip olduğu koltuklar */
   getMySeats(): Promise<LeaderSeat[]>;
   /** Üstteki hapta gösterilen canlı sayaçlar */

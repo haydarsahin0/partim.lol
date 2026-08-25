@@ -14,6 +14,7 @@ import Home from "@/pages/Home";
 // Harita ilk ekranda; diğer sayfalar istendiğinde yüklensin.
 const ProvincePage = lazy(() => import("@/pages/ProvincePage"));
 const LeaderboardPage = lazy(() => import("@/pages/LeaderboardPage"));
+const ChairmenPage = lazy(() => import("@/pages/ChairmenPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
 const HowToPlayPage = lazy(() => import("@/pages/HowToPlayPage"));
 const LegalPage = lazy(() => import("@/pages/LegalPage"));
@@ -86,6 +87,7 @@ export default function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/il/:provinceId" element={<ProvincePage />} />
                 <Route path="/siralama" element={<LeaderboardPage />} />
+                <Route path="/baskanlar" element={<ChairmenPage />} />
                 <Route path="/profil" element={<ProfilePage />} />
                 <Route path="/nasil-oynanir" element={<HowToPlayPage />} />
                 <Route path="/zaman-tuneli" element={<TimelapsePage />} />

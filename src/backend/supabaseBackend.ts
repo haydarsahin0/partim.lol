@@ -633,6 +633,31 @@ export class SupabaseBackend implements Backend {
     }));
   }
 
+  async getChairmen(limit = 50): Promise<LeaderboardEntry[]> {
+    /*
+     * Aynı `leaderboard` görünümü: oyunun kendi hesapları burada da yok.
+     * Fark yalnızca sıra ve süzgeç — koltuğu olmayan bu listede işi yok.
+     *
+     * İkinci sıra ölçütü XP: eşit sayıda ili olan iki başkandan koltuklarını
+     * daha uzun süre tutan önde çıkıyor (başkanlıkta geçen her saat XP veriyor).
+     */
+    const { data, error } = await this.db
+      .from("leaderboard")
+      .select("id,handle,display_name,avatar_url,x_handle,is_bot,xp,vote_count,leader_count")
+      .gt("leader_count", 0)
+      .order("leader_count", { ascending: false })
+      .order("xp", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return ((data ?? []) as ProfileRow[]).map((row) => ({
+      user: authUserFromProfileRow(row),
+      xp: row.xp,
+      level: levelFromXp(row.xp),
+      voteCount: row.vote_count,
+      leaderCount: row.leader_count ?? 0,
+    }));
+  }
+
   /* ---------------- eylemler ---------------- */
 
   async castVote(provinceId: string, partyId: string): Promise<VoteResult> {

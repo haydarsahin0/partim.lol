@@ -584,6 +584,18 @@ export class DemoBackend implements Backend {
     return rivals.sort((a, b) => b.xp - a.xp).slice(0, limit);
   }
 
+  /**
+   * Başkanlar: en çok il tutandan aza. Gerçek moddaki kuralın aynısı —
+   * koltuğu olmayan listede yok, eşitlik XP ile bozuluyor.
+   */
+  async getChairmen(limit = 50): Promise<LeaderboardEntry[]> {
+    const hepsi = await this.getLeaderboard(1000);
+    return hepsi
+      .filter((row) => row.leaderCount > 0)
+      .sort((a, b) => b.leaderCount - a.leaderCount || b.xp - a.xp)
+      .slice(0, limit);
+  }
+
   /* ---------------- eylemler ---------------- */
 
   async castVote(provinceId: string, partyId: string): Promise<VoteResult> {
