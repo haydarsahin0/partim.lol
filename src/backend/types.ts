@@ -46,6 +46,14 @@ export type Profile = AuthUser & {
   linkedProvider: string | null;
   /** Hızlı oy aboneliğinin başladığı an (ISO); yoksa null. */
   fastVotesSince: string | null;
+  /**
+   * İptal edilmişse aboneliğin biteceği an (ISO); iptal yoksa null.
+   *
+   * İptal hakkı hemen kesmiyor: kullanıcı ödediği dönemin sonuna kadar
+   * kullanıyor. Bu alan "yenilenir" ile "biter" arasındaki farkı arayüzde
+   * doğru gösterebilmek için var.
+   */
+  fastVotesCancelAt: string | null;
   createdAt: string;
 };
 
@@ -307,6 +315,14 @@ export interface Backend {
    * Hak ödeme onaylanınca webhook tarafından veriliyor.
    */
   startFastVotes(): Promise<FastVotesResult>;
+  /**
+   * Hızlı oy aboneliğini iptal eder (`iptal: true`) ya da iptali geri alır.
+   *
+   * Abonelik anında silinmiyor: Stripe'ta dönem sonunda bitecek şekilde
+   * işaretleniyor. Kullanıcı parasını ödediği günün sonuna kadar hakkını
+   * kullanıyor — ne iade gerekiyor ne de satın alınmış bir hak kesiliyor.
+   */
+  cancelFastVotes(iptal: boolean): Promise<{ ok: boolean; message?: string }>;
   /**
    * Ödemeden dönen kullanıcının hakkını doğrulayıp işler.
    *

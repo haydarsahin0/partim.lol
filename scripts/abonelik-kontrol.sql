@@ -32,6 +32,9 @@ select
 
   (select to_char(fast_votes_until, 'DD.MM.YYYY HH24:MI') from hedef)     as biter,
   (select to_char(fast_votes_since, 'DD.MM.YYYY HH24:MI') from hedef)     as basladi,
+  (select case when fast_votes_cancel_at is null then 'hayır'
+               else 'EVET — ' || to_char(fast_votes_cancel_at, 'DD.MM HH24:MI') || ' bitecek'
+          end from hedef)                                                 as iptal_edilmis,
   (select fast_votes_subscription_id from hedef)                          as stripe_abonelik,
   (select stripe_customer_id         from hedef)                          as stripe_musteri,
   (select vote_count                 from hedef)                          as oy_sayisi,
@@ -43,7 +46,8 @@ select p.proname as fonksiyon,
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
-  and p.proname in ('apply_fast_votes_subscription', 'find_profile_by_email', 'handle_available')
+  and p.proname in ('apply_fast_votes_subscription', 'find_profile_by_email', 'handle_available',
+                     'set_fast_votes_cancel', 'cancel_fast_votes_subscription')
 order by 1, 2;
 
 -- Son 24 saatte aboneliği düşen herkes (webhook çalışıyor mu?)

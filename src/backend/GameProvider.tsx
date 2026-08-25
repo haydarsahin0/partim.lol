@@ -60,6 +60,11 @@ type GameContextValue = {
   holdRally: (provinceId: string, partyId: string) => Promise<boolean>;
   /** Hızlı oy aboneliğini başlatır; gerçek modda Stripe'a yönlendirir */
   startFastVotes: () => Promise<boolean>;
+  /**
+   * Hızlı oy aboneliğini iptal eder ya da iptali geri alır.
+   * İptal hakkı hemen kesmiyor: dönem sonuna kadar sürüyor.
+   */
+  cancelFastVotes: (iptal: boolean) => Promise<boolean>;
   /** Hesabı Google kimliğine bağlar */
   signInWithGoogle: () => Promise<boolean>;
   /** Oturum açık mı? Kapalıysa oyun izlenebilir ama oynanamaz. */
@@ -325,6 +330,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return true;
   }, [backend]);
 
+  const cancelFastVotes = useCallback(
+    async (iptal: boolean) => {
+      const result = await backend.cancelFastVotes(iptal);
+      if (!result.ok) {
+        toast.error(result.message ?? "Abonelik güncellenemedi.");
+        return false;
+      }
+      // İptal işareti sunucuda; profili tazeleyip olduğu gibi gösteriyoruz.
+      await refreshProfile();
+      toast.success(
+        iptal
+          ? "Abonelik iptal edildi. Ödediğin dönemin sonuna kadar hızlı oy sende."
+          : "Abonelik sürüyor: iptal geri alındı.",
+      );
+      return true;
+    },
+    [backend, refreshProfile],
+  );
+
   const holdRally = useCallback(
     async (provinceId: string, partyId: string) => {
       const result = await backend.holdRally(provinceId, partyId);
@@ -438,6 +462,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     createParty,
     holdRally,
     startFastVotes,
+    cancelFastVotes,
     signInWithGoogle,
     signedIn: !!user,
     requireAuth,

@@ -70,6 +70,8 @@ type ProfileRow = {
   unlimited_votes?: boolean | null;
   fast_votes_until?: string | null;
   fast_votes_since?: string | null;
+  /** Göç uygulanmamış sunucularda hiç gelmiyor; bkz. profilAlanlari(). */
+  fast_votes_cancel_at?: string | null;
   linked_provider?: string | null;
   is_bot?: boolean | null;
   created_at: string;
@@ -183,6 +185,36 @@ async function tumSatirlar<T>(
     // Sayfa dolmadıysa son sayfadayız.
     if (parca.length < SAYFA) return hepsi;
   }
+}
+
+/*
+ * Profil satırında okunan sütunlar.
+ *
+ * fast_votes_cancel_at AYRI DURUYOR çünkü sonradan eklendi. Uygulama ile
+ * veritabanı farklı zamanlarda yayına çıkabiliyor: göç henüz uygulanmamışken
+ * bu sütunu istemek PostgREST'te tüm sorguyu düşürür ve kullanıcı profilini
+ * hiç göremez — yani küçük bir arayüz ayrıntısı için oyun açılmaz olur.
+ * Bir kez denenip düşülüyor ve sonuç hatırlanıyor.
+ */
+const PROFIL_TEMEL =
+  "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at," +
+  "unlimited_votes,fast_votes_until,fast_votes_since,linked_provider,created_at";
+const PROFIL_YENI = `${PROFIL_TEMEL},fast_votes_cancel_at`;
+
+let iptalSutunuVar = true;
+function profilAlanlari(): string {
+  return iptalSutunuVar ? PROFIL_YENI : PROFIL_TEMEL;
+}
+
+/** Hata "böyle bir sütun yok" mu? (göç uygulanmamış) */
+function sutunYok(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  // 42703 = undefined_column. PostgREST bunu PGRST204 ile de bildirebiliyor.
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    /fast_votes_cancel_at/.test(error.message ?? "")
+  );
 }
 
 async function invokeEdge<T>(
@@ -389,13 +421,19 @@ export class SupabaseBackend implements Backend {
     const { data: sessionData } = await this.db.auth.getSession();
     if (!sessionData.session) return null;
 
-    const { data, error } = await this.db
-      .from("profiles")
-      .select(
-        "id,handle,display_name,avatar_url,x_handle,xp,vote_count,leader_count,next_vote_at,unlimited_votes,fast_votes_until,fast_votes_since,linked_provider,created_at",
-      )
-      .eq("auth_user_id", sessionData.session.user.id)
-      .maybeSingle();
+    const oku = () =>
+      this.db
+        .from("profiles")
+        .select(profilAlanlari())
+        .eq("auth_user_id", sessionData.session!.user.id)
+        .maybeSingle();
+
+    let { data, error } = await oku();
+    if (error && iptalSutunuVar && sutunYok(error)) {
+      // Göç henüz uygulanmamış: sütunsuz devam et, bir daha deneme.
+      iptalSutunuVar = false;
+      ({ data, error } = await oku());
+    }
     if (error) throw error;
 
     const row = data as ProfileRow | null;
@@ -412,6 +450,7 @@ export class SupabaseBackend implements Backend {
       fastVotesUntil: row.fast_votes_until ?? null,
       linkedProvider: row.linked_provider ?? null,
       fastVotesSince: row.fast_votes_since ?? null,
+      fastVotesCancelAt: row.fast_votes_cancel_at ?? null,
       createdAt: row.created_at,
     };
     return this.cachedProfile;
@@ -764,6 +803,18 @@ export class SupabaseBackend implements Backend {
     const url = data?.url;
     if (!url) return { kind: "error", message: "Ödeme oturumu açılamadı." };
     return { kind: "redirect", url };
+  }
+
+  async cancelFastVotes(iptal: boolean): Promise<{ ok: boolean; message?: string }> {
+    const { data, message } = await invokeEdge<{ ok?: boolean }>(
+      this.db,
+      "cancel-fast-votes-subscription",
+      { iptal },
+    );
+    if (message) return { ok: false, message };
+    // Profil önbelleği bayatladı: iptal işareti bir sonraki okumada gelsin.
+    this.cachedProfile = null;
+    return { ok: !!data?.ok };
   }
 
   async claimSeat(provinceId: string, partyId: string, amount?: number): Promise<CheckoutResult> {

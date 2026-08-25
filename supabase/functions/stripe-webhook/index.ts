@@ -139,6 +139,29 @@ Deno.serve(async (req) => {
   }
 
   /* ----------------------------- iptaller -------------------------------- */
+  /* --------------------- iptal işaretlendi / geri alındı ------------------
+   * Kullanıcı aboneliği ister uygulamadan ister Stripe'ın kendi sayfasından
+   * iptal edebiliyor. İkincisinde uygulamanın haberi olmazdı: arayüz "yarın
+   * yenilenir" demeye devam ederdi. Bu olay ikisini de yakalıyor.
+   */
+  if (event.type === "customer.subscription.updated") {
+    const subscription = event.data.object as Stripe.Subscription;
+    if ((subscription.metadata ?? {}).kind !== "fast_votes") {
+      return ok({ received: true, ignored: "hızlı oy aboneliği değil" });
+    }
+    const bitis = subscription.cancel_at_period_end ? donemSonu(subscription, 1) : null;
+    const { error } = await admin.rpc("set_fast_votes_cancel", {
+      p_subscription_id: subscription.id,
+      p_cancel_at: bitis,
+    });
+    if (error) {
+      // Hak burada verilmiyor/alınmıyor; yalnızca arayüzdeki işaret. Stripe'ı
+      // tekrar denemeye zorlamaya değmez, ama sessiz de kalmasın.
+      console.error("set_fast_votes_cancel hatası", error);
+    }
+    return ok({ received: true, cancelAt: bitis });
+  }
+
   if (event.type === "customer.subscription.deleted") {
     const subscription = event.data.object as Stripe.Subscription;
     if ((subscription.metadata ?? {}).kind === "fast_votes") {

@@ -139,7 +139,14 @@ Sonra **Actions → GitHub Pages'e dağıt → Run workflow** ile yeniden yayın
 
 4. Stripe → **Developers → Webhooks → Add endpoint**:
    - URL: `https://<proje>.supabase.co/functions/v1/stripe-webhook`
-   - Olay: `checkout.session.completed`
+   - Olaylar (dördü de gerekli — eksik olan sessizce çalışmaz):
+
+     | Olay | Olmazsa ne olur |
+     | --- | --- |
+     | `checkout.session.completed` | İlk ödeme hesaba işlenmez. |
+     | `invoice.paid` | Abonelik yenilenir ama süre uzamaz. |
+     | `customer.subscription.updated` | İptal edildiği arayüzde görünmez; "yarın yenilenir" yazmaya devam eder. |
+     | `customer.subscription.deleted` | **İptal edilen abonelik hiç bitmez:** hak sonsuza kadar sürer. |
    - Signing secret'ı (`whsec_...`) al, depo Secrets'ına `STRIPE_WEBHOOK_SECRET`
      olarak ekle ve iş akışını `fonksiyonlar` hedefiyle bir kez daha çalıştır.
 
@@ -185,6 +192,24 @@ Parti kurma $9/hafta abonelik ister ve `create-party-subscription` fonksiyonuyla
 
 Renk yakınlığı hem istemcide hem edge fonksiyonunda denetlenir: seçilen renk
 mevcut partilerden algısal olarak yeterince uzak değilse ödeme başlatılmaz.
+
+---
+
+### 2.5 Abonelik iptali
+
+Kullanıcı hızlı oy aboneliğini **profil sayfasından** iptal edebiliyor
+(`cancel-fast-votes-subscription` fonksiyonu). İptal aboneliği anında silmiyor:
+Stripe'ta `cancel_at_period_end` işaretleniyor, kullanıcı ödediği günün sonuna
+kadar hakkını kullanıyor, dönem bitince `customer.subscription.deleted` geliyor
+ve hak orada kapanıyor. İade gerekmiyor.
+
+Gereken tek kurulum, yukarıdaki tabloda listelenen **`customer.subscription.updated`
+ve `customer.subscription.deleted`** olaylarının webhook uç noktasında seçili
+olması. Stripe Müşteri Portalı'na (Billing Portal) gerek yok — panelde ayrı bir
+yapılandırma istemesin diye bilerek kullanılmadı.
+
+Bir kullanıcının aboneliğinin durumunu (iptal edilmiş mi, ne zaman bitiyor)
+`scripts/abonelik-kontrol.sql` gösteriyor.
 
 ---
 

@@ -102,6 +102,8 @@ type DemoState = {
   linkedProvider: string | null;
   /** Hızlı oy aboneliğinin başladığı an (ISO) */
   fastVotesSince: string | null;
+  /** İptal edildiyse aboneliğin biteceği an (ISO) */
+  fastVotesCancelAt: string | null;
   recent: Array<{
     provinceId: string;
     handle: string;
@@ -129,6 +131,7 @@ function emptyState(): DemoState {
     fastVotesUntil: null,
     linkedProvider: null,
     fastVotesSince: null,
+    fastVotesCancelAt: null,
     recent: [],
   };
 }
@@ -541,6 +544,7 @@ export class DemoBackend implements Backend {
       fastVotesUntil: this.state.fastVotesUntil ?? null,
       linkedProvider: this.state.linkedProvider ?? null,
       fastVotesSince: this.state.fastVotesSince ?? null,
+      fastVotesCancelAt: this.state.fastVotesCancelAt ?? null,
       createdAt: this.state.createdAt,
     };
   }
@@ -649,6 +653,7 @@ export class DemoBackend implements Backend {
     const now = Date.now();
     this.state.fastVotesUntil = new Date(now + 24 * 60 * 60 * 1000).toISOString();
     this.state.fastVotesSince ??= new Date(now).toISOString();
+    this.state.fastVotesCancelAt = null;
     // Elindeki uzun bekleme yeni süreye kısaltılıyor.
     const next = this.state.nextVoteAt ? Date.parse(this.state.nextVoteAt) : 0;
     if (next > now + FAST_VOTE_COOLDOWN_MS) {
@@ -658,6 +663,21 @@ export class DemoBackend implements Backend {
 
     const profile = await this.getProfile();
     return { kind: "done", profile: profile! };
+  }
+
+  /**
+   * Demo modda Stripe yok, ama davranış aynı: iptal hakkı hemen kesmiyor,
+   * dönem sonunda bitiyor. Arayüzün iki durumu da denenebilsin diye burada
+   * gerçek moddakiyle aynı alanlar yazılıyor.
+   */
+  async cancelFastVotes(iptal: boolean): Promise<{ ok: boolean; message?: string }> {
+    if (!this.state.user) return { ok: false, message: "Önce giriş yapmalısın." };
+    if (!hasFastVotes({ fastVotesUntil: this.state.fastVotesUntil })) {
+      return { ok: false, message: "Etkin bir aboneliğin yok." };
+    }
+    this.state.fastVotesCancelAt = iptal ? (this.state.fastVotesUntil ?? null) : null;
+    save(this.state);
+    return { ok: true };
   }
 
   async holdRally(provinceId: string, partyId: string): Promise<RallyResult> {
