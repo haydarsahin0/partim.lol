@@ -25,7 +25,13 @@ const NEUTRAL = "#1b2436";
 const TEXT = "#e8eef7";
 const MUTED = "rgba(232,238,247,0.55)";
 
-export type Oran = "16:9" | "9:16" | "1:1";
+/**
+ * Kayıt oranları.
+ *
+ * 1.91:1, X ve Meta'nın yatay reklam/bağlantı kartı ölçüsü. 16:9'dan biraz
+ * daha basık; akışta kırpılmadan görünen en geniş kare bu.
+ */
+export type Oran = "16:9" | "1.91:1" | "9:16" | "1:1";
 
 export type Kalite = "hd" | "fullhd";
 
@@ -42,11 +48,16 @@ export const BOYUTLAR: Record<Kalite, Record<Oran, { width: number; height: numb
     "16:9": { width: 1280, height: 720 },
     "9:16": { width: 720, height: 1280 },
     "1:1": { width: 720, height: 720 },
+    // 1200×628, platformların kendi yayımladığı ölçü (1,9108 — herkesin
+    // "1.91:1" derken kastettiği sayı).
+    "1.91:1": { width: 1200, height: 628 },
   },
   fullhd: {
     "16:9": { width: 1920, height: 1080 },
     "9:16": { width: 1080, height: 1920 },
     "1:1": { width: 1080, height: 1080 },
+    // Tam 1,91 ve iki kenar da çift sayı (H.264 tek sayı boyut kabul etmiyor).
+    "1.91:1": { width: 1910, height: 1000 },
   },
 };
 
@@ -144,6 +155,12 @@ export type CizimSecenekleri = {
  */
 const GUVENLI: Record<Oran, { ust: number; alt: number; yan: number }> = {
   "16:9": { ust: 0.075, alt: 0.085, yan: 0.045 },
+  /*
+   * 1.91:1 kare, 16:9'dan basık: yükseklikten alınan aynı oran daha az piksel
+   * demek. Bu yüzden dikey paylar biraz artırıldı — yoksa yazılar kenara
+   * fazla yaklaşıyor.
+   */
+  "1.91:1": { ust: 0.08, alt: 0.095, yan: 0.045 },
   "9:16": { ust: 0.12, alt: 0.2, yan: 0.11 },
   "1:1": { ust: 0.09, alt: 0.11, yan: 0.08 },
 };
@@ -423,7 +440,14 @@ export function drawFrame(
   }: CizimSecenekleri,
 ): void {
   const { width, height } = BOYUTLAR[kalite][oran];
-  const dikey = oran !== "16:9";
+  /*
+   * Dikey yerleşim yalnızca gerçekten dikey/kare oranlar için.
+   *
+   * Eskiden "16:9 değilse dikeydir" deniyordu; yeni bir YATAY oran eklenince
+   * (1.91:1) bu varsayım sessizce yanlış cevap verirdi — geniş kare tek
+   * sütuna dizilirdi. Kural artık açıkça yazılı.
+   */
+  const dikey = oran === "9:16" || oran === "1:1";
   const alan = guvenliAlan(oran, kalite);
 
   ctx.save();

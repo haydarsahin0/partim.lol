@@ -681,6 +681,7 @@ export default function TimelapsePage() {
                   baslik="Ölçü"
                   secenekler={[
                     { deger: "16:9", etiket: "16:9" },
+                    { deger: "1.91:1", etiket: "1.91" },
                     { deger: "9:16", etiket: "9:16" },
                     { deger: "1:1", etiket: "1:1" },
                   ]}
@@ -870,7 +871,15 @@ function Secim({
             disabled={kilitli}
             onClick={() => onSec(s.deger)}
             className={cn(
-              "flex-1 rounded-full px-2 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50",
+              "flex-1 rounded-full py-1.5 text-xs font-semibold transition-colors disabled:opacity-50",
+              /*
+               * Dört ve üzeri seçenekte yatay boşluk kısılıyor.
+               *
+               * Beş sütunlu ızgarada bir hücre ~190 piksel; dört düğme
+               * varsayılan iç boşlukla oraya sığmıyor ve satır hücreden
+               * taşıyordu. Metin kısalmıyor, yalnızca payı daralıyor.
+               */
+              secenekler.length >= 4 ? "px-1" : "px-2",
               secili === s.deger
                 ? "bg-white/[0.12] text-foreground"
                 : "text-muted-foreground hover:text-foreground",
