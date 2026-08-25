@@ -258,6 +258,14 @@ export interface Backend {
   getVoteHistory(bucket?: VoteHistoryBucket): Promise<VoteHistory>;
   /** Profil alanlarını günceller (kullanıcı adı, görünen ad, X hesabı, avatar) */
   updateProfile(patch: ProfilePatch): Promise<ProfileUpdateResult>;
+  /**
+   * Bir kullanıcı adı alınabilir mi?
+   *
+   * Kaydete basmadan önce sorulur; kullanıcı reddedilmeyi beklemesin.
+   * Asıl karar yine sunucuda: update_profile aynı kuralı bir kez daha
+   * uyguluyor ve benzersiz dizin arkada tutuyor.
+   */
+  checkHandle(handle: string): Promise<{ ok: boolean; message?: string }>;
   /** Tarayıcı verisi silinmişse hesabı kurtarma koduyla geri alır */
   restoreAccount(code: string, device: DeviceIdentity): Promise<ProfileUpdateResult>;
   /** Kullanıcıya gösterilecek kurtarma kodu */

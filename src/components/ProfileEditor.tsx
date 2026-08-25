@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, ImagePlus, Loader2, RotateCcw, ShieldQuestion } from "lucide-react";
+import { Check, ImagePlus, Loader2, RotateCcw, ShieldQuestion, X } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import { fileToSquareDataUrl } from "@/lib/image";
 import { Avatar } from "@/components/ui/avatar";
@@ -10,7 +10,7 @@ import { XLogo } from "@/components/XLogo";
 
 /** Profil düzenleme: kullanıcı adı, görünen ad, X hesabı ve avatar. */
 export function ProfileEditor() {
-  const { profile, updateProfile } = useGame();
+  const { profile, updateProfile, checkHandle } = useGame();
 
   const [handle, setHandle] = useState(profile?.handle ?? "");
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "");
@@ -20,6 +20,18 @@ export function ProfileEditor() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  /**
+   * Kullanıcı adı müsait mi?
+   *
+   * Kaydete basınca reddedilmek kötü bir deneyimdi: hata çıkıyor ama kutuda
+   * alınmış ad duruyordu, sanki kabul edilmiş gibi. Artık yazarken soruluyor
+   * ve alınmışsa kaydet düğmesi açılmıyor.
+   */
+  const [adDurumu, setAdDurumu] = useState<{
+    durum: "bos" | "sorgu" | "uygun" | "dolu";
+    mesaj?: string;
+  }>({ durum: "bos" });
+
   // Profil dışarıdan değişirse (ilk yükleme, giriş) alanları eşitle.
   useEffect(() => {
     if (!profile) return;
@@ -28,6 +40,45 @@ export function ProfileEditor() {
     setXHandle(profile.xHandle ?? "");
     setAvatar(profile.avatarUrl);
   }, [profile?.id, profile?.handle, profile?.displayName, profile?.xHandle, profile?.avatarUrl]);
+
+  /*
+   * Yazarken sorma: her tuşta sunucuya gitmesin diye kısa bir bekleme var.
+   * Kendi adına dönerse sorgu yapılmıyor — kullanıcı kendi adını koruyabilir.
+   */
+  useEffect(() => {
+    if (!profile) return;
+    const ad = handle.trim();
+    if (ad === profile.handle) {
+      setAdDurumu({ durum: "bos" });
+      return;
+    }
+    if (ad.length < 3) {
+      setAdDurumu(
+        ad.length === 0
+          ? { durum: "bos" }
+          : { durum: "dolu", mesaj: "Kullanıcı adı en az 3 karakter olmalı." },
+      );
+      return;
+    }
+
+    setAdDurumu({ durum: "sorgu" });
+    let iptal = false;
+    const zamanlayici = window.setTimeout(() => {
+      void checkHandle(ad).then((sonuc) => {
+        if (iptal) return;
+        setAdDurumu(
+          sonuc.ok
+            ? { durum: "uygun" }
+            : { durum: "dolu", mesaj: sonuc.message ?? "Bu kullanıcı adı alınmış." },
+        );
+      });
+    }, 400);
+
+    return () => {
+      iptal = true;
+      window.clearTimeout(zamanlayici);
+    };
+  }, [handle, profile?.handle, checkHandle, profile]);
 
   const dirty =
     !!profile &&
@@ -47,14 +98,23 @@ export function ProfileEditor() {
   };
 
   const save = async () => {
+    if (!profile) return;
     setBusy(true);
     try {
-      await updateProfile({
+      const sonuc = await updateProfile({
         handle,
         displayName,
         xHandle: xHandle.trim() || null,
         avatarUrl: avatar,
       });
+      /*
+       * Reddedildiyse alanı eski adına geri al. Kutuda reddedilmiş adın
+       * kalması "kaydedildi" izlenimi veriyordu.
+       */
+      if (!sonuc.ok) {
+        setHandle(profile.handle);
+        setAdDurumu({ durum: "bos" });
+      }
     } finally {
       setBusy(false);
     }
@@ -106,10 +166,27 @@ export function ProfileEditor() {
             value={handle}
             onChange={(e) => setHandle(e.target.value.replace(/[^A-Za-z0-9_]/g, "").slice(0, 20))}
             placeholder="kullaniciadi"
+            aria-invalid={adDurumu.durum === "dolu"}
           />
-          <span className="block text-[11px] text-muted-foreground">
-            Sıralamada ve il sayfalarında @{handle || "kullaniciadi"} olarak görünür.
-          </span>
+          {adDurumu.durum === "dolu" ? (
+            <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-300">
+              <X className="size-3 shrink-0" />
+              {adDurumu.mesaj}
+            </span>
+          ) : adDurumu.durum === "uygun" ? (
+            <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-300">
+              <Check className="size-3 shrink-0" />@{handle.trim()} müsait
+            </span>
+          ) : adDurumu.durum === "sorgu" ? (
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Loader2 className="size-3 shrink-0 animate-spin" />
+              bakılıyor…
+            </span>
+          ) : (
+            <span className="block text-[11px] text-muted-foreground">
+              Sıralamada ve il sayfalarında @{handle || "kullaniciadi"} olarak görünür.
+            </span>
+          )}
         </label>
 
         <label className="block space-y-1.5">
@@ -140,7 +217,12 @@ export function ProfileEditor() {
       </label>
 
       <div className="flex items-center gap-2">
-        <Button variant="primary" disabled={!dirty || busy} onClick={() => void save()}>
+        <Button
+          variant="primary"
+          // Alınmış ya da sorgusu sürüyor: kaydete izin verme.
+          disabled={!dirty || busy || adDurumu.durum === "dolu" || adDurumu.durum === "sorgu"}
+          onClick={() => void save()}
+        >
           {busy ? <Loader2 className="animate-spin" /> : <Check />}
           Kaydet
         </Button>

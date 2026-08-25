@@ -46,6 +46,8 @@ type GameContextValue = {
   /** Hesabın hazır olup olmadığı; açılışta kısa süre false olur */
   ready: boolean;
   updateProfile: (patch: ProfilePatch) => Promise<ProfileUpdateResult>;
+  /** Kullanıcı adı müsait mi? Kaydetmeden önce sorulur. */
+  checkHandle: (handle: string) => Promise<{ ok: boolean; message?: string }>;
   restoreAccount: (code: string) => Promise<ProfileUpdateResult>;
   claimUnlimited: (code: string) => Promise<ProfileUpdateResult>;
   getRecoveryCode: () => Promise<string | null>;
@@ -186,6 +188,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const id = window.setInterval(() => void refreshStats(), 20_000);
     return () => window.clearInterval(id);
   }, [refreshStats]);
+
+  const checkHandle = useCallback(
+    (handle: string) => backend.checkHandle(handle),
+    [backend],
+  );
 
   const updateProfile = useCallback(
     async (patch: ProfilePatch) => {
@@ -420,6 +427,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     refresh,
     refreshProfile,
     updateProfile,
+    checkHandle,
     restoreAccount,
     claimUnlimited,
     getRecoveryCode,

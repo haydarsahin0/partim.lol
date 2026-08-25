@@ -302,6 +302,13 @@ export class SupabaseBackend implements Backend {
     return profile ? { ok: true, profile } : { ok: false, message: "Profil okunamadı." };
   }
 
+  async checkHandle(handle: string) {
+    const { data, error } = await this.db.rpc("handle_available", { p_handle: handle });
+    if (error) return { ok: false, message: error.message };
+    const res = data as { ok: boolean; message?: string } | null;
+    return { ok: !!res?.ok, message: res?.message };
+  }
+
   async claimUnlimited(code: string): Promise<ProfileUpdateResult> {
     const { data, error } = await this.db.rpc("claim_unlimited", { p_code: code.trim() });
     if (error) return { ok: false, message: error.message };

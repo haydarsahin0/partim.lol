@@ -154,6 +154,9 @@ function save(state: DemoState) {
 }
 
 export class DemoBackend implements Backend {
+  /** Demo rakiplerinin kullanıcı adları; bir kez kurulur. */
+  private alinmisAdlar: Set<string> | null = null;
+
   readonly mode = "demo" as const;
 
   private state: DemoState = load();
@@ -207,6 +210,28 @@ export class DemoBackend implements Backend {
    * doğrulanacak bir sunucu kodu da yok. Alanın gerçek modda nasıl davrandığını
    * göstermek için makul uzunlukta her kod kabul edilir.
    */
+  async checkHandle(handle: string) {
+    const ad = handle.trim();
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(ad)) {
+      return {
+        ok: false,
+        message: "Kullanıcı adı 3–20 karakter olmalı; harf, rakam ve alt çizgi.",
+      };
+    }
+    if (this.state.user && ad.toLowerCase() === this.state.user.handle.toLowerCase()) {
+      return { ok: true };
+    }
+    // Demo modda gerçek kullanıcı yok; tohum rakipleri gerçekçi bir çakışma
+    // kaynağı olsun diye alınmış sayılıyor. Liste bir kez kuruluyor: her tuşta
+    // yeniden üretmek kullanıcı adı kutusunu gözle görülür biçimde yavaşlatıyordu.
+    this.alinmisAdlar ??= new Set(
+      buildRivals(this.seed.seats, Date.now()).map((r) => r.handle.toLowerCase()),
+    );
+    return this.alinmisAdlar.has(ad.toLowerCase())
+      ? { ok: false, message: "Bu kullanıcı adı alınmış." }
+      : { ok: true };
+  }
+
   async claimUnlimited(code: string): Promise<ProfileUpdateResult> {
     if (!this.state.user) return { ok: false, message: "Hesap bulunamadı." };
     if (code.trim().length < 8) return { ok: false, message: "Kod hatalı." };
