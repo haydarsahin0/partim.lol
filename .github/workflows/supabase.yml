@@ -77,6 +77,7 @@ on:
     types:
       - ayni-saniye-temizle
       - gocu-uygula
+      - gocu-uygula-2
       - fonksiyonlari-yukle
 
 permissions:
@@ -100,7 +101,7 @@ jobs:
           [ -z "$PROJECT_REF" ] && eksik="$eksik SUPABASE_PROJECT_REF(variable)"
           [ -z "$SUPABASE_ACCESS_TOKEN" ] && eksik="$eksik SUPABASE_ACCESS_TOKEN(secret)"
           # Veritabanı parolası: şema uygulayan hedefler + gocu-uygula tetiklemesi.
-          gocu="${{ github.event_name == 'repository_dispatch' && github.event.action == 'gocu-uygula' }}"
+          gocu="${{ (github.event_name == 'repository_dispatch' && (github.event.action == 'gocu-uygula' || github.event.action == 'gocu-uygula-2')) }}"
           case "${{ inputs.hedef }}-${gocu}" in
             hepsi-*|veritabani-*|-true)
               [ -z "$SUPABASE_DB_PASSWORD" ] && eksik="$eksik SUPABASE_DB_PASSWORD(secret)"
@@ -202,7 +203,7 @@ jobs:
           supabase db push --password "$SUPABASE_DB_PASSWORD"
 
       - name: Göçü uygula (API tetiklemesi)
-        if: ${{ github.event_name == 'repository_dispatch' && github.event.action == 'gocu-uygula' }}
+        if: ${{ github.event_name == 'repository_dispatch' && (github.event.action == 'gocu-uygula' || github.event.action == 'gocu-uygula-2') }}
         # repository_dispatch ile bekleyen göçleri uygular (bkz. bot savunması).
         run: |
           supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
