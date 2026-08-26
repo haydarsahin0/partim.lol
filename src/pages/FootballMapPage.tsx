@@ -56,9 +56,10 @@ export default function FootballMapPage() {
   }, [standings]);
 
   const selectedStanding = selectedProvinceId ? standings[selectedProvinceId] ?? null : null;
-  const selectedSeat = selectedProvinceId
-    ? seats.find((s) => s.provinceId === selectedProvinceId) ?? null
-    : null;
+  // Seçili ildeki tüm koltuklar; ballot seçilen takımın koltuğunu içeride bulur.
+  const provinceSeats = selectedProvinceId
+    ? seats.filter((s) => s.provinceId === selectedProvinceId)
+    : [];
 
   const claimFootballSeat = async (provinceId: string, teamId: string) => {
     const result = await claimSeat(provinceId, teamId);
@@ -228,7 +229,7 @@ export default function FootballMapPage() {
         onVote={async (provinceId, teamId) => (await vote(provinceId, teamId)).ok}
         onClose={() => setParams({}, { replace: true })}
         ballotTeams={ballotTeams}
-        seat={selectedSeat}
+        seats={provinceSeats}
         onClaimSeat={claimFootballSeat}
         onDailyVotes={daily}
         dailyBusy={dailyBusy}
@@ -240,7 +241,9 @@ export default function FootballMapPage() {
         onCreate={async (input) => {
           const result = await createClub(input);
           if (result.kind === "redirect") {
-            // Stripe'a gidiyor; dialog kapanır, dönüşte harita tazelenir.
+            // Stripe Checkout'a git. Dialog kapanır, dönüşte harita tazelenir.
+            setClubOpen(false);
+            window.location.assign(result.url);
             return { ok: true };
           }
           if (result.kind === "done") {

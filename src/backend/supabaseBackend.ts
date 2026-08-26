@@ -912,9 +912,10 @@ export class SupabaseBackend implements Backend {
   /* ---------------- futbol haritası (ayrı football_* tabloları) ---------------- */
 
   async getFootballStandings(): Promise<Record<string, ProvinceStanding>> {
-    const { data, error } = await this.db
-      .from("football_tallies")
-      .select("province_id,club_id,votes");
+    const [{ data, error }, provinceRes] = await Promise.all([
+      this.db.from("football_tallies").select("province_id,club_id,votes"),
+      this.db.from("provinces").select("id"),
+    ]);
     if (error) throw error;
     const grouped = new Map<string, TallyRow[]>();
     for (const row of (data ?? []) as Array<{ province_id: string; club_id: string; votes: number }>) {
@@ -922,8 +923,12 @@ export class SupabaseBackend implements Backend {
       list.push({ province_id: row.province_id, party_id: row.club_id, votes: row.votes });
       grouped.set(row.province_id, list);
     }
+    // Seed olsun olmasın HER il için satır dön: boş il "0 oy" ile görünür,
+    // yoksa il seçince dialog açılmazdı.
     const out: Record<string, ProvinceStanding> = {};
-    for (const [provinceId, rows] of grouped) out[provinceId] = standingFromRows(provinceId, rows);
+    for (const province of (provinceRes.data ?? []) as Array<{ id: string }>) {
+      out[province.id] = standingFromRows(province.id, grouped.get(province.id) ?? []);
+    }
     return out;
   }
 

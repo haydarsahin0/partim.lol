@@ -25,7 +25,7 @@ export function FootballVoteBallot({
   nextVoteAt,
   onVote,
   ballotTeams,
-  seat,
+  seats,
   onClaimSeat,
   onDailyVotes,
   dailyBusy,
@@ -35,8 +35,8 @@ export function FootballVoteBallot({
   nextVoteAt: string | null;
   onVote: (provinceId: string, teamId: string) => Promise<boolean> | boolean;
   ballotTeams?: FootballTeam[];
-  /** Seçili takımın bu ildeki başkanlık koltuğu (yoksa boş) */
-  seat?: FootballSeat | null;
+  /** Bu ildeki tüm başkanlık koltukları; seçilen takımınki içeride bulunur */
+  seats?: FootballSeat[];
   /** Kulüp başkanlığı satın al ($1'den başlar) */
   onClaimSeat: (provinceId: string, teamId: string) => Promise<boolean>;
   /** Başkanın günde 60 oyu */
@@ -93,7 +93,7 @@ export function FootballVoteBallot({
     }
   };
 
-  const selectedSeat = selected ? (seat?.clubId === selected ? seat : null) : null;
+  const selectedSeat = selected ? (seats ?? []).find((s) => s.clubId === selected) ?? null : null;
   const selectedSeatPrice = selectedSeat?.nextPrice ?? 1;
 
   return (

@@ -13,7 +13,7 @@ export function FootballProvinceDialog({
   onVote,
   onClose,
   ballotTeams,
-  seat,
+  seats,
   onClaimSeat,
   onDailyVotes,
   dailyBusy,
@@ -24,7 +24,7 @@ export function FootballProvinceDialog({
   onVote: (provinceId: string, teamId: string) => Promise<boolean>;
   onClose: () => void;
   ballotTeams?: FootballTeam[];
-  seat?: FootballSeat | null;
+  seats?: FootballSeat[];
   onClaimSeat: (provinceId: string, teamId: string) => Promise<boolean>;
   onDailyVotes: (provinceId: string, teamId: string) => Promise<boolean>;
   dailyBusy?: boolean;
@@ -41,14 +41,24 @@ export function FootballProvinceDialog({
           </DialogDescription>
         </VisuallyHidden.Root>
 
-        {province && standing && (
+        {province && (
           <div className="space-y-5 p-5">
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{province.region}</p>
               <h2 className="font-display text-2xl font-extrabold tracking-tight">{province.name}</h2>
             </div>
 
-            <FootballResultsBoard standing={standing} />
+            <FootballResultsBoard
+              standing={
+                standing ?? {
+                  provinceId: province.id,
+                  totalVotes: 0,
+                  tallies: [],
+                  leadingPartyId: null,
+                  margin: 0,
+                }
+              }
+            />
 
             <FootballVoteBallot
               provinceId={province.id}
@@ -56,7 +66,7 @@ export function FootballProvinceDialog({
               nextVoteAt={nextVoteAt}
               onVote={onVote}
               ballotTeams={ballotTeams}
-              seat={seat}
+              seats={seats}
               onClaimSeat={onClaimSeat}
               onDailyVotes={onDailyVotes}
               dailyBusy={dailyBusy}
