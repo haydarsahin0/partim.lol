@@ -11,7 +11,7 @@
 import Stripe from "https://esm.sh/stripe@17.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
 
-const WEEKLY_PRICE_USD = 9;
+const WEEKLY_PRICE_USD = 19;
 const SHORT_MIN = 2;
 const SHORT_MAX = 6;
 /** lib/color.ts ile aynı eşik */

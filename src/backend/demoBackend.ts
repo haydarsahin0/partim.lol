@@ -616,6 +616,28 @@ export class DemoBackend implements Backend {
       return { ok: false, message: "Oy hakkın henüz dolmadı." };
     }
 
+    const kendiPartim = this.state.customParties.find(
+      (party) =>
+        party.id === partyId &&
+        party.ownerHandle?.toLocaleLowerCase("tr") === this.state.user?.handle.toLocaleLowerCase("tr"),
+    );
+    if (kendiPartim) {
+      const birSaatOnce = now - 60 * 60 * 1000;
+      const saatlikOy = this.state.recent.filter(
+        (row) =>
+          row.partyId === partyId &&
+          row.handle === this.state.user?.handle &&
+          (row.source ?? "vote") === "vote" &&
+          Date.parse(row.at) > birSaatOnce,
+      ).length;
+      if (saatlikOy >= 10) {
+        return {
+          ok: false,
+          message: "Sen zaten parti kurucususun; kendi partine 1 saatte en fazla 10 oy verebilirsin.",
+        };
+      }
+    }
+
     const provinceVotes = (this.state.myVotes[provinceId] ??= {});
     provinceVotes[partyId] = (provinceVotes[partyId] ?? 0) + 1;
     this.state.voteCount += 1;

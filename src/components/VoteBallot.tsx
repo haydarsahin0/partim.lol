@@ -38,15 +38,8 @@ export function VoteBallot({
   const [partiKur, setPartiKur] = useState(false);
   const [hizliBusy, setHizliBusy] = useState(false);
 
-  /*
-   * Kullanıcıların kurduğu partiler pusulanın başında duruyor. Canlı dizine
-   * sona ekleniyorlar; 17 partilik ızgaranın dibinde kalınca partisini yeni
-   * kuran kullanıcı kendi partisini bulamıyordu.
-   */
-  const siralı = useMemo(
-    () => [...parties].sort((a, b) => Number(!!b.custom) - Number(!!a.custom)),
-    [parties],
-  );
+  const resmiPartiler = useMemo(() => parties.filter((party) => !party.custom), [parties]);
+  const kullaniciPartileri = useMemo(() => parties.filter((party) => party.custom), [parties]);
   const unlimited = hasUnlimitedVotes(profile);
   const hizli = hasFastVotes(profile);
   const cooldown = useCountdown(unlimited ? null : profile?.nextVoteAt);
@@ -113,7 +106,7 @@ export function VoteBallot({
       </button>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {siralı.map((party) => {
+        {resmiPartiler.map((party) => {
           const isSelected = selected === party.id;
           return (
             <button
@@ -145,6 +138,47 @@ export function VoteBallot({
           );
         })}
       </div>
+
+      {kullaniciPartileri.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Sizler tarafından kurulan partiler
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {kullaniciPartileri.map((party) => {
+              const isSelected = selected === party.id;
+              return (
+                <button
+                  key={party.id}
+                  type="button"
+                  onClick={() => setSelected(isSelected ? null : party.id)}
+                  aria-pressed={isSelected}
+                  title={party.fullName}
+                  className={cn(
+                    "group relative flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-all",
+                    isSelected
+                      ? "border-white/40 bg-white/[0.09] shadow-lg"
+                      : "border-white/10 bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.06]",
+                  )}
+                >
+                  {isSelected ? (
+                    <span
+                      aria-hidden="true"
+                      className="grid size-7 shrink-0 place-items-center rounded-lg"
+                      style={{ background: party.color, color: partyTextColor(party.id) }}
+                    >
+                      <Check className="size-3.5" />
+                    </span>
+                  ) : (
+                    <PartyMark partyId={party.id} size={28} className="rounded-lg" />
+                  )}
+                  <span className="min-w-0 flex-1 truncate text-xs font-semibold">{party.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <Button
         className="w-full"
