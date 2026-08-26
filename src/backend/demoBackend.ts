@@ -48,6 +48,10 @@ import type {
   CheckoutResult,
   CreatePartyResult,
   CustomPartyInput,
+  FootballCheckoutResult,
+  FootballDailyResult,
+  FootballSeat,
+  FootballVoteResult,
   ProfilePatch,
   ProfileUpdateResult,
   SiteStats,
@@ -950,4 +954,176 @@ export class DemoBackend implements Backend {
 
     return { kind: "done", partyId: id };
   }
+  /* ---------------- futbol haritası (demo: localStorage'da ayrı tutulur) ---------------- */
+
+  private futbolStanding(provinceId: string): ProvinceStanding {
+    const team = FOOTBALL_TEAM_BY_PROVINCE[provinceId];
+    const teamId = team?.id ?? `ft-${provinceId}`;
+    const baseVotes = 100;
+    const mine = this.state.myVotesFoot[provinceId] ?? {};
+    const merged: Record<string, number> = { ...mine };
+    merged[teamId] = (merged[teamId] ?? 0) + baseVotes;
+    const total = Object.values(merged).reduce((a, b) => a + b, 0);
+    const tallies = Object.entries(merged)
+      .filter(([, v]) => v > 0)
+      .map(([partyId, votes]) => ({
+        partyId,
+        votes,
+        pct: total > 0 ? (votes / total) * 100 : 0,
+      }))
+      .sort((a, b) => b.votes - a.votes);
+    return {
+      provinceId,
+      totalVotes: total,
+      tallies,
+      leadingPartyId: tallies[0]?.partyId ?? null,
+      margin: tallies.length > 1 ? tallies[0].pct - tallies[1].pct : tallies.length === 1 ? 100 : 0,
+    };
+  }
+
+  async getFootballStandings(): Promise<Record<string, ProvinceStanding>> {
+    const out: Record<string, ProvinceStanding> = {};
+    for (const province of PROVINCES) out[province.id] = this.futbolStanding(province.id);
+    return out;
+  }
+
+  private futbolSeatFrom(provinceId: string, clubId: string, seat?: OwnedSeat): FootballSeat {
+    return {
+      provinceId,
+      clubId,
+      holder: this.state.user
+        ? { id: this.state.user.id, handle: this.state.user.handle, displayName: this.state.user.displayName, avatarUrl: this.state.user.avatarUrl, xHandle: this.state.user.xHandle }
+        : null,
+      price: seat?.price ?? 1,
+      nextPrice: (seat?.price ?? 0) + 1,
+      heldSince: seat?.heldSince ?? null,
+      takeovers: seat?.takeovers ?? 0,
+      nextDailyAt: seat?.lastRallyAt
+        ? new Date(Date.parse(seat.lastRallyAt) + 24 * 60 * 60 * 1000).toISOString()
+        : null,
+    };
+  }
+
+  async getFootballSeats(provinceId?: string): Promise<FootballSeat[]> {
+    const out: FootballSeat[] = [];
+    for (const [pid, clubs] of Object.entries(this.state.mySeatsFoot)) {
+      if (provinceId && pid !== provinceId) continue;
+      for (const [clubId, seat] of Object.entries(clubs)) {
+        out.push(this.futbolSeatFrom(pid, clubId, seat));
+      }
+    }
+    return out;
+  }
+
+  async getFootballMySeats(): Promise<FootballSeat[]> {
+    return this.getFootballSeats();
+  }
+
+  async castFootballVote(provinceId: string, clubId: string): Promise<FootballVoteResult> {
+    if (!this.state.user) return { ok: false, message: "Önce giriş yapmalısın." };
+    if (!PROVINCE_BY_ID[provinceId]) return { ok: false, message: "Böyle bir il yok." };
+    const allowedIds = [...FOOTBALL_TEAMS.map((t) => t.id), ...this.state.customParties.map((p) => p.id)];
+    if (!allowedIds.includes(clubId)) return { ok: false, message: "Böyle bir kulüp yok." };
+
+    const now = Date.now();
+    const next = this.state.nextVoteAt ? Date.parse(this.state.nextVoteAt) : 0;
+    if (next > now) return { ok: false, message: "Oy hakkın henüz dolmadı." };
+
+    const provinceVotes = (this.state.myVotesFoot[provinceId] ??= {});
+    provinceVotes[clubId] = (provinceVotes[clubId] ?? 0) + 1;
+    this.state.voteCount += 1;
+    this.state.xp += XP_PER_VOTE;
+    this.state.nextVoteAt = new Date(now + voteCooldownMs(this.state.user)).toISOString();
+    save(this.state);
+    return { ok: true, standing: this.futbolStanding(provinceId) };
+  }
+
+  async claimFootballSeat(provinceId: string, clubId: string, amount?: number): Promise<FootballCheckoutResult> {
+    if (!this.state.user) return { kind: "error", message: "Önce giriş yapmalısın." };
+    const mevcut = this.state.mySeatsFoot[provinceId]?.[clubId];
+    const enAz = (mevcut?.price ?? 0) + 1;
+    const price = amount ?? enAz;
+    if (price < enAz) return { kind: "error", message: `En az $${enAz} ödemelisin.` };
+
+    this.state.mySeatsFoot[provinceId] ??= {};
+    this.state.mySeatsFoot[provinceId][clubId] = {
+      price,
+      heldSince: new Date().toISOString(),
+      takeovers: (mevcut?.takeovers ?? 0) + 1,
+      xpPaidUntil: new Date().toISOString(),
+    };
+    this.state.xp += 10;
+    save(this.state);
+    return { kind: "done", seat: this.futbolSeatFrom(provinceId, clubId, this.state.mySeatsFoot[provinceId][clubId]), profile: (await this.getProfile())! };
+  }
+
+  async holdFootballDailyVotes(provinceId: string, clubId: string): Promise<FootballDailyResult> {
+    if (!this.state.user) return { ok: false, message: "Önce giriş yapmalısın." };
+    const seat = this.state.mySeatsFoot[provinceId]?.[clubId];
+    if (!seat) return { ok: false, message: "Bu ilde o kulübün başkanı değilsin." };
+
+    const now = Date.now();
+    const last = seat.lastRallyAt ? Date.parse(seat.lastRallyAt) : 0;
+    if (last + 24 * 60 * 60 * 1000 > now) {
+      return {
+        ok: false,
+        message: "Bugünkü 60 oyu kullandın. Yarın tekrar gel.",
+        nextDailyAt: new Date(last + 24 * 60 * 60 * 1000).toISOString(),
+      };
+    }
+
+    const provinceVotes = (this.state.myVotesFoot[provinceId] ??= {});
+    provinceVotes[clubId] = (provinceVotes[clubId] ?? 0) + 60;
+    seat.lastRallyAt = new Date(now).toISOString();
+    save(this.state);
+    return {
+      ok: true,
+      votes: 60,
+      nextDailyAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+      standing: this.futbolStanding(provinceId),
+    };
+  }
+
+  async getCustomClubs(): Promise<Array<{ id: string; name: string; shortName: string; color: string; logoUrl: string | null; ownerHandle: string | null }>> {
+    return this.state.customParties.map((p) => ({
+      id: p.id,
+      name: p.name,
+      shortName: p.shortName,
+      color: p.color,
+      logoUrl: p.logoUrl ?? null,
+      ownerHandle: p.ownerHandle ?? null,
+    }));
+  }
+
+  async createClub(input: CustomPartyInput): Promise<CreatePartyResult> {
+    if (!this.state.user) return { kind: "error", message: "Önce giriş yapmalısın." };
+    const name = input.name.trim();
+    const shortName = input.shortName.trim().toLocaleUpperCase("tr");
+    if (name.length < 3 || name.length > 40) return { kind: "error", message: "Kulüp adı 3–40 karakter olmalı." };
+    if (shortName.length < PARTY_SHORT_MIN || shortName.length > PARTY_SHORT_MAX) {
+      return { kind: "error", message: `Kısaltma ${PARTY_SHORT_MIN}–${PARTY_SHORT_MAX} harf olmalı.` };
+    }
+    if (FOOTBALL_TEAMS.some((t) => t.name.toLocaleLowerCase("tr") === name.toLocaleLowerCase("tr"))) {
+      return { kind: "error", message: "Bu adda bir kulüp zaten var." };
+    }
+
+    const id = `club-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    const club: Party = {
+      id,
+      name,
+      shortName,
+      fullName: name,
+      color: input.color,
+      on: readableTextTone(input.color),
+      custom: true,
+      logoUrl: input.logoDataUrl,
+      ownerHandle: this.state.user.handle,
+      blurb: `@${this.state.user.handle} tarafından kuruldu.`,
+    };
+    this.state.customParties.push(club);
+    save(this.state);
+    setCustomParties(this.state.customParties);
+    return { kind: "done", partyId: id };
+  }
 }
+

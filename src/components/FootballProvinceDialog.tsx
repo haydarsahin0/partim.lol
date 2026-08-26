@@ -1,5 +1,5 @@
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
-import type { ProvinceStanding } from "@/backend/types";
+import type { FootballSeat, ProvinceStanding } from "@/backend/types";
 import { PROVINCE_BY_ID } from "@/data/provinces";
 import type { FootballTeam } from "@/data/footballTeams";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -13,6 +13,10 @@ export function FootballProvinceDialog({
   onVote,
   onClose,
   ballotTeams,
+  seat,
+  onClaimSeat,
+  onDailyVotes,
+  dailyBusy,
 }: {
   provinceId: string | null;
   standing: ProvinceStanding | null;
@@ -20,6 +24,10 @@ export function FootballProvinceDialog({
   onVote: (provinceId: string, teamId: string) => Promise<boolean>;
   onClose: () => void;
   ballotTeams?: FootballTeam[];
+  seat?: FootballSeat | null;
+  onClaimSeat: (provinceId: string, teamId: string) => Promise<boolean>;
+  onDailyVotes: (provinceId: string, teamId: string) => Promise<boolean>;
+  dailyBusy?: boolean;
 }) {
   const province = provinceId ? PROVINCE_BY_ID[provinceId] : null;
 
@@ -48,6 +56,10 @@ export function FootballProvinceDialog({
               nextVoteAt={nextVoteAt}
               onVote={onVote}
               ballotTeams={ballotTeams}
+              seat={seat}
+              onClaimSeat={onClaimSeat}
+              onDailyVotes={onDailyVotes}
+              dailyBusy={dailyBusy}
             />
           </div>
         )}

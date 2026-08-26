@@ -173,6 +173,19 @@ export async function koltukUygula(
     return { ok: false, kind: "seat", message: "Eksik metadata." };
   }
 
+  // Futbol koltuğu: football_apply_seat_purchase ile ayrı tabloya yazılır.
+  if (meta.map === "football") {
+    const { data, error } = await admin.rpc("football_apply_seat_purchase", {
+      p_session_id: session.id,
+      p_user_id: userId,
+      p_province_id: meta.province_id,
+      p_club_id: meta.party_id,
+      p_amount: amount,
+    });
+    if (error) return { ok: false, kind: "football_seat", message: error.message };
+    return { ok: true, kind: "football_seat", detay: data };
+  }
+
   const { data, error } = await admin.rpc("apply_seat_purchase", {
     p_session_id: session.id,
     p_user_id: userId,
@@ -182,6 +195,28 @@ export async function koltukUygula(
   });
   if (error) return { ok: false, kind: "seat", message: error.message };
   return { ok: true, kind: "seat", detay: data };
+}
+
+/** Futbol kulübü aboneliğini uygular (football_clubs'a yazar). */
+export async function kulupUygula(
+  admin: SupabaseClient,
+  subscriptionId: string,
+  meta: Record<string, string>,
+  periodEnd: string,
+  logoUrl: string | null,
+): Promise<UygulamaSonucu> {
+  const { data, error } = await admin.rpc("apply_football_club_subscription", {
+    p_subscription_id: subscriptionId,
+    p_user_id: meta.user_id,
+    p_club_id: `ozel-${(meta.club_short ?? "klup").toLowerCase().replace(/[^a-z0-9]/g, "") || "klup"}-${subscriptionId.slice(0, 6)}`,
+    p_name: meta.club_name,
+    p_short_name: meta.club_short,
+    p_color: meta.club_color,
+    p_logo_url: logoUrl,
+    p_period_end: periodEnd,
+  });
+  if (error) return { ok: false, kind: "custom_club", message: error.message };
+  return { ok: true, kind: "custom_club", detay: data };
 }
 
 /**
@@ -209,7 +244,7 @@ export async function oturumuUygula(
 
     const subscription = await stripe.subscriptions.retrieve(subId);
     const abonelikMeta = { ...meta, ...(subscription.metadata ?? {}) } as Record<string, string>;
-    const periodEnd = donemSonu(subscription, abonelikMeta.kind === "custom_party" ? 7 : 1);
+    const periodEnd = donemSonu(subscription, abonelikMeta.kind === "custom_party" || abonelikMeta.kind === "custom_club" ? 7 : 1);
 
     const musteri = musteriKimligi(subscription) ?? musteriKimligi(session);
 
@@ -227,6 +262,19 @@ export async function oturumuUygula(
         .maybeSingle();
       const logoUrl = (pending?.logo_url as string | undefined) ?? null;
       const sonuc = await partiUygula(admin, subId, abonelikMeta, periodEnd, logoUrl);
+      if (sonuc.ok && logoUrl) {
+        await admin.from("pending_party_logos").delete().eq("session_id", session.id);
+      }
+      return sonuc;
+    }
+    if (abonelikMeta.kind === "custom_club") {
+      const { data: pending } = await admin
+        .from("pending_party_logos")
+        .select("logo_url")
+        .eq("session_id", session.id)
+        .maybeSingle();
+      const logoUrl = (pending?.logo_url as string | undefined) ?? null;
+      const sonuc = await kulupUygula(admin, subId, abonelikMeta, periodEnd, logoUrl);
       if (sonuc.ok && logoUrl) {
         await admin.from("pending_party_logos").delete().eq("session_id", session.id);
       }

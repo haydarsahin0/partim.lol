@@ -195,6 +195,12 @@ export type CheckoutResult =
   | { kind: "done"; seat: LeaderSeat; profile: Profile }
   | { kind: "error"; message: string };
 
+/** Futbol kulübü başkanlığı satın alma sonucu (football_seats). */
+export type FootballCheckoutResult =
+  | { kind: "redirect"; url: string }
+  | { kind: "done"; seat: FootballSeat; profile: Profile }
+  | { kind: "error"; message: string };
+
 /** Üstteki hap için canlı sayaçlar */
 export type SiteStats = {
   /** Son birkaç dakikada aktif olan kullanıcı */
@@ -212,6 +218,36 @@ export type CustomPartyInput = {
   color: string;
   /** Yüklenen logo, data URI olarak (isteğe bağlı) */
   logoDataUrl: string | null;
+};
+
+/** Futbol kulübü başkanlığı koltuğu (football_seats karşılığı). */
+export type FootballSeat = {
+  provinceId: string;
+  clubId: string;
+  holder: AuthUser | null;
+  price: number;
+  /** Devralmak için ödenmesi gereken en az tutar (USD) */
+  nextPrice: number;
+  heldSince: string | null;
+  takeovers: number;
+  /** Günlük 60 oyun bir sonraki kullanılabilir anı (ISO), yoksa hak hazır */
+  nextDailyAt: string | null;
+};
+
+/** Futbol oyu sonucu (siyasi VoteResult ile aynı şekil). */
+export type FootballVoteResult = {
+  ok: boolean;
+  message?: string;
+  standing?: ProvinceStanding;
+};
+
+/** Günlük 60 oy sonucu. */
+export type FootballDailyResult = {
+  ok: boolean;
+  message?: string;
+  votes?: number;
+  nextDailyAt?: string | null;
+  standing?: ProvinceStanding;
 };
 
 export type CreatePartyResult =
@@ -354,4 +390,18 @@ export interface Backend {
    * Günde bir kez; hak sunucuda da denetlenir, istemciye güvenilmez.
    */
   holdRally(provinceId: string, partyId: string): Promise<RallyResult>;
+
+  /* --- futbol haritası (Supabase'de ayrı football_* tablolarında) --- */
+  getFootballStandings(): Promise<Record<string, ProvinceStanding>>;
+  getFootballSeats(provinceId?: string): Promise<FootballSeat[]>;
+  getFootballMySeats(): Promise<FootballSeat[]>;
+  castFootballVote(provinceId: string, clubId: string): Promise<FootballVoteResult>;
+  /** Kulüp başkanlığı için Stripe ödemesini başlatır ($1'den başlar). */
+  claimFootballSeat(provinceId: string, clubId: string, amount?: number): Promise<FootballCheckoutResult>;
+  /** Kulüp başkanı günde 1 kez kulübüne 60 oy ekler. */
+  holdFootballDailyVotes(provinceId: string, clubId: string): Promise<FootballDailyResult>;
+  /** Kullanıcının kurduğu kulüpler (custom football_clubs satırları). */
+  getCustomClubs(): Promise<Array<{ id: string; name: string; shortName: string; color: string; logoUrl: string | null; ownerHandle: string | null }>>;
+  /** Haftalık abonelikle yeni bir futbol kulübü kurar ($19, partiyle aynı). */
+  createClub(input: CustomPartyInput): Promise<CreatePartyResult>;
 }

@@ -244,6 +244,7 @@ jobs:
           # "kendi partini kur" ödemeye yönlendirmiyordu, sebebi buydu.
           supabase functions deploy create-checkout --project-ref "$PROJECT_REF"
           supabase functions deploy create-party-subscription --project-ref "$PROJECT_REF"
+          supabase functions deploy create-club-subscription --project-ref "$PROJECT_REF"
           supabase functions deploy create-fast-votes-subscription --project-ref "$PROJECT_REF"
           supabase functions deploy confirm-checkout --project-ref "$PROJECT_REF"
           supabase functions deploy cancel-fast-votes-subscription --project-ref "$PROJECT_REF"

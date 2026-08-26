@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Check, Loader2, Search, Vote } from "lucide-react";
+import { Check, Crown, Loader2, Search, Vote } from "lucide-react";
 import { useCountdown } from "@/hooks/useCountdown";
 import { FOOTBALL_TEAMS, teamColor, teamName, type FootballTeam } from "@/data/footballTeams";
-import { formatDuration } from "@/lib/game";
+import type { FootballSeat } from "@/backend/types";
+import { formatDuration, formatUsd } from "@/lib/game";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -24,15 +25,27 @@ export function FootballVoteBallot({
   nextVoteAt,
   onVote,
   ballotTeams,
+  seat,
+  onClaimSeat,
+  onDailyVotes,
+  dailyBusy,
 }: {
   provinceId: string;
   provinceName: string;
   nextVoteAt: string | null;
   onVote: (provinceId: string, teamId: string) => Promise<boolean> | boolean;
   ballotTeams?: FootballTeam[];
+  /** Seçili takımın bu ildeki başkanlık koltuğu (yoksa boş) */
+  seat?: FootballSeat | null;
+  /** Kulüp başkanlığı satın al ($1'den başlar) */
+  onClaimSeat: (provinceId: string, teamId: string) => Promise<boolean>;
+  /** Başkanın günde 60 oyu */
+  onDailyVotes: (provinceId: string, teamId: string) => Promise<boolean>;
+  dailyBusy?: boolean;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [claimBusy, setClaimBusy] = useState(false);
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
 
@@ -60,6 +73,28 @@ export function FootballVoteBallot({
       setBusy(false);
     }
   };
+
+  const claim = async () => {
+    if (!selected || claimBusy) return;
+    setClaimBusy(true);
+    try {
+      await onClaimSeat(provinceId, selected);
+    } finally {
+      setClaimBusy(false);
+    }
+  };
+
+  const daily = async () => {
+    if (!selected || dailyBusy) return;
+    try {
+      await onDailyVotes(provinceId, selected);
+    } finally {
+      /* busy durumu üst bileşende */
+    }
+  };
+
+  const selectedSeat = selected ? (seat?.clubId === selected ? seat : null) : null;
+  const selectedSeatPrice = selectedSeat?.nextPrice ?? 1;
 
   return (
     <div className="space-y-3">
@@ -144,6 +179,42 @@ export function FootballVoteBallot({
           </>
         )}
       </Button>
+
+      {/* Kulüp başkanlığı — $1'den başlar, başkan günde 60 oy atar */}
+      {selected && (
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
+          <div className="flex items-center gap-2">
+            <Crown className="size-4 text-primary" />
+            <h4 className="font-display text-sm font-bold">Kulüp başkanlığı</h4>
+          </div>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            {teamName(selected)} kulübünün {provinceName} başkanı ol; her gün kulübüne 60 oy
+            ekle. Boş koltuk {formatUsd(1)}'dan başlar, dolu koltuğu üstüne çıkarak devral.
+          </p>
+          <div className="mt-3 space-y-2">
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={claimBusy}
+              onClick={() => void claim()}
+            >
+              {claimBusy ? <Loader2 className="animate-spin" /> : <Crown className="size-4" />}
+              {selectedSeat
+                ? `Başkanlığı devral — ${formatUsd(selectedSeatPrice)}`
+                : `Başkan ol — ${formatUsd(selectedSeatPrice)}`}
+            </Button>
+            <Button
+              className="w-full"
+              variant="secondary"
+              disabled={dailyBusy || !selectedSeat}
+              onClick={() => void daily()}
+            >
+              {dailyBusy ? <Loader2 className="animate-spin" /> : <Vote className="size-4" />}
+              Günde 60 oy ekle
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -72,6 +72,8 @@ Deno.serve(async (req) => {
   let body: {
     provinceId?: string;
     partyId?: string;
+    /** "siyasi" (varsayılan) veya "futbol" — futbol koltuğu football_* tablolarında. */
+    map?: "siyasi" | "futbol";
     successUrl?: string;
     cancelUrl?: string;
     /** Ucu açık teklif. Verilmezse en az tutar kullanılır. */
@@ -84,29 +86,39 @@ Deno.serve(async (req) => {
   }
 
   const { provinceId, partyId, successUrl, cancelUrl } = body;
+  const futbol = body.map === "futbol";
   if (!provinceId || !partyId || !successUrl || !cancelUrl) {
     return json({ error: "Eksik alan." }, 400);
   }
 
   const [{ data: province }, { data: party }] = await Promise.all([
     supabase.from("provinces").select("id,name").eq("id", provinceId).maybeSingle(),
-    supabase.from("parties").select("id,name").eq("id", partyId).maybeSingle(),
+    futbol
+      ? supabase.from("football_clubs").select("id,name").eq("id", partyId).maybeSingle()
+      : supabase.from("parties").select("id,name").eq("id", partyId).maybeSingle(),
   ]);
-  if (!province || !party) return json({ error: "İl veya parti bulunamadı." }, 400);
+  if (!province || !party) {
+    return json(
+      { error: futbol ? "İl veya kulüp bulunamadı." : "İl veya parti bulunamadı." },
+      400,
+    );
+  }
 
   // Zaten bu koltuğun sahibiyse ödeme almanın anlamı yok.
+  const seatTablo = futbol ? "football_seats" : "leader_seats";
   const { data: seat } = await supabase
-    .from("leader_seats")
+    .from(seatTablo)
     .select("user_id")
     .eq("province_id", provinceId)
-    .eq("party_id", partyId)
+    .eq(futbol ? "club_id" : "party_id", partyId)
     .maybeSingle();
   if (seat?.user_id === profileId) return json({ error: "Bu koltuk zaten senin." }, 409);
 
-  const { data: priceData, error: priceError } = await supabase.rpc("next_seat_price", {
-    p_province_id: provinceId,
-    p_party_id: partyId,
-  });
+  const fiyatRpc = futbol ? "football_next_seat_price" : "next_seat_price";
+  const fiyatParam = futbol
+    ? { p_province_id: provinceId, p_club_id: partyId }
+    : { p_province_id: provinceId, p_party_id: partyId };
+  const { data: priceData, error: priceError } = await supabase.rpc(fiyatRpc, fiyatParam);
   if (priceError) return json({ error: priceError.message }, 500);
 
   const enAz = Number(priceData ?? 1);
@@ -155,8 +167,12 @@ Deno.serve(async (req) => {
             currency: "usd",
             unit_amount: Math.round(price * 100),
             product_data: {
-              name: `${province.name} · ${party.name} il başkanlığı`,
-              description: "partim.lol oyun içi konum — siyasi bağış değildir.",
+              name: futbol
+                ? `${province.name} · ${party.name} kulüp başkanlığı`
+                : `${province.name} · ${party.name} il başkanlığı`,
+              description: futbol
+                ? "partim.lol futbol oyun içi konum — gerçek kulüple bağlantısı yoktur."
+                : "partim.lol oyun içi konum — siyasi bağış değildir.",
             },
           },
         },
@@ -166,6 +182,8 @@ Deno.serve(async (req) => {
         province_id: provinceId,
         party_id: partyId,
         price: String(price),
+        // Webhook koltuk devrini doğru tabloya/fonksiyona yönlendirsin.
+        map: futbol ? "football" : "siyasi",
       },
     });
   } catch (err) {

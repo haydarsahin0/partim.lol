@@ -44,7 +44,7 @@ export function CreateClubDialog({
     shortName: string;
     color: string;
     logoDataUrl?: string | null;
-  }) => { ok: boolean; message?: string };
+  }) => Promise<{ ok: boolean; message?: string }> | { ok: boolean; message?: string };
 }) {
   const [name, setName] = useState("");
   const [shortName, setShortName] = useState("");
@@ -80,7 +80,7 @@ export function CreateClubDialog({
     if (!canSubmit) return;
     setBusy(true);
     try {
-      const result = onCreate({
+      const result = await onCreate({
         name: name.trim(),
         shortName: shortName.trim(),
         color,

@@ -21,6 +21,7 @@ import {
   donemSonu,
   faturaAboneligi,
   hizliOyUygula,
+  kulupUygula,
   musteriKimligi,
   oturumuUygula,
   partiUygula,
@@ -130,6 +131,33 @@ Deno.serve(async (req) => {
       );
       if (!sonuc.ok) {
         console.error("apply_party_subscription hatası", sonuc);
+        return new Response(sonuc.message ?? "hata", { status: 500 });
+      }
+      return ok({ received: true, result: sonuc });
+    }
+
+    if (meta.kind === "custom_club") {
+      // İlk ödemede logo, Checkout oturumuna bağlı geçici satırda duruyor.
+      let logoUrl: string | null = null;
+      const sessionId = typeof invoice.checkout === "string" ? invoice.checkout : null;
+      if (sessionId) {
+        const { data: pending } = await admin
+          .from("pending_party_logos")
+          .select("logo_url")
+          .eq("session_id", sessionId)
+          .maybeSingle();
+        logoUrl = (pending?.logo_url as string | undefined) ?? null;
+        if (logoUrl) await admin.from("pending_party_logos").delete().eq("session_id", sessionId);
+      }
+      const sonuc = await kulupUygula(
+        admin,
+        subscriptionId,
+        meta,
+        donemSonu(subscription, 7),
+        logoUrl,
+      );
+      if (!sonuc.ok) {
+        console.error("apply_football_club_subscription hatası", sonuc);
         return new Response(sonuc.message ?? "hata", { status: 500 });
       }
       return ok({ received: true, result: sonuc });

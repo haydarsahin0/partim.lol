@@ -23,6 +23,10 @@ import type {
   CheckoutResult,
   CreatePartyResult,
   CustomPartyInput,
+  FootballCheckoutResult,
+  FootballDailyResult,
+  FootballSeat,
+  FootballVoteResult,
   ProfilePatch,
   ProfileUpdateResult,
   SiteStats,
@@ -904,4 +908,196 @@ export class SupabaseBackend implements Backend {
 
     return { kind: "redirect", url };
   }
+
+  /* ---------------- futbol haritası (ayrı football_* tabloları) ---------------- */
+
+  async getFootballStandings(): Promise<Record<string, ProvinceStanding>> {
+    const { data, error } = await this.db
+      .from("football_tallies")
+      .select("province_id,club_id,votes");
+    if (error) throw error;
+    const grouped = new Map<string, TallyRow[]>();
+    for (const row of (data ?? []) as Array<{ province_id: string; club_id: string; votes: number }>) {
+      const list = grouped.get(row.province_id) ?? [];
+      list.push({ province_id: row.province_id, party_id: row.club_id, votes: row.votes });
+      grouped.set(row.province_id, list);
+    }
+    const out: Record<string, ProvinceStanding> = {};
+    for (const [provinceId, rows] of grouped) out[provinceId] = standingFromRows(provinceId, rows);
+    return out;
+  }
+
+  private async futbolSeatRows(provinceId?: string): Promise<
+    Array<{
+      province_id: string;
+      club_id: string;
+      price: number | string;
+      held_since: string | null;
+      takeovers: number;
+      last_daily_at?: string | null;
+      holder: SeatRow["holder"];
+    }>
+  > {
+    let q = this.db
+      .from("football_seats")
+      .select(
+        "province_id,club_id,price,held_since,takeovers,last_daily_at,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)",
+      );
+    if (provinceId) q = q.eq("province_id", provinceId);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data ?? []) as never[];
+  }
+
+  private futbolSeatFromRow(row: Awaited<ReturnType<SupabaseBackend["futbolSeatRows"]>>[number]): FootballSeat {
+    return {
+      provinceId: row.province_id,
+      clubId: row.club_id,
+      holder: row.holder
+        ? {
+            id: row.holder.id,
+            handle: row.holder.handle,
+            displayName: row.holder.display_name,
+            avatarUrl: row.holder.avatar_url,
+            xHandle: row.holder.x_handle ?? null,
+            isBot: row.holder.is_bot ?? false,
+          }
+        : null,
+      price: Number(row.price ?? 0),
+      nextPrice: Number(row.price ?? 0) + 1,
+      heldSince: row.held_since ?? null,
+      takeovers: row.takeovers ?? 0,
+      nextDailyAt: row.last_daily_at
+        ? new Date(Date.parse(row.last_daily_at) + 24 * 60 * 60 * 1000).toISOString()
+        : null,
+    };
+  }
+
+  async getFootballSeats(provinceId?: string): Promise<FootballSeat[]> {
+    const rows = await this.futbolSeatRows(provinceId);
+    return rows.map((r) => this.futbolSeatFromRow(r));
+  }
+
+  async getFootballMySeats(): Promise<FootballSeat[]> {
+    const user = this.cachedProfile ?? (await this.getProfile());
+    if (!user) return [];
+    const { data, error } = await this.db
+      .from("football_seats")
+      .select(
+        "province_id,club_id,price,held_since,takeovers,last_daily_at,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)",
+      )
+      .eq("user_id", user.id);
+    if (error) throw error;
+    return ((data ?? []) as never[]).map((r) => this.futbolSeatFromRow(r as never));
+  }
+
+  async castFootballVote(provinceId: string, clubId: string): Promise<FootballVoteResult> {
+    const { data, error } = await this.db.rpc("football_cast_vote", {
+      p_province_id: provinceId,
+      p_club_id: clubId,
+    });
+    if (error) return { ok: false, message: error.message };
+    const res = data as { ok: boolean; message?: string } | null;
+    if (!res?.ok) return { ok: false, message: res?.message ?? "Oy kaydedilemedi." };
+    const standings = await this.getFootballStandings();
+    return { ok: true, standing: standings[provinceId] };
+  }
+
+  async claimFootballSeat(provinceId: string, clubId: string, amount?: number): Promise<FootballCheckoutResult> {
+    const { data, message } = await invokeEdge<{ url?: string; price?: number }>(
+      this.db,
+      "create-checkout",
+      {
+        provinceId,
+        partyId: clubId,
+        map: "futbol",
+        amount,
+        successUrl: `${window.location.origin}${window.location.pathname}#/futbol-haritasi?il=${provinceId}&odeme=basarili&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${window.location.origin}${window.location.pathname}#/futbol-haritasi?il=${provinceId}&odeme=iptal`,
+      },
+    );
+    if (message) return { kind: "error", message };
+    const url = data?.url;
+    if (!url) return { kind: "error", message: "Ödeme oturumu açılamadı." };
+    const istenen = amount ?? data?.price;
+    if (
+      istenen !== undefined &&
+      typeof data?.price === "number" &&
+      Math.abs(data.price - istenen) > 0.005
+    ) {
+      return {
+        kind: "error",
+        message:
+          `Ödeme ekranı ${formatUsd(data.price)} olarak açılacaktı, oysa ${formatUsd(istenen)} ` +
+          "istendi. Ödeme servisi eski sürümde: GitHub → Actions → \"Supabase'e uygula\" → " +
+          "hedef: fonksiyonlar.",
+      };
+    }
+    return { kind: "redirect", url };
+  }
+
+  async holdFootballDailyVotes(provinceId: string, clubId: string): Promise<FootballDailyResult> {
+    const { data, error } = await this.db.rpc("football_daily_votes", {
+      p_province_id: provinceId,
+      p_club_id: clubId,
+    });
+    if (error) return { ok: false, message: error.message };
+    const res = data as { ok: boolean; message?: string; votes?: number; next_daily_at?: string } | null;
+    if (!res?.ok) {
+      return {
+        ok: false,
+        message: res?.message ?? "Günlük oy eklenemedi.",
+        nextDailyAt: res?.next_daily_at ?? null,
+      };
+    }
+    const standings = await this.getFootballStandings();
+    return {
+      ok: true,
+      votes: res.votes,
+      nextDailyAt: res.next_daily_at ?? null,
+      standing: standings[provinceId],
+    };
+  }
+
+  async getCustomClubs(): Promise<
+    Array<{ id: string; name: string; shortName: string; color: string; logoUrl: string | null; ownerHandle: string | null }>
+  > {
+    const { data, error } = await this.db
+      .from("football_clubs")
+      .select("id,name,short_name,color,logo_url,owner:profiles(handle)")
+      .eq("custom", true);
+    if (error) return [];
+    return ((data ?? []) as unknown as Array<{
+      id: string;
+      name: string;
+      short_name: string;
+      color: string;
+      logo_url: string | null;
+      owner: { handle: string } | null;
+    }>).map((r) => ({
+      id: r.id,
+      name: r.name,
+      shortName: r.short_name,
+      color: r.color,
+      logoUrl: r.logo_url,
+      ownerHandle: r.owner?.handle ?? null,
+    }));
+  }
+
+  async createClub(input: CustomPartyInput): Promise<CreatePartyResult> {
+    const { data, message } = await invokeEdge<{ url?: string }>(
+      this.db,
+      "create-club-subscription",
+      {
+        ...input,
+        successUrl: `${window.location.origin}${window.location.pathname}#/futbol-haritasi?kulup=basarili&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${window.location.origin}${window.location.pathname}#/futbol-haritasi?kulup=iptal`,
+      },
+    );
+    if (message) return { kind: "error", message };
+    const url = data?.url;
+    if (!url) return { kind: "error", message: "Ödeme oturumu açılamadı." };
+    return { kind: "redirect", url };
+  }
 }
+

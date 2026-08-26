@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Sparkles, Trophy } from "lucide-react";
+import { Crown, Sparkles, Trophy } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { TurkeyMap, focusProvinceOnMap } from "@/components/TurkeyMap";
 import { FootballProvinceDialog } from "@/components/FootballProvinceDialog";
@@ -12,6 +12,8 @@ import {
   teamName,
 } from "@/data/footballTeams";
 import { useFootballMapGame } from "@/hooks/useFootballMapGame";
+import { PROVINCE_BY_ID } from "@/data/provinces";
+import { useGame } from "@/backend/GameProvider";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PARTY_WEEKLY_PRICE, formatPercent, formatUsd } from "@/lib/game";
@@ -20,9 +22,12 @@ import { toast } from "sonner";
 export default function FootballMapPage() {
   const [params, setParams] = useSearchParams();
   const selectedProvinceId = params.get("il");
-  const { standings, nextVoteAt, vote, createClub, national, totalVotes, ballotTeams } =
+  const { profile } = useGame();
+  const { standings, vote, claimSeat, dailyVotes, createClub, national, totalVotes, ballotTeams, seats, mySeats, isDemo } =
     useFootballMapGame();
+  const nextVoteAt = profile?.nextVoteAt ?? null;
   const [clubOpen, setClubOpen] = useState(false);
+  const [dailyBusy, setDailyBusy] = useState(false);
 
   const select = (provinceId: string) => {
     setParams(provinceId ? { il: provinceId } : {}, { replace: true });
@@ -51,6 +56,35 @@ export default function FootballMapPage() {
   }, [standings]);
 
   const selectedStanding = selectedProvinceId ? standings[selectedProvinceId] ?? null : null;
+  const selectedSeat = selectedProvinceId
+    ? seats.find((s) => s.provinceId === selectedProvinceId) ?? null
+    : null;
+
+  const claimFootballSeat = async (provinceId: string, teamId: string) => {
+    const result = await claimSeat(provinceId, teamId);
+    if (result.kind === "redirect") return true; // Stripe'a gidiyor
+    if (result.kind === "done") {
+      toast.success(`Kulüp başkanlığı senin!`);
+      return true;
+    }
+    toast.error(result.message);
+    return false;
+  };
+
+  const daily = async (provinceId: string, teamId: string) => {
+    setDailyBusy(true);
+    try {
+      const result = await dailyVotes(provinceId, teamId);
+      if (result.ok) {
+        toast.success(`${teamName(teamId)} +${result.votes ?? 60} oy aldı!`);
+      } else {
+        toast.error(result.message ?? "Günlük oy eklenemedi.");
+      }
+      return result.ok;
+    } finally {
+      setDailyBusy(false);
+    }
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-3 p-3 sm:p-4">
@@ -107,6 +141,31 @@ export default function FootballMapPage() {
             </ul>
           </Card>
 
+          {mySeats.length > 0 && (
+            <Card className="space-y-2 p-5">
+              <h2 className="flex items-center gap-2 font-display text-base font-bold tracking-[-0.02em]">
+                <Crown className="size-4" />
+                Senin başkanlıkların
+              </h2>
+              <ul className="space-y-1.5">
+                {mySeats.map((s) => (
+                  <li key={`${s.provinceId}-${s.clubId}`} className="flex items-center gap-2 text-sm">
+                    <span className="size-2.5 rounded-full" style={{ background: teamColor(s.clubId) }} />
+                    <span className="min-w-0 flex-1 truncate font-medium">
+                      {teamName(s.clubId)} · {PROVINCE_BY_ID[s.provinceId]?.name ?? s.provinceId}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {formatUsd(s.price)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-muted-foreground">
+                Her gün kulüp başkanı olarak 60 oy ekleyebilirsin (il detayından).
+              </p>
+            </Card>
+          )}
+
           {/* Toplam yüzdeler — ülke geneli takım payları */}
           <Card className="space-y-3 p-5">
             <h2 className="font-display text-base font-bold tracking-[-0.02em]">Toplam yüzdeler</h2>
@@ -152,6 +211,7 @@ export default function FootballMapPage() {
             <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
               Haftalık {formatUsd(PARTY_WEEKLY_PRICE)}. Adını, kısaltmanı, logonu ve rengini seç;
               kulübün tüm illerin pusulasına girsin.
+              {isDemo && " Demo modda gerçek ödeme alınmaz; kulüp anında kurulur."}
             </p>
             <Button variant="primary" className="mt-3.5 w-full" onClick={() => setClubOpen(true)}>
               <Sparkles />
@@ -165,22 +225,30 @@ export default function FootballMapPage() {
         provinceId={selectedProvinceId}
         standing={selectedStanding}
         nextVoteAt={nextVoteAt}
-        onVote={async (provinceId, teamId) => vote(provinceId, teamId).ok}
+        onVote={async (provinceId, teamId) => (await vote(provinceId, teamId)).ok}
         onClose={() => setParams({}, { replace: true })}
         ballotTeams={ballotTeams}
+        seat={selectedSeat}
+        onClaimSeat={claimFootballSeat}
+        onDailyVotes={daily}
+        dailyBusy={dailyBusy}
       />
 
       <CreateClubDialog
         open={clubOpen}
         onOpenChange={setClubOpen}
-        onCreate={(input) => {
-          const result = createClub(input);
-          if (result.ok) {
-            toast.success(`${input.name} kuruldu! Artık tüm illerde oy alabilir.`);
-          } else {
-            toast.error(result.message ?? "Kulüp kurulamadı.");
+        onCreate={async (input) => {
+          const result = await createClub(input);
+          if (result.kind === "redirect") {
+            // Stripe'a gidiyor; dialog kapanır, dönüşte harita tazelenir.
+            return { ok: true };
           }
-          return result;
+          if (result.kind === "done") {
+            toast.success(`${input.name} kuruldu! Artık tüm illerde oy alabilir.`);
+            return { ok: true };
+          }
+          toast.error(result.message ?? "Kulüp kurulamadı.");
+          return { ok: false, message: result.message };
         }}
       />
     </div>
