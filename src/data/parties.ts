@@ -95,7 +95,7 @@ const MAJOR_TEAMS: Record<string, { name: string; shortName: string; fullName: s
   canakkale: { name: "Çanakkale Dardanelspor", shortName: "ÇD", fullName: "Çanakkale Dardanelspor", color: "#00457C" },
 };
 
-export const FOOTBALL_TEAMS: Array<Party & { provinceId: string }> = PROVINCES.map((province) => {
+export const FOOTBALL_TEAMS: Party[] = PROVINCES.map((province) => {
   const maj = MAJOR_TEAMS[province.id];
   const name = maj?.name ?? `${province.name} FK`;
   const shortName = maj?.shortName ?? province.name.slice(0, 3).toLocaleUpperCase("tr");
@@ -109,14 +109,19 @@ export const FOOTBALL_TEAMS: Array<Party & { provinceId: string }> = PROVINCES.m
     color,
     on: readableTextTone(color),
     custom: false,
-    provinceId: province.id,
-  };
+    founded: maj?.founded,
+    blurb: `${province.name} ilini temsil eden takım.`,
+  } as Party;
 });
 
-export const FOOTBALL_TEAM_BY_PROVINCE: Record<string, Party & { provinceId: string }> = {};
+export const FOOTBALL_TEAM_BY_PROVINCE: Record<string, Party> = {};
+for (const province of PROVINCES) {
+  FOOTBALL_TEAM_BY_PROVINCE[province.id] = FOOTBALL_TEAMS.find(
+    (t) => t.id === `ft-${province.id}`,
+  ) as Party;
+}
 for (const team of FOOTBALL_TEAMS) {
   PARTY_BY_ID[team.id] = team;
-  FOOTBALL_TEAM_BY_PROVINCE[team.provinceId] = team;
 }
 
 /** Rengin üstünde koyu mu açık mı yazı okunacağını belirler. */
