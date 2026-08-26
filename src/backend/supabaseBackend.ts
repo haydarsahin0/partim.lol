@@ -701,8 +701,21 @@ export class SupabaseBackend implements Backend {
   }
 
   async getStats(): Promise<SiteStats> {
-    // Giriş yapan kullanıcı için "çevrimiçi" işaretini tazele. Hata önemli
-    // değil: sayaç kozmetik, oyunun işleyişini etkilemiyor.
+    /*
+     * ÖNCE ZİYARETÇİ, SONRA PROFİL.
+     *
+     * touch_visitor girişi olmayan da çağırabiliyor; "çevrimiçi" sayacı buna
+     * dayanıyor. Eskiden yalnızca touch_presence vardı ve o iki yönden birden
+     * eksikti: giriş yapmayanın profili olmadığı için hiç sayılmıyordu,
+     * üstelik fonksiyonun kendisi de ölüydü (bkz. 20260825060000 göçü).
+     * Sonuç: haritaya bakan yüzlerce kişi sayaçta görünmüyordu.
+     *
+     * Hata önemli değil: sayaç kozmetik, oyunun işleyişini etkilemiyor.
+     */
+    void this.db
+      .rpc("touch_visitor", { p_device_id: getDeviceIdentity().deviceId })
+      .then(() => undefined, () => undefined);
+
     void this.db.rpc("touch_presence").then(() => undefined, () => undefined);
 
     // site_stats: profil sayısını ve son 5 dakikada görülen kullanıcıyı
