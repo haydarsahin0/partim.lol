@@ -239,6 +239,8 @@ export type FootballVoteResult = {
   ok: boolean;
   message?: string;
   standing?: ProvinceStanding;
+  /** Oy kullanıldıktan sonra bir sonraki oyun açılacağı an (ISO). */
+  nextVoteAt?: string | null;
 };
 
 /** Günlük 60 oy sonucu. */

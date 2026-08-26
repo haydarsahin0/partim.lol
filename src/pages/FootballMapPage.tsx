@@ -24,9 +24,11 @@ export default function FootballMapPage() {
   const [params, setParams] = useSearchParams();
   const selectedProvinceId = params.get("il");
   const { profile } = useGame();
-  const { standings, vote, claimSeat, dailyVotes, createClub, national, totalVotes, ballotTeams, seats, mySeats, isDemo } =
+  const { standings, vote, claimSeat, dailyVotes, createClub, national, totalVotes, ballotTeams, seats, mySeats, nextVoteAt, isDemo } =
     useFootballMapGame();
-  const nextVoteAt = profile?.nextVoteAt ?? null;
+  // Geri sayım: oy sonrası hook kendi değerini günceller; sayfa açılışında
+  // (henüz oy kullanılmadıysa) profildeki bekleme süresi geçerli.
+  const aktifNextVoteAt = nextVoteAt ?? profile?.nextVoteAt ?? null;
   const [clubOpen, setClubOpen] = useState(false);
   const [dailyBusy, setDailyBusy] = useState(false);
 
@@ -233,7 +235,7 @@ export default function FootballMapPage() {
       <FootballProvinceDialog
         provinceId={selectedProvinceId}
         standing={selectedStanding}
-        nextVoteAt={nextVoteAt}
+        nextVoteAt={aktifNextVoteAt}
         onVote={async (provinceId, teamId) => (await vote(provinceId, teamId)).ok}
         onClose={() => setParams({}, { replace: true })}
         ballotTeams={ballotTeams}

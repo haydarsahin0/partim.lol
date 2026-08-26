@@ -1041,7 +1041,11 @@ export class DemoBackend implements Backend {
     this.state.xp += XP_PER_VOTE;
     this.state.nextVoteAt = new Date(now + voteCooldownMs(this.state.user)).toISOString();
     save(this.state);
-    return { ok: true, standing: this.futbolStanding(provinceId) };
+    return {
+      ok: true,
+      standing: this.futbolStanding(provinceId),
+      nextVoteAt: this.state.nextVoteAt,
+    };
   }
 
   async claimFootballSeat(provinceId: string, clubId: string, amount?: number): Promise<FootballCheckoutResult> {

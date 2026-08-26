@@ -1020,10 +1020,14 @@ export class SupabaseBackend implements Backend {
       p_club_id: clubId,
     });
     if (error) return { ok: false, message: error.message };
-    const res = data as { ok: boolean; message?: string } | null;
+    const res = data as { ok: boolean; message?: string; next_vote_at?: string | null } | null;
     if (!res?.ok) return { ok: false, message: res?.message ?? "Oy kaydedilemedi." };
     const standings = await this.getFootballStandings();
-    return { ok: true, standing: standings[provinceId] };
+    return {
+      ok: true,
+      standing: standings[provinceId],
+      nextVoteAt: res.next_vote_at ?? null,
+    };
   }
 
   async claimFootballSeat(provinceId: string, clubId: string, amount?: number): Promise<FootballCheckoutResult> {

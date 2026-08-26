@@ -29,6 +29,7 @@ export function useFootballMapGame() {
   const [standings, setStandings] = useState<Record<string, ProvinceStanding>>({});
   const [seats, setSeats] = useState<FootballSeat[]>([]);
   const [mySeats, setMySeats] = useState<FootballSeat[]>([]);
+  const [nextVoteAt, setNextVoteAt] = useState<string | null>(null);
   const [clubs, setClubs] = useState<FootballTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +79,8 @@ export function useFootballMapGame() {
     async (provinceId: string, teamId: string): Promise<{ ok: boolean; message?: string }> => {
       const result = await backend.castFootballVote(provinceId, teamId);
       if (result.ok) {
+        // Geri sayım anında başlasın: sunucu bir sonraki oy anını döndürüyor.
+        if (result.nextVoteAt !== undefined) setNextVoteAt(result.nextVoteAt);
         if (result.standing) {
           setStandings((prev) => ({ ...prev, [provinceId]: result.standing! }));
         } else {
@@ -168,6 +171,7 @@ export function useFootballMapGame() {
     standings,
     seats,
     mySeats,
+    nextVoteAt,
     vote,
     claimSeat,
     dailyVotes,
