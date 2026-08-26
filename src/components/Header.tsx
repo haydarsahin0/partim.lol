@@ -65,8 +65,10 @@ export function Header() {
             ))}
           </nav>
 
-          {/* Geniş ekranda dağılım başlıkla aynı satırda, ortada. */}
-          <NationalBar showTotal={false} className="mx-2 hidden min-w-0 flex-1 lg:block" />
+          {/* Çok geniş ekranda dağılım başlıkla aynı satırda, ortada (toplam gizli).
+              Tablet ve mobilde başlıkların ALTINDA kendi satırında, toplam oyla
+              birlikte görünür (aşağıdaki blok). */}
+          <NationalBar showTotal={false} className="mx-2 hidden min-w-0 flex-1 xl:block" />
 
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
             {profile && (
@@ -107,8 +109,9 @@ export function Header() {
           </div>
         </div>
 
-        {/* Dar ekranda dağılım kendi satırında; şerit tam genişliği kullanır. */}
-        <NationalBar className="mt-2.5 border-t border-white/[0.06] pt-2.5 lg:hidden" />
+        {/* Tablet ve mobilde dağılım kendi satırında; şerit tam genişliği kullanır,
+            toplam oy da burada görünür. Yalnızca çok geniş ekranda üst satıra taşınır. */}
+        <NationalBar className="mt-2.5 border-t border-white/[0.06] pt-2.5 xl:hidden" />
 
         {isDemo && (
           <div className="mt-2 rounded-lg border border-amber-400/15 bg-amber-400/[0.07] px-3 py-1 text-center text-[11px] font-medium text-amber-200/90">

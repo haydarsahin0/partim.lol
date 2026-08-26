@@ -94,8 +94,8 @@ export default function FootballMapPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-3 p-3 sm:p-4">
-      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <section className="space-y-3">
+      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_minmax(0,1fr)]">
+        <section className="order-1 flex flex-col gap-3 lg:order-none lg:col-start-1 lg:row-start-1 lg:row-span-2">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
             <h1 className="font-display text-xl font-bold tracking-[-0.02em]">Futbol Haritası</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -118,7 +118,7 @@ export default function FootballMapPage() {
           </div>
         </section>
 
-        <aside className="space-y-4">
+        <aside className="order-2 space-y-4 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2">
           <Card className="space-y-3 p-5">
             <h2 className="flex items-center gap-2 font-display text-base font-bold tracking-[-0.02em]">
               <Trophy className="size-4" />
