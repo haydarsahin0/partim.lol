@@ -116,6 +116,34 @@ const OTHER_TEAMS: Record<string, { name: string; shortName: string; fullName: s
   canakkale: { name: "Çanakkale Dardanelspor", shortName: "ÇD", fullName: "Çanakkale Dardanelspor", color: "#00457C", founded: 1927 },
 };
 
+/**
+ * Aynı ilde birden çok takım olan illerin EK takımları.
+ *
+ * OTHER_TEAMS il başına tek takım üretir; bu liste o kuralı deler. Diyarbakır'da
+ * Diyarbakırspor'un yanına Amedspor eklenir. id'ler benzersiz, `major` değil.
+ */
+const EXTRA_TEAMS: Array<{
+  id: string;
+  provinceId: string;
+  name: string;
+  shortName: string;
+  fullName: string;
+  color: string;
+  founded?: number;
+  blurb?: string;
+}> = [
+  {
+    id: "ft-diyarbakir-amedspor",
+    provinceId: "diyarbakir",
+    name: "Amedspor",
+    shortName: "AMED",
+    fullName: "Amedspor",
+    color: "#FFB300",
+    founded: 1990,
+    blurb: "Diyarbakır'ı temsil eder.",
+  },
+];
+
 function provinceName(id: string): string {
   return PROVINCES.find((p) => p.id === id)?.name ?? id;
 }
@@ -156,6 +184,23 @@ export function buildFootballTeams(): FootballTeam[] {
       cityName: province.name,
       founded: other?.founded,
       blurb: `${province.name} ilini temsil eden takım.`,
+    });
+  }
+
+  // Aynı ilde birden çok takım: EXTRA_TEAMS (ör. Diyarbakır'da Amedspor).
+  for (const t of EXTRA_TEAMS) {
+    listed.push({
+      id: t.id,
+      name: t.name,
+      shortName: t.shortName,
+      fullName: t.fullName,
+      color: t.color,
+      on: tone(t.color),
+      provinceId: t.provinceId,
+      cityId: t.provinceId,
+      cityName: provinceName(t.provinceId),
+      founded: t.founded,
+      blurb: t.blurb,
     });
   }
 
