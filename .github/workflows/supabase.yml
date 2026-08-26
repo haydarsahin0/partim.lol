@@ -27,6 +27,9 @@ name: Supabase'e uygula
 #   oy-temizle   bir hesabın oylarını siler ve sayaçları onarır. VARSAYILAN
 #                KURU ÇALIŞMA: yalnızca ne silineceğini gösterir. Gerçekten
 #                silmek için "uygula" kutusunu işaretleyin. GERİ ALINAMAZ.
+#   bot-temizle  ritim kuralına uyan TÜM bot hesaplarını temizler (bkz.
+#                scripts/bot-temizle.sh). VARSAYILAN KURU ÇALIŞMA; silmek
+#                için "uygula" kutusunu işaretleyin. GERİ ALINAMAZ.
 #   buyume-kontrol  "oyuncu sayısı neden artmıyor?" sorusunu ölçer. SALT OKUNUR.
 
 on:
@@ -45,6 +48,7 @@ on:
           - durum
           - oyuncu-incele
           - oy-temizle
+          - bot-temizle
           - buyume-kontrol
       kullanici:
         description: "oyuncu-incele için kullanıcı adı (ör. oyuncu32661)"
@@ -130,6 +134,16 @@ jobs:
             | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Bot oylarını toplu temizle
+        if: ${{ inputs.hedef == 'bot-temizle' }}
+        # Kuru çalışma varsayılan. Silme yalnızca "uygula" işaretliyken.
+        run: |
+          bayrak=""
+          if [ "${{ inputs.uygula }}" = "true" ]; then bayrak="--uygula"; fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          scripts/bot-temizle.sh $bayrak | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Büyümeyi kontrol et
         if: ${{ inputs.hedef == 'buyume-kontrol' }}
         run: |
@@ -140,7 +154,7 @@ jobs:
       - name: Auth durumunu oku
         # Önceki adım patlasa da çalışsın: teşhis için asıl değerli çıktı bu.
         # Yalnızca oyuncu incelemesinde atlanıyor; oradaki çıktıyı boğuyor.
-        if: ${{ always() && inputs.hedef != 'oyuncu-incele' && inputs.hedef != 'oy-temizle' && inputs.hedef != 'buyume-kontrol' }}
+        if: ${{ always() && inputs.hedef != 'oyuncu-incele' && inputs.hedef != 'oy-temizle' && inputs.hedef != 'bot-temizle' && inputs.hedef != 'buyume-kontrol' }}
         run: |
           scripts/supabase-auth.sh oku > auth.json
           python3 scripts/auth-status.py auth.json | tee -a "$GITHUB_STEP_SUMMARY"
