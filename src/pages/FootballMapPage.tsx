@@ -63,7 +63,11 @@ export default function FootballMapPage() {
 
   const claimFootballSeat = async (provinceId: string, teamId: string) => {
     const result = await claimSeat(provinceId, teamId);
-    if (result.kind === "redirect") return true; // Stripe'a gidiyor
+    if (result.kind === "redirect") {
+      // Stripe Checkout'a git; dönüşte harita tazelenir.
+      window.location.assign(result.url);
+      return true;
+    }
     if (result.kind === "done") {
       toast.success(`Kulüp başkanlığı senin!`);
       return true;

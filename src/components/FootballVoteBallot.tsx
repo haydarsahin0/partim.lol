@@ -46,7 +46,6 @@ export function FootballVoteBallot({
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
-  const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
 
   const cooldown = useCountdown(nextVoteAt);
@@ -103,26 +102,15 @@ export function FootballVoteBallot({
         <span className="text-xs text-muted-foreground">1 dakikada 1 oy</span>
       </div>
 
-      <form
-        className="flex items-center gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setQuery(draft);
-        }}
-      >
-        <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Takım ara (şehir veya takım adı)"
-            className="pl-9"
-          />
-        </div>
-        <Button type="submit" variant="secondary">
-          Ara
-        </Button>
-      </form>
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Takım ara — yazdıkça listelenir (şehir veya takım adı)"
+          className="pl-9"
+        />
+      </div>
 
       <div className="thin-scroll grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
         {filteredTeams.map((team) => {
