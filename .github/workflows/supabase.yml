@@ -43,6 +43,12 @@ name: Supabase'e uygula
 #     Örn. bot savunması göçü 20260826120000.
 
 on:
+  # Push ile gelen migration'lar otomatik uygulanır (idempotent: uygulanmış
+  # olan atlanır). Böylece API token'ı olmadan da şema güncel kalır.
+  push:
+    branches:
+      - claude/partim-lol-game-dev-j6jwzx
+      - main
   workflow_dispatch:
     inputs:
       hedef:
@@ -100,10 +106,11 @@ jobs:
           eksik=""
           [ -z "$PROJECT_REF" ] && eksik="$eksik SUPABASE_PROJECT_REF(variable)"
           [ -z "$SUPABASE_ACCESS_TOKEN" ] && eksik="$eksik SUPABASE_ACCESS_TOKEN(secret)"
-          # Veritabanı parolası: şema uygulayan hedefler + gocu-uygula tetiklemesi.
+          # Veritabanı parolası: şema uygulayan hedefler + gocu-uygula tetiklemesi + push.
           gocu="${{ (github.event_name == 'repository_dispatch' && (github.event.action == 'gocu-uygula' || github.event.action == 'gocu-uygula-2')) }}"
-          case "${{ inputs.hedef }}-${gocu}" in
-            hepsi-*|veritabani-*|-true)
+          push_var="${{ github.event_name == 'push' }}"
+          case "${{ inputs.hedef }}-${gocu}-${push_var}" in
+            hepsi-*|veritabani-*|-true-*|*--true)
               [ -z "$SUPABASE_DB_PASSWORD" ] && eksik="$eksik SUPABASE_DB_PASSWORD(secret)"
               ;;
           esac
@@ -213,6 +220,20 @@ jobs:
             echo
             echo '```'
             scripts/supabase-query.sh "select version from supabase_migrations.schema_migrations order by version desc limit 5"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Şemayı uygula (push ile otomatik)
+        if: ${{ github.event_name == 'push' }}
+        # Her push'ta bekleyen migration'lar uygulanır; uygulanmış olan atlanır.
+        run: |
+          supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --password "$SUPABASE_DB_PASSWORD"
+          {
+            echo "### Şema otomatik uygulandı (push)"
+            echo
+            echo '```'
+            scripts/supabase-query.sh "select version from supabase_migrations.schema_migrations order by version desc limit 3"
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
