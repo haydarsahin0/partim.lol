@@ -38,10 +38,11 @@
 --      geçti (ensureSession oturumsuz ziyaretçiye hesap açmıyor); ama anonim
 --      kayıt proje düzeyinde hâlâ açıktı ve çiftlik auth API'sine doğrudan
 --      istek atarak günde onlarca anonim kullanıcı + profil yaratıyordu
---      (handle_new_user tetikleyicisi her yeni kullanıcıya otomatik profil
---      açıyor). Artık anonim kullanıcıya profil açılmıyor ve ensure_profile
---      yeni anonim profil reddediyor. Eski anonim hesaplar çalışmaya devam
---      eder (kimse hesabından edilmiyor) ama yenisi açılamaz.
+--      (ensure_profile eski sürümü anonim oturuma da profil veriyordu).
+--      Artık ensure_profile GERÇEKTEN yeni anonim profil reddediyor (bkz.
+--      2b — tetikleyici bilerek geri bağlanmıyor: cihaz benimsemeyi bozardı).
+--      Eski anonim hesaplar çalışmaya devam eder (kimse hesabından edilmiyor)
+--      ama yenisi açılamaz.
 --   4. GÖRÜNÜRLÜK + GİZLİLİK. suspected_vote_bots görünümü ritmi bozuk
 --      hesapları elle temizlik için listeler (yalnızca service_role okur).
 --      Ayrıca herkesin oy tablosunu ve cihaz imzalarını okuması kapatılıyor:
@@ -303,74 +304,20 @@ grant execute on function public.cast_vote(text, text) to authenticated;
 -- ---------------------------------------------------------------------------
 
 /*
- * Kapı 1 — auth tetikleyicisi: yeni anonim kullanıcıya artık profil açılmıyor.
+ * NEDEN YALNIZCA ensure_profile YETERLİ.
  *
- * Çiftlik auth API'sine doğrudan `POST /auth/v1/signup` atıyor; her yeni anonim
- * kullanıcı bu tetikleyiciyle otomatik profil sahibi oluyordu. Anonim kaydı
- * atla — Google/X ile gelen kullanıcılar eskisi gibi profil sahibi olur.
- */
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if coalesce(new.is_anonymous, false) then
-    return new;
-  end if;
-
-  insert into public.profiles (auth_user_id, handle, display_name, avatar_url)
-  values (
-    new.id,
-    coalesce(
-      new.raw_user_meta_data ->> 'user_name',
-      new.raw_user_meta_data ->> 'preferred_username',
-      new.raw_user_meta_data ->> 'screen_name',
-      left(new.id::text, 8)
-    ),
-    coalesce(
-      new.raw_user_meta_data ->> 'full_name',
-      new.raw_user_meta_data ->> 'name',
-      new.raw_user_meta_data ->> 'user_name',
-      ''
-    ),
-    new.raw_user_meta_data ->> 'avatar_url'
-  )
-  on conflict (auth_user_id) do update
-    set handle       = excluded.handle,
-        display_name = excluded.display_name,
-        avatar_url   = excluded.avatar_url;
-  return new;
-end;
-$$;
-
-/*
- * Tetikleyiciyi geri bağla.
+ * Çiftlik auth API'sine doğrudan `POST /auth/v1/signup` atıyor; her yeni
+ * anonim kullanıcı profilsiz kalıyor (20260823170000 tetikleyiciyi kaldırdı,
+ * canlı veritabanında on_auth_user_created yok). Profilleri asıl olarak
+ * ensure_profile açıyordu — eski sürümü anonim oturuma da profil veriyordu
+ * (4. adımda sağlayıcı kontrolü yoktu). Çiftliğin kapısı buydu; aşağıdaki
+ * yeni sürüm GERÇEKTEN yeni anonim profil isteğini reddediyor.
  *
- * 20260823170000 göçü bu tetikleyiciyi kaldırmıştı (profil açma ensure_profile'e
- * taşınmıştı). Şimdi anonim kaydı kapatmak için tetikleyiciye YENİDEN ihtiyaç
- * var: çiftlik auth API'sine doğrudan signup atıyor ve ensure_profile'i hiç
- * çağırmadan profil sahibi oluyordu. Tetikleyici yeni anonim kullanıcıya profil
- * açmaz; Google/X ile gelen kullanıcılar eskisi gibi profil sahibi olur.
- *
- * NOT: 20260823170000'den beri profiles.id, auth.users.id DEĞİL — ayrı bir
- * kimlik, bağlantı auth_user_id sütunundan yapılıyor. Bu yüzden tetikleyici
- * id yerine auth_user_id yazar; yoksa hem tetikleyici hem ensure_profile ayrı
- * satır açardı.
- */
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
-
-/*
- * Kapı 2 — ensure_profile: yeni anonim profil isteği reddedilir.
- *
- * Tetikleyici kaldırılırsa (platform müdahalesi) ya da tetikleyiciden önce
- * ulaşan bir yol bulunursa ikinci kapı devrede. Eski anonim hesaplar
- * 'oturum'/'cihaz' yolundan gelmeye devam eder; yalnızca GERÇEKTEN yeni
- * anonim profil reddedilir.
+ * Tetikleyiciyi geri BAĞLAMIYORUZ: cihaz benimseme akışını bozardı.
+ * Google ile giren eski anonim kullanıcı, tetikleyicinin açtığı taze profil
+ * yüzünden kendi cihaz profilini (oylarıyla birlikte) benimseyemezdi.
+ * Eski anonim hesaplar 'oturum'/'cihaz' yolundan çalışmaya devam eder;
+ * yalnızca GERÇEKTEN yeni anonim profil reddedilir.
  */
 create or replace function public.ensure_profile(p_device_id text, p_device_hash text)
 returns json
