@@ -320,7 +320,7 @@ begin
     return new;
   end if;
 
-  insert into public.profiles (id, handle, display_name, avatar_url)
+  insert into public.profiles (auth_user_id, handle, display_name, avatar_url)
   values (
     new.id,
     coalesce(
@@ -337,13 +337,32 @@ begin
     ),
     new.raw_user_meta_data ->> 'avatar_url'
   )
-  on conflict (id) do update
+  on conflict (auth_user_id) do update
     set handle       = excluded.handle,
         display_name = excluded.display_name,
         avatar_url   = excluded.avatar_url;
   return new;
 end;
 $$;
+
+/*
+ * Tetikleyiciyi geri bağla.
+ *
+ * 20260823170000 göçü bu tetikleyiciyi kaldırmıştı (profil açma ensure_profile'e
+ * taşınmıştı). Şimdi anonim kaydı kapatmak için tetikleyiciye YENİDEN ihtiyaç
+ * var: çiftlik auth API'sine doğrudan signup atıyor ve ensure_profile'i hiç
+ * çağırmadan profil sahibi oluyordu. Tetikleyici yeni anonim kullanıcıya profil
+ * açmaz; Google/X ile gelen kullanıcılar eskisi gibi profil sahibi olur.
+ *
+ * NOT: 20260823170000'den beri profiles.id, auth.users.id DEĞİL — ayrı bir
+ * kimlik, bağlantı auth_user_id sütunundan yapılıyor. Bu yüzden tetikleyici
+ * id yerine auth_user_id yazar; yoksa hem tetikleyici hem ensure_profile ayrı
+ * satır açardı.
+ */
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
 
 /*
  * Kapı 2 — ensure_profile: yeni anonim profil isteği reddedilir.
