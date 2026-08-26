@@ -705,10 +705,6 @@ export class SupabaseBackend implements Backend {
     save(this.state);
   }
 
-  async setMapKind(_kind: "siyasi" | "futbol") {
-    // Gerçek backend'de harita değişimi şu ana kadar veri modelini etkilemiyor.
-  }
-
   async getStats(): Promise<SiteStats> {
     /*
      * ÖNCE ZİYARETÇİ, SONRA PROFİL.

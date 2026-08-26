@@ -78,6 +78,10 @@ export const FOOTBALL_TEAMS: Party[] = FOOTBALL_TEAMS_RAW.map((t) => ({
   custom: false,
 }));
 
+for (const team of FOOTBALL_TEAMS) {
+  PARTY_BY_ID[team.id] = team;
+}
+
 /** Rengin üstünde koyu mu açık mı yazı okunacağını belirler. */
 export function readableTextTone(color: string): "light" | "dark" {
   const lab = toOklab(color);

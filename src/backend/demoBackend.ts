@@ -360,6 +360,34 @@ export class DemoBackend implements Backend {
     };
   }
 
+  private standingForCurrent(provinceId: string): ProvinceStanding {
+    if (this.state.mapKind === "futbol") {
+      const team = FOOTBALL_TEAMS.find((t) => t.provinceId === provinceId);
+      const teamId = team?.id ?? `ft-${provinceId}`;
+      const baseVotes = 100;
+      const mine = this.state.myVotesFoot[provinceId] ?? {};
+      const merged: Record<string, number> = { ...mine };
+      merged[teamId] = (merged[teamId] ?? 0) + baseVotes;
+      const total = Object.values(merged).reduce((a, b) => a + b, 0);
+      const tallies = Object.entries(merged)
+        .filter(([, v]) => v > 0)
+        .map(([partyId, votes]) => ({
+          partyId,
+          votes,
+          pct: total > 0 ? (votes / total) * 100 : 0,
+        }))
+        .sort((a, b) => b.votes - a.votes);
+      return {
+        provinceId,
+        totalVotes: total,
+        tallies,
+        leadingPartyId: tallies[0]?.partyId ?? null,
+        margin: tallies.length > 1 ? tallies[0].pct - tallies[1].pct : tallies.length === 1 ? 100 : 0,
+      };
+    }
+    return this.standingFor(provinceId);
+  }
+
   async getStandings(): Promise<Record<string, ProvinceStanding>> {
     const out: Record<string, ProvinceStanding> = {};
     if (this.state.mapKind === "futbol") {
@@ -664,7 +692,8 @@ export class DemoBackend implements Backend {
   async castVote(provinceId: string, partyId: string): Promise<VoteResult> {
     if (!this.state.user) return { ok: false, message: "Önce giriş yapmalısın." };
     if (!PROVINCE_BY_ID[provinceId]) return { ok: false, message: "Böyle bir il yok." };
-    if (!PARTY_IDS.includes(partyId)) return { ok: false, message: "Böyle bir parti yok." };
+    const allowedIds = this.state.mapKind === "futbol" ? FOOTBALL_TEAMS.map((t) => t.id) : PARTY_IDS;
+    if (!allowedIds.includes(partyId)) return { ok: false, message: "Böyle bir parti yok." };
 
     const now = Date.now();
     const kimlik = {
@@ -723,7 +752,7 @@ export class DemoBackend implements Backend {
     return {
       ok: true,
       profile: (await this.getProfile()) ?? undefined,
-      standing: this.standingFor(provinceId),
+      standing: this.standingForCurrent(provinceId),
     };
   }
 
@@ -815,7 +844,7 @@ export class DemoBackend implements Backend {
       ok: true,
       votes: RALLY_VOTES,
       nextRallyAt: new Date(now + RALLY_COOLDOWN_MS).toISOString(),
-      standing: this.standingFor(provinceId),
+      standing: this.standingForCurrent(provinceId),
     };
   }
 

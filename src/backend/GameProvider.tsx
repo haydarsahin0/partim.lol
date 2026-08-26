@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import { PARTIES, partyName, setCustomParties, type Party } from "@/data/parties";
+import { PARTIES, partyName, setCustomParties, FOOTBALL_TEAMS, type Party } from "@/data/parties";
 import { FAST_VOTE_COOLDOWN_LABEL, RALLY_VOTES } from "@/lib/game";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { getDeviceIdentity } from "@/lib/device";
@@ -122,13 +122,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
   /** Özel partileri canlı dizine yazar ve yeniden çizimi tetikler. */
   const refreshParties = useCallback(async () => {
     try {
+      if (mapKind === "futbol") {
+        if (mounted.current) setParties([...FOOTBALL_TEAMS]);
+        return;
+      }
       const custom = await backend.getCustomParties();
       setCustomParties(custom);
       if (mounted.current) setParties([...PARTIES]);
     } catch {
       /* özel partiler alınamazsa sabit liste yeterli */
     }
-  }, [backend]);
+  }, [backend, mapKind]);
 
   const refreshStats = useCallback(async () => {
     try {
@@ -445,13 +449,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     (kind: "siyasi" | "futbol") => {
       setMapKind(kind);
       if (kind === "futbol") {
-        setCustomParties(FOOTBALL_TEAMS);
+        setParties([...FOOTBALL_TEAMS]);
       } else {
-        setCustomParties([]);
+        void refreshParties();
       }
       (backend as unknown as { setMapKind?: (k: string) => void })?.setMapKind?.(kind);
       void refresh();
-      void refreshParties();
     },
     [backend, refresh, refreshParties],
   );
