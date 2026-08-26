@@ -623,7 +623,7 @@ export function drawFrame(
     const sutunAra = Math.round(width * 0.03);
     const haritaW = Math.round(alan.w * 0.6) - sutunAra;
 
-    haritaCiz(ctx, frame, { x: alan.x, y: icerikY, w: haritaW, h: icerikH }, odakProvinceId);
+    haritaCiz(ctx, frame, { x: alan.x, y: icerikY, w: haritaW, h: icerikH }, odakProvinceId, kaynak);
 
     const tabloX = alan.x + haritaW + sutunAra;
     const tabloW = alan.x + alan.w - tabloX;

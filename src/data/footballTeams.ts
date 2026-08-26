@@ -77,7 +77,9 @@ const MAJOR_TEAMS: Array<{
     name: "Beşiktaş",
     shortName: "BJK",
     fullName: "Beşiktaş Jimnastik Kulübü",
-    color: "#0B0B0B",
+    // Siyah koyu arka planda kayboluyordu; haritada görünür kalmak için
+    // beyaz kullanılıyor (rozet metni koyu okunur).
+    color: "#F5F5F5",
     founded: 1903,
     blurb: "İstanbul'un Boğaz kıyısını temsil eder.",
   },
