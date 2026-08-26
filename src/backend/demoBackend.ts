@@ -5,7 +5,7 @@
  * Kurallar gerçek arka uçla birebir aynıdır (saatlik oy, XP, koltuk fiyatı),
  * ama veriler yalnızca bu tarayıcıda durur ve gerçek ödeme alınmaz.
  */
-import { PARTIES, PARTY_IDS, setCustomParties, takenColors, FOOTBALL_TEAM_BY_PROVINCE } from "@/data/parties";
+import { PARTIES, PARTY_IDS, setCustomParties, takenColors, FOOTBALL_TEAMS, FOOTBALL_TEAM_BY_PROVINCE } from "@/data/parties";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { fallbackAvatar, hashString } from "@/lib/avatar";
 import {
