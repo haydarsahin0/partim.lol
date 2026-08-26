@@ -72,14 +72,30 @@ export const PARTY_BY_ID: Record<string, Party> = Object.fromEntries(
 );
 export const PARTY_IDS: string[] = BASE_PARTIES.map((p) => p.id);
 
-/** Futbol haritasında kullanılan takım listesi. Party yapısıyla aynıdır. */
-export const FOOTBALL_TEAMS: Party[] = FOOTBALL_TEAMS_RAW.map((t) => ({
-  ...t,
-  custom: false,
-}));
+/** Futbol haritasında kullanılan takım listesi. Party yapısıyla aynıdır.
+ *  Kaynak dosya (src/data/footballTeams.ts) siyasi partilerden farklı bir
+ *  şekle sahip; burada eksik alanlar doldurulur ve her takımın il bilgisi
+ *  (provinceId) saklanır.
+ */
+export const FOOTBALL_TEAMS: Array<Party & { provinceId: string }> = FOOTBALL_TEAMS_RAW.map((team) => {
+  const color = team.color;
+  return {
+    id: team.id,
+    name: team.name,
+    shortName: team.shortName ?? team.id.slice(0, 3).toLocaleUpperCase("tr"),
+    fullName: team.fullName ?? team.name,
+    color,
+    on: readableTextTone(color),
+    custom: false,
+    provinceId: team.cityId,
+  };
+});
 
+/** İl kodundan takım nesnesine hızlı erişim */
+export const FOOTBALL_TEAM_BY_PROVINCE: Record<string, Party & { provinceId: string }> = {};
 for (const team of FOOTBALL_TEAMS) {
   PARTY_BY_ID[team.id] = team;
+  FOOTBALL_TEAM_BY_PROVINCE[team.provinceId] = team;
 }
 
 /** Rengin üstünde koyu mu açık mı yazı okunacağını belirler. */

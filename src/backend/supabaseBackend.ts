@@ -700,9 +700,10 @@ export class SupabaseBackend implements Backend {
     };
   }
 
-  async setMapKind(kind: "siyasi" | "futbol") {
-    this.state.mapKind = kind;
-    save(this.state);
+  async setMapKind(_kind: "siyasi" | "futbol") {
+    // Harita değişimi Supabase sunucusunda veri modelini etkilemiyor; bu metod
+    // istemci tarafında seçimi uyguluyor (getStandings zaten mapKind'e göre
+    // çalışır). Burada sunucuya ekstra bir çağrı yapmıyoruz.
   }
 
   async getStats(): Promise<SiteStats> {
