@@ -1,4 +1,5 @@
 import { toOklab } from "@/lib/color";
+import { FOOTBALL_TEAMS as FOOTBALL_TEAMS_RAW } from "./footballTeams";
 
 /**
  * Partiler.
@@ -70,6 +71,12 @@ export const PARTY_BY_ID: Record<string, Party> = Object.fromEntries(
   BASE_PARTIES.map((p) => [p.id, p]),
 );
 export const PARTY_IDS: string[] = BASE_PARTIES.map((p) => p.id);
+
+/** Futbol haritasında kullanılan takım listesi. Party yapısıyla aynıdır. */
+export const FOOTBALL_TEAMS: Party[] = FOOTBALL_TEAMS_RAW.map((t) => ({
+  ...t,
+  custom: false,
+}));
 
 /** Rengin üstünde koyu mu açık mı yazı okunacağını belirler. */
 export function readableTextTone(color: string): "light" | "dark" {

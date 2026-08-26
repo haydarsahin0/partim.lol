@@ -700,6 +700,15 @@ export class SupabaseBackend implements Backend {
     };
   }
 
+  async setMapKind(kind: "siyasi" | "futbol") {
+    this.state.mapKind = kind;
+    save(this.state);
+  }
+
+  async setMapKind(_kind: "siyasi" | "futbol") {
+    // Gerçek backend'de harita değişimi şu ana kadar veri modelini etkilemiyor.
+  }
+
   async getStats(): Promise<SiteStats> {
     /*
      * ÖNCE ZİYARETÇİ, SONRA PROFİL.

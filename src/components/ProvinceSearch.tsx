@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { PROVINCES } from "@/data/provinces";
 import { useGame } from "@/backend/GameProvider";
-import { partyColor, partyName } from "@/data/parties";
+import { partyColor, partyName, FOOTBALL_TEAMS } from "@/data/parties";
 import { Input } from "@/components/ui/input";
 
 const normalize = (s: string) =>
@@ -23,13 +23,20 @@ export function ProvinceSearch({ onPick }: { onPick: (provinceId: string) => voi
   const [open, setOpen] = useState(false);
   const blurTimer = useRef<number | null>(null);
 
+  const { mapKind } = useGame();
   const results = useMemo(() => {
     const q = normalize(query.trim());
     if (!q) return [];
-    return PROVINCES.filter(
-      (p) => normalize(p.name).startsWith(q) || String(p.plate) === q || normalize(p.name).includes(q),
-    ).slice(0, 8);
-  }, [query]);
+    return PROVINCES.filter((p) => {
+      const teamName = mapKind === "futbol" ? FOOTBALL_TEAMS.find((t) => t.provinceId === p.id)?.name ?? "" : "";
+      return (
+        normalize(p.name).startsWith(q) ||
+        String(p.plate) === q ||
+        normalize(p.name).includes(q) ||
+        (mapKind === "futbol" && normalize(teamName).includes(q))
+      );
+    }).slice(0, 8);
+  }, [query, mapKind]);
 
   const pick = (id: string) => {
     onPick(id);

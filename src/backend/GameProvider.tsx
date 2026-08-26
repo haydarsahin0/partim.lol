@@ -30,6 +30,8 @@ import type {
 type GameContextValue = {
   backend: Backend;
   isDemo: boolean;
+  mapKind: "siyasi" | "futbol";
+  switchMap: (kind: "siyasi" | "futbol") => void;
   user: AuthUser | null;
   profile: Profile | null;
   standings: Record<string, ProvinceStanding>;
@@ -89,6 +91,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [standings, setStandings] = useState<Record<string, ProvinceStanding>>({});
   const [parties, setParties] = useState<Party[]>(PARTIES);
+  const [mapKind, setMapKind] = useState<"siyasi" | "futbol">("siyasi");
   const [stats, setStats] = useState<SiteStats>({ online: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
@@ -437,9 +440,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return { national: list, totalVotes: total };
   }, [standings]);
 
+  /* Harita değiştirme */
+  const switchMap = useCallback(
+    (kind: "siyasi" | "futbol") => {
+      setMapKind(kind);
+      if (kind === "futbol") {
+        setCustomParties(FOOTBALL_TEAMS);
+      } else {
+        setCustomParties([]);
+      }
+      (backend as unknown as { setMapKind?: (k: string) => void })?.setMapKind?.(kind);
+      void refresh();
+      void refreshParties();
+    },
+    [backend, refresh, refreshParties],
+  );
+
   const value: GameContextValue = {
     backend,
     isDemo,
+    mapKind,
+    switchMap,
     user,
     profile,
     standings,

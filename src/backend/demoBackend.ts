@@ -5,7 +5,7 @@
  * Kurallar gerçek arka uçla birebir aynıdır (saatlik oy, XP, koltuk fiyatı),
  * ama veriler yalnızca bu tarayıcıda durur ve gerçek ödeme alınmaz.
  */
-import { PARTIES, PARTY_IDS, setCustomParties, takenColors } from "@/data/parties";
+import { PARTIES, PARTY_IDS, setCustomParties, takenColors, FOOTBALL_TEAMS } from "@/data/parties";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { fallbackAvatar, hashString } from "@/lib/avatar";
 import {
@@ -77,6 +77,7 @@ type OwnedSeat = {
 
 type DemoState = {
   v: 1;
+  mapKind: "siyasi" | "futbol";
   user: AuthUser | null;
   xp: number;
   voteCount: number;
@@ -84,8 +85,12 @@ type DemoState = {
   createdAt: string;
   /** provinceId -> partyId -> kullanıcının eklediği oy */
   myVotes: Record<string, Record<string, number>>;
+  /** provinceId -> partyId -> kullanıcının eklediği oy (futbol haritası) */
+  myVotesFoot: Record<string, Record<string, number>>;
   /** provinceId -> partyId -> kullanıcının aldığı koltuk */
   mySeats: Record<string, Record<string, OwnedSeat>>;
+  /** provinceId -> partyId -> kullanıcının aldığı koltuk (futbol haritası) */
+  mySeatsFoot: Record<string, Record<string, OwnedSeat>>;
   /** provinceId -> partyId -> tohumdan devralınıp boşaltılan koltuklar */
   releasedSeats: Record<string, string[]>;
   /** Kullanıcının kurduğu partiler */
@@ -116,13 +121,16 @@ type DemoState = {
 function emptyState(): DemoState {
   return {
     v: 1,
+    mapKind: "siyasi",
     user: null,
     xp: 0,
     voteCount: 0,
     nextVoteAt: null,
     createdAt: new Date().toISOString(),
     myVotes: {},
+    myVotesFoot: {},
     mySeats: {},
+    mySeatsFoot: {},
     releasedSeats: {},
     customParties: [],
     recoveryCode: null,
@@ -354,6 +362,33 @@ export class DemoBackend implements Backend {
 
   async getStandings(): Promise<Record<string, ProvinceStanding>> {
     const out: Record<string, ProvinceStanding> = {};
+    if (this.state.mapKind === "futbol") {
+      for (const province of PROVINCES) {
+        const team = FOOTBALL_TEAMS.find((t) => t.provinceId === province.id);
+        const teamId = team?.id ?? `ft-${province.id}`;
+        const baseVotes = 100;
+        const mine = this.state.myVotesFoot[province.id] ?? {};
+        const merged: Record<string, number> = { ...mine };
+        merged[teamId] = (merged[teamId] ?? 0) + baseVotes;
+        const total = Object.values(merged).reduce((a, b) => a + b, 0);
+        const tallies = Object.entries(merged)
+          .filter(([, v]) => v > 0)
+          .map(([partyId, votes]) => ({
+            partyId,
+            votes,
+            pct: total > 0 ? (votes / total) * 100 : 0,
+          }))
+          .sort((a, b) => b.votes - a.votes);
+        out[province.id] = {
+          provinceId: province.id,
+          totalVotes: total,
+          tallies,
+          leadingPartyId: tallies[0]?.partyId ?? null,
+          margin: tallies.length > 1 ? tallies[0].pct - tallies[1].pct : tallies.length === 1 ? 100 : 0,
+        };
+      }
+      return out;
+    }
     for (const p of PROVINCES) out[p.id] = this.standingFor(p.id);
     return out;
   }
@@ -485,8 +520,36 @@ export class DemoBackend implements Backend {
   }
 
   async getProvinceDetail(provinceId: string): Promise<ProvinceDetail> {
-    const standing = this.standingFor(provinceId);
-    const seats = PARTY_IDS.map((partyId) => this.seatFor(provinceId, partyId));
+    let standing: ProvinceStanding;
+    let seats: LeaderSeat[];
+    if (this.state.mapKind === "futbol") {
+      const team = FOOTBALL_TEAMS.find((t) => t.provinceId === provinceId);
+      const teamId = team?.id ?? `ft-${provinceId}`;
+      const baseVotes = 100;
+      const mine = this.state.myVotesFoot[provinceId] ?? {};
+      const merged: Record<string, number> = { ...mine };
+      merged[teamId] = (merged[teamId] ?? 0) + baseVotes;
+      const total = Object.values(merged).reduce((a, b) => a + b, 0);
+      const tallies = Object.entries(merged)
+        .filter(([, v]) => v > 0)
+        .map(([partyId, votes]) => ({
+          partyId,
+          votes,
+          pct: total > 0 ? (votes / total) * 100 : 0,
+        }))
+        .sort((a, b) => b.votes - a.votes);
+      standing = {
+        provinceId,
+        totalVotes: total,
+        tallies,
+        leadingPartyId: tallies[0]?.partyId ?? null,
+        margin: tallies.length > 1 ? tallies[0].pct - tallies[1].pct : tallies.length === 1 ? 100 : 0,
+      };
+      seats = [];
+    } else {
+      standing = this.standingFor(provinceId);
+      seats = PARTY_IDS.map((partyId) => this.seatFor(provinceId, partyId));
+    }
     const recentVotes = this.state.recent
       .filter((r) => r.provinceId === provinceId)
       .slice(0, 12)
@@ -638,8 +701,13 @@ export class DemoBackend implements Backend {
       }
     }
 
-    const provinceVotes = (this.state.myVotes[provinceId] ??= {});
-    provinceVotes[partyId] = (provinceVotes[partyId] ?? 0) + 1;
+    if (this.state.mapKind === "futbol") {
+      const provinceVotes = (this.state.myVotesFoot[provinceId] ??= {});
+      provinceVotes[partyId] = (provinceVotes[partyId] ?? 0) + 1;
+    } else {
+      const provinceVotes = (this.state.myVotes[provinceId] ??= {});
+      provinceVotes[partyId] = (provinceVotes[partyId] ?? 0) + 1;
+    }
     this.state.voteCount += 1;
     this.state.xp += XP_PER_VOTE;
     this.state.nextVoteAt = unlimited ? null : new Date(now + bekleme).toISOString();
