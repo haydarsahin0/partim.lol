@@ -5,7 +5,7 @@
  * Kurallar gerçek arka uçla birebir aynıdır (saatlik oy, XP, koltuk fiyatı),
  * ama veriler yalnızca bu tarayıcıda durur ve gerçek ödeme alınmaz.
  */
-import { PARTIES, PARTY_IDS, setCustomParties, takenColors, FOOTBALL_TEAMS } from "@/data/parties";
+import { PARTIES, PARTY_IDS, setCustomParties, takenColors, FOOTBALL_TEAM_BY_PROVINCE } from "@/data/parties";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { fallbackAvatar, hashString } from "@/lib/avatar";
 import {
@@ -362,7 +362,7 @@ export class DemoBackend implements Backend {
 
   private standingForCurrent(provinceId: string): ProvinceStanding {
     if (this.state.mapKind === "futbol") {
-      const team = FOOTBALL_TEAMS.find((t) => t.provinceId === provinceId);
+      const team = FOOTBALL_TEAM_BY_PROVINCE[provinceId];
       const teamId = team?.id ?? `ft-${provinceId}`;
       const baseVotes = 100;
       const mine = this.state.myVotesFoot[provinceId] ?? {};
@@ -392,7 +392,7 @@ export class DemoBackend implements Backend {
     const out: Record<string, ProvinceStanding> = {};
     if (this.state.mapKind === "futbol") {
       for (const province of PROVINCES) {
-        const team = FOOTBALL_TEAMS.find((t) => t.provinceId === province.id);
+        const team = FOOTBALL_TEAM_BY_PROVINCE[province.id];
         const teamId = team?.id ?? `ft-${province.id}`;
         const baseVotes = 100;
         const mine = this.state.myVotesFoot[province.id] ?? {};
@@ -551,7 +551,7 @@ export class DemoBackend implements Backend {
     let standing: ProvinceStanding;
     let seats: LeaderSeat[];
     if (this.state.mapKind === "futbol") {
-      const team = FOOTBALL_TEAMS.find((t) => t.provinceId === provinceId);
+      const team = FOOTBALL_TEAM_BY_PROVINCE[provinceId];
       const teamId = team?.id ?? `ft-${provinceId}`;
       const baseVotes = 100;
       const mine = this.state.myVotesFoot[provinceId] ?? {};

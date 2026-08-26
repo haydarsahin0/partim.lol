@@ -1,5 +1,5 @@
 import { toOklab } from "@/lib/color";
-import { FOOTBALL_TEAMS as FOOTBALL_TEAMS_RAW } from "./footballTeams";
+import { PROVINCES } from "@/data/provinces";
 
 /**
  * Partiler.
@@ -72,26 +72,47 @@ export const PARTY_BY_ID: Record<string, Party> = Object.fromEntries(
 );
 export const PARTY_IDS: string[] = BASE_PARTIES.map((p) => p.id);
 
-/** Futbol haritasında kullanılan takım listesi. Party yapısıyla aynıdır.
- *  Kaynak dosya (src/data/footballTeams.ts) siyasi partilerden farklı bir
- *  şekle sahip; burada eksik alanlar doldurulur ve her takımın il bilgisi
- *  (provinceId) saklanır.
- */
-export const FOOTBALL_TEAMS: Array<Party & { provinceId: string }> = FOOTBALL_TEAMS_RAW.map((team) => {
-  const color = team.color;
+/** Futbol haritasında kullanılan takım listesi. Party yapısıyla aynıdır. */
+const MAJOR_TEAMS: Record<string, { name: string; shortName: string; fullName: string; color: string }> = {
+  istanbul: { name: "Galatasaray", shortName: "GS", fullName: "Galatasaray Spor Kulübü", color: "#A32638" },
+  ankara: { name: "Ankaragücü", shortName: "AG", fullName: "MKE Ankaragücü", color: "#FDB913" },
+  izmir: { name: "Göztepe", shortName: "GÖZ", fullName: "Göztepe Spor Kulübü", color: "#C8102E" },
+  bursa: { name: "Bursaspor", shortName: "BUR", fullName: "Bursaspor Kulübü", color: "#008000" },
+  trabzon: { name: "Trabzonspor", shortName: "TS", fullName: "Trabzonspor Kulübü", color: "#81007F" },
+  kocaeli: { name: "Kocaelispor", shortName: "KOC", fullName: "Kocaelispor", color: "#0066B3" },
+  eskisehir: { name: "Eskişehirspor", shortName: "ES", fullName: "Eskişehirspor", color: "#D71920" },
+  samsun: { name: "Samsunspor", shortName: "SAM", fullName: "Samsunspor", color: "#C8102E" },
+  malatya: { name: "Yeni Malatyaspor", shortName: "YMS", fullName: "Yeni Malatyaspor", color: "#FFD100" },
+  diyarbakir: { name: "Diyarbakırspor", shortName: "DİY", fullName: "Diyarbakırspor", color: "#FF0000" },
+  adana: { name: "Adana Demirspor", shortName: "ADS", fullName: "Adana Demirspor", color: "#0066B3" },
+  antalya: { name: "Antalyaspor", shortName: "ANT", fullName: "Antalyaspor", color: "#C8102E" },
+  gaziantep: { name: "Gaziantep FK", shortName: "GAF", fullName: "Gaziantep Futbol Kulübü", color: "#E30A17" },
+  hatay: { name: "Hatayspor", shortName: "HAT", fullName: "Hatayspor", color: "#4B0082" },
+  kayseri: { name: "Kayserispor", shortName: "KAY", fullName: "Kayserispor", color: "#FF0000" },
+  konya: { name: "Konyaspor", shortName: "KON", fullName: "Konyaspor", color: "#006600" },
+  sivas: { name: "Sivasspor", shortName: "SİV", fullName: "Sivasspor", color: "#D71920" },
+  rize: { name: "Çaykur Rizespor", shortName: "ÇRZ", fullName: "Çaykur Rizespor", color: "#005C9A" },
+  canakkale: { name: "Çanakkale Dardanelspor", shortName: "ÇD", fullName: "Çanakkale Dardanelspor", color: "#00457C" },
+};
+
+export const FOOTBALL_TEAMS: Array<Party & { provinceId: string }> = PROVINCES.map((province) => {
+  const maj = MAJOR_TEAMS[province.id];
+  const name = maj?.name ?? `${province.name} FK`;
+  const shortName = maj?.shortName ?? province.name.slice(0, 3).toLocaleUpperCase("tr");
+  const fullName = maj?.fullName ?? `${province.name} Futbol Kulübü`;
+  const color = maj?.color ?? "#3A7D44";
   return {
-    id: team.id,
-    name: team.name,
-    shortName: team.shortName ?? team.id.slice(0, 3).toLocaleUpperCase("tr"),
-    fullName: team.fullName ?? team.name,
+    id: `ft-${province.id}`,
+    name,
+    shortName,
+    fullName,
     color,
     on: readableTextTone(color),
     custom: false,
-    provinceId: team.cityId,
+    provinceId: province.id,
   };
 });
 
-/** İl kodundan takım nesnesine hızlı erişim */
 export const FOOTBALL_TEAM_BY_PROVINCE: Record<string, Party & { provinceId: string }> = {};
 for (const team of FOOTBALL_TEAMS) {
   PARTY_BY_ID[team.id] = team;
