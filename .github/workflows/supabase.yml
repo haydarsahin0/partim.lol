@@ -77,6 +77,7 @@ on:
     types:
       - ayni-saniye-temizle
       - gocu-uygula
+      - fonksiyonlari-yukle
 
 permissions:
   contents: read
@@ -215,7 +216,7 @@ jobs:
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Stripe anahtarlarını Supabase'e aktar
-        if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' }}
+        if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' || (github.event_name == 'repository_dispatch' && github.event.action == 'fonksiyonlari-yukle') }}
         env:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
@@ -237,7 +238,7 @@ jobs:
           echo "REPAIR_KEY aktarıldı."
 
       - name: Edge fonksiyonlarını yükle
-        if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' }}
+        if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' || (github.event_name == 'repository_dispatch' && github.event.action == 'fonksiyonlari-yukle') }}
         # Yükleme sunucu tarafında derlenir; Docker gerekmez.
         run: |
           # Buraya eklenmeyen fonksiyon yüklenmez ve istemci 404 alır —
@@ -257,7 +258,7 @@ jobs:
         # Stripe'ta ödenmiş ama hesaba işlenmemiş abonelikleri uygular.
         # "fonksiyonlar" hedefinde de çalışır: yeni yüklenen webhook'tan önce
         # kaçırılmış ödemeler aynı koşuda kurtulsun.
-        if: ${{ inputs.hedef == 'abonelikleri-onar' || inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' }}
+        if: ${{ inputs.hedef == 'abonelikleri-onar' || inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' || (github.event_name == 'repository_dispatch' && github.event.action == 'fonksiyonlari-yukle') }}
         env:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
