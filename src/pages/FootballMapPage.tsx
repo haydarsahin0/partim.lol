@@ -18,7 +18,7 @@ import { useGame } from "@/backend/GameProvider";
 import { SubscriptionCard } from "@/components/SubscriptionCard";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PARTY_WEEKLY_PRICE, formatPercent, formatUsd } from "@/lib/game";
+import { PARTY_WEEKLY_PRICE, formatUsd } from "@/lib/game";
 import { toast } from "sonner";
 
 export default function FootballMapPage() {
@@ -99,21 +99,18 @@ export default function FootballMapPage() {
     <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-3 p-3 sm:p-4">
       <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_minmax(0,1fr)]">
         <section className="order-1 flex flex-col gap-3 lg:order-none lg:col-start-1 lg:row-start-1 lg:row-span-2">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          {/*
+            Başlık yalnızca geniş ekranda: mobilde ilk görünen şey harita olsun
+            (arama çubuğu küçük, harita hemen altında). Maç gecesi kartı yan
+            panelde — mobilde haritadan sonra gelir.
+          */}
+          <div className="hidden rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 lg:block">
             <h1 className="font-display text-xl font-bold tracking-[-0.02em]">Futbol Haritası</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Ana haritadaki mantığın aynısıyla çalışır; bu kez partiler yerine şehir takımları ve
               kurduğun kulüpler yarışır.
             </p>
           </div>
-
-          {/* Maç gecesi: sayılan oy ve takımların oy oranları — partilerdeki seçim gecesi gibi */}
-          <FootballElectionNight
-            standings={standings}
-            national={national}
-            totalVotes={totalVotes}
-            onSelectProvince={selectAndFocus}
-          />
 
           <FootballProvinceSearch standings={standings} onPick={selectAndFocus} />
 
@@ -132,42 +129,13 @@ export default function FootballMapPage() {
         <aside className="order-2 space-y-4 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2">
 
 
-          {/* Toplam yüzdeler — ülke geneli takım payları */}
-          <Card className="space-y-3 p-5">
-            <h2 className="font-display text-base font-bold tracking-[-0.02em]">Toplam yüzdeler</h2>
-            {national.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Henüz oy yok. Oylar geldikçe takımların ülke geneli payı burada görünür.
-              </p>
-            ) : (
-              <>
-                <div className="flex h-2.5 w-full overflow-hidden rounded-full ring-1 ring-white/10">
-                  {national.slice(0, 10).map((row) => (
-                    <div
-                      key={row.teamId}
-                      style={{ width: `${row.pct}%`, background: teamColor(row.teamId) }}
-                      title={`${teamName(row.teamId)} ${formatPercent(row.pct)}`}
-                    />
-                  ))}
-                </div>
-                <ul className="space-y-2">
-                  {national.slice(0, 8).map((row, index) => (
-                    <li key={row.teamId} className="flex items-center gap-2 text-sm">
-                      <span className="w-3 text-right font-mono text-[11px] text-muted-foreground">
-                        {index + 1}
-                      </span>
-                      <span className="size-2.5 shrink-0 rounded-full" style={{ background: teamColor(row.teamId) }} />
-                      <span className="min-w-0 flex-1 truncate font-medium">{teamName(row.teamId)}</span>
-                      <span className="font-mono text-xs text-muted-foreground">{row.votes.toLocaleString("tr-TR")}</span>
-                      <span className="w-12 text-right font-mono text-xs font-semibold tabular-nums">
-                        {formatPercent(row.pct)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </Card>
+          {/* Maç gecesi: sayılan oy + takım oy oranları (toplam yüzdelerin yerine) */}
+          <FootballElectionNight
+            standings={standings}
+            national={national}
+            totalVotes={totalVotes}
+            onSelectProvince={selectAndFocus}
+          />
 
           <Card className="space-y-3 p-5">
             <h2 className="flex items-center gap-2 font-display text-base font-bold tracking-[-0.02em]">
