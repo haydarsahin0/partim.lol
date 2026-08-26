@@ -5,7 +5,16 @@ import type { VoteHistory, VoteHistoryBucket } from "@/backend/types";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { formatNumber } from "@/lib/game";
 import { buildFrames, lerpFrame, scopeFrame, syntheticHistory, type Frame } from "@/lib/timelapse";
-import { BOYUTLAR, drawFrame, guvenliPay, type Kalite, type Oran } from "@/lib/timelapseRenderer";
+import {
+  BOYUTLAR,
+  FUTBOL_KAYNAK,
+  SIYASI_KAYNAK,
+  drawFrame,
+  guvenliPay,
+  type Kalite,
+  type Oran,
+} from "@/lib/timelapseRenderer";
+import { FOOTBALL_TEAMS } from "@/data/footballTeams";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -198,6 +207,8 @@ export default function TimelapsePage() {
   const { backend, isDemo, totalVotes } = useGame();
 
   const [kaynak, setKaynak] = useState<Kaynak>(isDemo ? "ornek" : "gercek");
+  /** Hangi haritanın tüneli: siyasi partiler ya da futbol takımları. */
+  const [harita, setHarita] = useState<"siyasi" | "futbol">("siyasi");
   const [oran, setOran] = useState<Oran>("16:9");
   const [kalite, setKalite] = useState<Kalite>("hd");
   const [cozunurluk, setCozunurluk] = useState<VoteHistoryBucket>("10min");
@@ -253,16 +264,17 @@ export default function TimelapsePage() {
 
     const yukle = async () => {
       if (kaynak === "ornek") {
-        const gercek = await backend.getVoteHistory(cozunurluk).catch(() => null);
+        const gercek = await backend.getVoteHistory(cozunurluk, harita).catch(() => null);
         // Örnek akış gerçek açılış tablosunun üstüne biniyor: video haritanın
         // gerçek başlangıç hâlinden yola çıksın. Kova aralığı seçilen
         // çözünürlükle aynı olmalı, yoksa tarih etiketi tutmuyor.
+        const oyuncular = harita === "futbol" ? FOOTBALL_TEAMS.map((t) => t.id) : undefined;
         return {
-          ...syntheticHistory({ bucketMs: kova.ms, buckets: 72, votesPerBucket: 90 }),
+          ...syntheticHistory({ bucketMs: kova.ms, buckets: 72, votesPerBucket: 90, entityIds: oyuncular }),
           seed: gercek?.seed ?? {},
         };
       }
-      return backend.getVoteHistory(cozunurluk);
+      return backend.getVoteHistory(cozunurluk, harita);
     };
 
     void yukle()
@@ -279,7 +291,7 @@ export default function TimelapsePage() {
     return () => {
       iptal = true;
     };
-  }, [backend, kaynak, cozunurluk]);
+  }, [backend, kaynak, cozunurluk, harita]);
 
   const frames: Frame[] = useMemo(() => (history ? buildFrames(history) : []), [history]);
 
@@ -346,9 +358,10 @@ export default function TimelapsePage() {
         ornek: kaynak === "ornek",
         odakProvinceId: odakIl || null,
         odakAdi,
+        kaynak: harita === "futbol" ? FUTBOL_KAYNAK : SIYASI_KAYNAK,
       });
     },
-    [oran, kalite, kaynak, odakIl, odakAdi],
+    [oran, kalite, kaynak, harita, odakIl, odakAdi],
   );
 
   // Döngünün okuduğu güncel referanslar (bkz. cizRef tanımı).
@@ -663,7 +676,20 @@ export default function TimelapsePage() {
                 className="w-full accent-primary"
               />
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                <Secim
+                  baslik="Harita"
+                  secenekler={[
+                    { deger: "siyasi", etiket: "Partiler" },
+                    { deger: "futbol", etiket: "Futbol" },
+                  ]}
+                  secili={harita}
+                  onSec={(v) => {
+                    setOynuyor(false);
+                    setHarita(v as "siyasi" | "futbol");
+                  }}
+                  kilitli={kaydediyor}
+                />
                 <Secim
                   baslik="Kaynak"
                   secenekler={[

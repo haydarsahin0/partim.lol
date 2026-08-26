@@ -298,8 +298,9 @@ export interface Backend {
    * Zaman tüneli verisi: açılış tablosu + zamana göre gruplanmış oylar.
    * Geçmiş ayrıca kaydedilmiyor; her oyun zamanı zaten kayıtlı olduğu için
    * haritanın herhangi bir andaki hâli buradan yeniden kuruluyor.
+   * `map: "futbol"` ise futbol oylarından (football_votes) okur.
    */
-  getVoteHistory(bucket?: VoteHistoryBucket): Promise<VoteHistory>;
+  getVoteHistory(bucket?: VoteHistoryBucket, map?: "siyasi" | "futbol"): Promise<VoteHistory>;
   /** Profil alanlarını günceller (kullanıcı adı, görünen ad, X hesabı, avatar) */
   updateProfile(patch: ProfilePatch): Promise<ProfileUpdateResult>;
   /**

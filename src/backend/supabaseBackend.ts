@@ -572,25 +572,40 @@ export class SupabaseBackend implements Backend {
     }));
   }
 
-  async getVoteHistory(bucket: VoteHistoryBucket = "hour"): Promise<VoteHistory> {
+  async getVoteHistory(
+    bucket: VoteHistoryBucket = "hour",
+    map: "siyasi" | "futbol" = "siyasi",
+  ): Promise<VoteHistory> {
     // İkisi de sayfalanarak okunuyor: kırpılan tek satır bile videodaki il
     // oranlarını gerçeğinden kaydırıyor (bkz. tumSatirlar).
-    const [seedRows, historyRows] = await Promise.all([
-      // Sayfalama ancak sıralama kesinse doğru: sıra belirsizse sayfa
-      // sınırındaki satırlar ya iki kez gelir ya hiç gelmez.
-      tumSatirlar<{ province_id: string; party_id: string; votes: number }>((bas, son) =>
-        this.db
-          .from("seed_snapshot")
-          .select("province_id,party_id,votes")
-          .order("province_id")
-          .order("party_id")
-          .range(bas, son),
-      ),
-      tumSatirlar<{ bucket: string; province_id: string; party_id: string; votes: number }>(
-        (bas, son) =>
-          this.db.rpc("vote_history", { p_bucket: bucket, p_since: null }).range(bas, son),
-      ),
-    ]);
+    const futbol = map === "futbol";
+
+    // Futbolun ayrı bir açılış tohumu yok (harita sıfırdan başlıyor), o yüzden
+    // seed boş; siyasette seed_snapshot görünümünden geliyor.
+    const seedPromise = futbol
+      ? Promise.resolve([] as Array<{ province_id: string; party_id: string; votes: number }>)
+      : tumSatirlar<{ province_id: string; party_id: string; votes: number }>((bas, son) =>
+          this.db
+            .from("seed_snapshot")
+            .select("province_id,party_id,votes")
+            .order("province_id")
+            .order("party_id")
+            .range(bas, son),
+        );
+
+    const historyPromise = futbol
+      ? tumSatirlar<{ bucket: string; province_id: string; club_id: string; votes: number }>(
+          (bas, son) =>
+            this.db
+              .rpc("football_vote_history", { p_bucket: bucket, p_since: null })
+              .range(bas, son),
+        )
+      : tumSatirlar<{ bucket: string; province_id: string; party_id: string; votes: number }>(
+          (bas, son) =>
+            this.db.rpc("vote_history", { p_bucket: bucket, p_since: null }).range(bas, son),
+        );
+
+    const [seedRows, historyRows] = await Promise.all([seedPromise, historyPromise]);
 
     const seed: VoteHistory["seed"] = {};
     for (const row of seedRows) {
@@ -601,7 +616,10 @@ export class SupabaseBackend implements Backend {
     for (const row of historyRows) {
       const at = new Date(row.bucket).toISOString();
       const delta = byBucket.get(at) ?? {};
-      (delta[row.province_id] ??= {})[row.party_id] = row.votes;
+      const entityId = futbol
+        ? (row as unknown as { club_id: string }).club_id
+        : (row as { party_id: string }).party_id;
+      (delta[row.province_id] ??= {})[entityId] = row.votes;
       byBucket.set(at, delta);
     }
 

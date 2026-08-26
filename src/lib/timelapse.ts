@@ -255,13 +255,15 @@ export function syntheticHistory(options?: {
   seed?: number;
   /** Kovalar arası süre (ms). Varsayılan bir saat. */
   bucketMs?: number;
+  /** Yarışan kimlikler. Verilmezse siyasi partiler kullanılır. */
+  entityIds?: string[];
 }): VoteHistory {
   const buckets = options?.buckets ?? 72;
   const perBucket = options?.votesPerBucket ?? 90;
   const bucketMs = options?.bucketMs ?? 3600_000;
   const random = rng(options?.seed ?? 20260824);
 
-  const partyIds = PARTIES.map((p) => p.id);
+  const partyIds = options?.entityIds ?? PARTIES.map((p) => p.id);
   /*
    * Her partiye bir "ivme eğrisi".
    *

@@ -13,8 +13,41 @@
  * anlıyor, yani haritanın aynı kaynağı (data/provinces.ts) burada da geçerli.
  */
 import { PARTY_BY_ID, partyColor, partyShortName } from "@/data/parties";
+import {
+  FOOTBALL_TEAM_BY_ID,
+  teamColor,
+  teamShortName,
+} from "@/data/footballTeams";
 import { PROVINCES } from "@/data/provinces";
 import type { Frame } from "@/lib/timelapse";
+
+/**
+ * Harita türüne göre renk/ad kaynağı.
+ *
+ * Zaman tüneli hem siyasi partileri hem futbol takımlarını çizebiliyor; aradaki
+ * tek fark renk ve adın nereden geldiği. Bu nesne o kaynağı taşır.
+ */
+export type HaritaKaynagi = {
+  renk: (id: string | null | undefined) => string;
+  kisaAd: (id: string | null | undefined) => string;
+  tamAd: (id: string | null | undefined) => string;
+  /** Rozet üstündeki yazının tonu ("dark" -> koyu yazı) */
+  yaziTonu: (id: string | null | undefined) => "light" | "dark";
+};
+
+export const SIYASI_KAYNAK: HaritaKaynagi = {
+  renk: partyColor,
+  kisaAd: partyShortName,
+  tamAd: (id) => (id ? PARTY_BY_ID[id]?.name ?? id : "Bilinmiyor"),
+  yaziTonu: (id) => (id ? PARTY_BY_ID[id]?.on ?? "light" : "light"),
+};
+
+export const FUTBOL_KAYNAK: HaritaKaynagi = {
+  renk: teamColor,
+  kisaAd: teamShortName,
+  tamAd: (id) => (id ? FOOTBALL_TEAM_BY_ID[id]?.name ?? id : "Bilinmiyor"),
+  yaziTonu: (id) => (id ? FOOTBALL_TEAM_BY_ID[id]?.on ?? "light" : "light"),
+};
 
 /** provinces.ts ile aynı viewBox */
 const W = 1000;
@@ -141,6 +174,8 @@ export type CizimSecenekleri = {
   odakProvinceId?: string | null;
   /** Odaklanılan ilin adı (harita verisi renderer'da, ad çağıranda). */
   odakAdi?: string | null;
+  /** Renk/ad kaynağı: siyasi (varsayılan) ya da futbol. */
+  kaynak?: HaritaKaynagi;
 };
 
 /**
@@ -241,6 +276,7 @@ function haritaCiz(
   frame: Frame,
   alan: Alan,
   odak?: string | null,
+  kaynak: HaritaKaynagi = SIYASI_KAYNAK,
 ): void {
   const kutu = odak ? ilKutusu(odak) : null;
 
@@ -274,7 +310,7 @@ function haritaCiz(
   for (const { id, path } of provincePaths()) {
     const lider = frame.leaders[id];
     const secili = !odak || id === odak;
-    ctx.fillStyle = lider ? partyColor(lider) : NEUTRAL;
+    ctx.fillStyle = lider ? kaynak.renk(lider) : NEUTRAL;
     ctx.globalAlpha = secili ? (lider ? 0.92 : 0.45) : 0.16;
     ctx.fill(path);
     ctx.globalAlpha = 1;
@@ -309,6 +345,7 @@ function tabloYuksekligi(satirH: number, seritH: number, adet: number): number {
 function tabloCiz(
   ctx: CanvasRenderingContext2D,
   frame: Frame,
+  kaynak: HaritaKaynagi,
   o: {
     x: number;
     y: number;
@@ -338,7 +375,7 @@ function tabloCiz(
   ctx.clip();
   for (const row of frame.national) {
     const genislik = (row.pct / 100) * w;
-    ctx.fillStyle = partyColor(row.partyId);
+    ctx.fillStyle = kaynak.renk(row.partyId);
     ctx.fillRect(seritX, y, genislik + 1, seritH);
     seritX += genislik;
   }
@@ -348,7 +385,7 @@ function tabloCiz(
   let sy = y + seritH + satirH * 0.75;
 
   for (const [i, row] of frame.national.slice(0, adet).entries()) {
-    const renk = partyColor(row.partyId);
+    const renk = kaynak.renk(row.partyId);
 
     ctx.textAlign = "left";
     ctx.font = `700 ${Math.round(satirH * 0.4)}px "SF Mono", ui-monospace, monospace`;
@@ -361,8 +398,8 @@ function tabloCiz(
     kutu(ctx, rozetX, sy - rozetBoy * 0.78, rozetBoy, rozetBoy, rozetBoy * 0.28);
     ctx.fill();
 
-    const kisa = partyShortName(row.partyId);
-    ctx.fillStyle = PARTY_BY_ID[row.partyId]?.on === "dark" ? "#0b0f19" : "#ffffff";
+    const kisa = kaynak.kisaAd(row.partyId);
+    ctx.fillStyle = kaynak.yaziTonu(row.partyId) === "dark" ? "#0b0f19" : "#ffffff";
     ctx.font = `800 ${Math.round(rozetBoy * (kisa.length > 3 ? 0.34 : 0.44))}px "SF Pro Display", Inter, sans-serif`;
     ctx.textAlign = "center";
     ctx.fillText(kisa, rozetX + rozetBoy / 2, sy - rozetBoy * 0.78 + rozetBoy * 0.68);
@@ -370,7 +407,7 @@ function tabloCiz(
     ctx.textAlign = "left";
     ctx.fillStyle = TEXT;
     ctx.font = `${i === 0 ? 800 : 600} ${Math.round(satirH * 0.44)}px "SF Pro Text", Inter, system-ui, sans-serif`;
-    ctx.fillText(PARTY_BY_ID[row.partyId]?.name ?? row.partyId, rozetX + rozetBoy + satirH * 0.3, sy);
+    ctx.fillText(kaynak.tamAd(row.partyId), rozetX + rozetBoy + satirH * 0.3, sy);
 
     ctx.textAlign = "right";
     ctx.font = `800 ${Math.round(satirH * 0.46)}px "SF Mono", ui-monospace, monospace`;
@@ -437,6 +474,7 @@ export function drawFrame(
     baslik = "partim.lol",
     odakProvinceId = null,
     odakAdi = null,
+    kaynak = SIYASI_KAYNAK,
   }: CizimSecenekleri,
 ): void {
   const { width, height } = BOYUTLAR[kalite][oran];
@@ -527,10 +565,10 @@ export function drawFrame(
     );
 
     y += m.araB;
-    haritaCiz(ctx, frame, { x: alan.x, y, w: alan.w, h: m.harita }, odakProvinceId);
+    haritaCiz(ctx, frame, { x: alan.x, y, w: alan.w, h: m.harita }, odakProvinceId, kaynak);
     y += m.harita + m.araB;
 
-    y += tabloCiz(ctx, frame, {
+    y += tabloCiz(ctx, frame, kaynak, {
       x: alan.x,
       y,
       w: alan.w,
@@ -595,7 +633,7 @@ export function drawFrame(
       Math.round(width * 0.022),
       Math.min(Math.round(width * 0.042), Math.floor((icerikH - seritH) / adet)),
     );
-    tabloCiz(ctx, frame, { x: tabloX, y: icerikY, w: tabloW, satirH, seritH, adet });
+    tabloCiz(ctx, frame, kaynak, { x: tabloX, y: icerikY, w: tabloW, satirH, seritH, adet });
 
     ctx.textAlign = "left";
     ctx.font = `600 ${damgaBoy}px "SF Pro Text", Inter, system-ui, sans-serif`;

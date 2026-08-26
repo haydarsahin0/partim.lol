@@ -64,6 +64,7 @@ import type {
   ProvinceStanding,
   RallyResult,
   VoteHistory,
+  VoteHistoryBucket,
   SeatMarketSummary,
   VoteResult,
 } from "./types";
@@ -547,7 +548,12 @@ export class DemoBackend implements Backend {
    * Açılış tablosu yine tohumun kendisi, yani video haritanın gerçek
    * başlangıç hâlinden yola çıkıyor.
    */
-  async getVoteHistory(): Promise<VoteHistory> {
+  async getVoteHistory(_bucket?: VoteHistoryBucket, map: "siyasi" | "futbol" = "siyasi"): Promise<VoteHistory> {
+    if (map === "futbol") {
+      // Futbolun açılış tohumu yok; örnek akış yalnızca gerçek oy birikimini
+      // canlandırır (takım renkleriyle), seed boş bırakılır.
+      return syntheticHistory();
+    }
     return { ...syntheticHistory(), seed: this.seed.votes };
   }
 
