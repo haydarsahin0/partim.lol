@@ -12,6 +12,7 @@ import {
   teamName,
 } from "@/data/footballTeams";
 import { useFootballMapGame } from "@/hooks/useFootballMapGame";
+import { FootballElectionNight } from "@/components/FootballElectionNight";
 import { PROVINCE_BY_ID } from "@/data/provinces";
 import { useGame } from "@/backend/GameProvider";
 import { SubscriptionCard } from "@/components/SubscriptionCard";
@@ -106,6 +107,14 @@ export default function FootballMapPage() {
             </p>
           </div>
 
+          {/* Maç gecesi: sayılan oy ve takımların oy oranları — partilerdeki seçim gecesi gibi */}
+          <FootballElectionNight
+            standings={standings}
+            national={national}
+            totalVotes={totalVotes}
+            onSelectProvince={selectAndFocus}
+          />
+
           <FootballProvinceSearch standings={standings} onPick={selectAndFocus} />
 
           <div className="glass-flat relative min-h-[34vh] flex-1 overflow-hidden lg:aspect-[2.05/1] lg:min-h-0 lg:flex-none">
@@ -121,6 +130,45 @@ export default function FootballMapPage() {
         </section>
 
         <aside className="order-2 space-y-4 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2">
+
+
+          {/* Toplam yüzdeler — ülke geneli takım payları */}
+          <Card className="space-y-3 p-5">
+            <h2 className="font-display text-base font-bold tracking-[-0.02em]">Toplam yüzdeler</h2>
+            {national.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Henüz oy yok. Oylar geldikçe takımların ülke geneli payı burada görünür.
+              </p>
+            ) : (
+              <>
+                <div className="flex h-2.5 w-full overflow-hidden rounded-full ring-1 ring-white/10">
+                  {national.slice(0, 10).map((row) => (
+                    <div
+                      key={row.teamId}
+                      style={{ width: `${row.pct}%`, background: teamColor(row.teamId) }}
+                      title={`${teamName(row.teamId)} ${formatPercent(row.pct)}`}
+                    />
+                  ))}
+                </div>
+                <ul className="space-y-2">
+                  {national.slice(0, 8).map((row, index) => (
+                    <li key={row.teamId} className="flex items-center gap-2 text-sm">
+                      <span className="w-3 text-right font-mono text-[11px] text-muted-foreground">
+                        {index + 1}
+                      </span>
+                      <span className="size-2.5 shrink-0 rounded-full" style={{ background: teamColor(row.teamId) }} />
+                      <span className="min-w-0 flex-1 truncate font-medium">{teamName(row.teamId)}</span>
+                      <span className="font-mono text-xs text-muted-foreground">{row.votes.toLocaleString("tr-TR")}</span>
+                      <span className="w-12 text-right font-mono text-xs font-semibold tabular-nums">
+                        {formatPercent(row.pct)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Card>
+
           <Card className="space-y-3 p-5">
             <h2 className="flex items-center gap-2 font-display text-base font-bold tracking-[-0.02em]">
               <Trophy className="size-4" />
@@ -174,42 +222,9 @@ export default function FootballMapPage() {
             </Card>
           )}
 
-          {/* Toplam yüzdeler — ülke geneli takım payları */}
-          <Card className="space-y-3 p-5">
-            <h2 className="font-display text-base font-bold tracking-[-0.02em]">Toplam yüzdeler</h2>
-            {national.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Henüz oy yok. Oylar geldikçe takımların ülke geneli payı burada görünür.
-              </p>
-            ) : (
-              <>
-                <div className="flex h-2.5 w-full overflow-hidden rounded-full ring-1 ring-white/10">
-                  {national.slice(0, 10).map((row) => (
-                    <div
-                      key={row.teamId}
-                      style={{ width: `${row.pct}%`, background: teamColor(row.teamId) }}
-                      title={`${teamName(row.teamId)} ${formatPercent(row.pct)}`}
-                    />
-                  ))}
-                </div>
-                <ul className="space-y-2">
-                  {national.slice(0, 8).map((row, index) => (
-                    <li key={row.teamId} className="flex items-center gap-2 text-sm">
-                      <span className="w-3 text-right font-mono text-[11px] text-muted-foreground">
-                        {index + 1}
-                      </span>
-                      <span className="size-2.5 shrink-0 rounded-full" style={{ background: teamColor(row.teamId) }} />
-                      <span className="min-w-0 flex-1 truncate font-medium">{teamName(row.teamId)}</span>
-                      <span className="font-mono text-xs text-muted-foreground">{row.votes.toLocaleString("tr-TR")}</span>
-                      <span className="w-12 text-right font-mono text-xs font-semibold tabular-nums">
-                        {formatPercent(row.pct)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </Card>
+
+
+
 
           {/* Kendi kulübünü kur — parti kurmayla aynı ücret */}
           <Card className="p-5">
