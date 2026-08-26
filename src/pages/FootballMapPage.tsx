@@ -1,9 +1,10 @@
-import { useMemo } from "react";
-import { Trophy } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Sparkles, Trophy } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { TurkeyMap, focusProvinceOnMap } from "@/components/TurkeyMap";
 import { FootballProvinceDialog } from "@/components/FootballProvinceDialog";
 import { FootballProvinceSearch } from "@/components/FootballProvinceSearch";
+import { CreateClubDialog } from "@/components/CreateClubDialog";
 import {
   FOOTBALL_NEUTRAL_COLOR,
   FOOTBALL_TEAMS,
@@ -12,11 +13,16 @@ import {
 } from "@/data/footballTeams";
 import { useFootballMapGame } from "@/hooks/useFootballMapGame";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { PARTY_WEEKLY_PRICE, formatPercent, formatUsd } from "@/lib/game";
+import { toast } from "sonner";
 
 export default function FootballMapPage() {
   const [params, setParams] = useSearchParams();
   const selectedProvinceId = params.get("il");
-  const { standings, nextVoteAt, vote } = useFootballMapGame();
+  const { standings, nextVoteAt, vote, createClub, national, totalVotes, ballotTeams } =
+    useFootballMapGame();
+  const [clubOpen, setClubOpen] = useState(false);
 
   const select = (provinceId: string) => {
     setParams(provinceId ? { il: provinceId } : {}, { replace: true });
@@ -33,8 +39,14 @@ export default function FootballMapPage() {
       if (!standing.leadingPartyId) continue;
       counters[standing.leadingPartyId] = (counters[standing.leadingPartyId] ?? 0) + 1;
     }
+    // Dört büyük takım en üstte: aynı il sayısında büyük takım önde.
     return Object.entries(counters)
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => {
+        if (a[1] !== b[1]) return b[1] - a[1];
+        const aMajor = FOOTBALL_TEAMS.find((t) => t.id === a[0])?.major ? 0 : 1;
+        const bMajor = FOOTBALL_TEAMS.find((t) => t.id === b[0])?.major ? 0 : 1;
+        return aMajor - bMajor;
+      })
       .slice(0, 10);
   }, [standings]);
 
@@ -42,12 +54,13 @@ export default function FootballMapPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-3 p-3 sm:p-4">
-      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <section className="space-y-3">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
             <h1 className="font-display text-xl font-bold tracking-[-0.02em]">Futbol Haritası</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Ana haritadaki mantığın aynısıyla çalışır; bu kez partiler yerine şehir takımları yarışır.
+              Ana haritadaki mantığın aynısıyla çalışır; bu kez partiler yerine şehir takımları ve
+              kurduğun kulüpler yarışır.
             </p>
           </div>
 
@@ -65,26 +78,85 @@ export default function FootballMapPage() {
           </div>
         </section>
 
-        <aside>
+        <aside className="space-y-4">
           <Card className="space-y-3 p-5">
             <h2 className="flex items-center gap-2 font-display text-base font-bold tracking-[-0.02em]">
               <Trophy className="size-4" />
               Lider takımlar
             </h2>
-            <p className="text-xs text-muted-foreground">Tüm şehir takımları: {FOOTBALL_TEAMS.length}</p>
+            <p className="text-xs text-muted-foreground">
+              Tüm şehir takımları: {FOOTBALL_TEAMS.length} · Toplam oy:{" "}
+              {totalVotes.toLocaleString("tr-TR")}
+            </p>
             <ul className="space-y-2">
               {leadingTeams.length === 0 && (
-                <li className="text-sm text-muted-foreground">Henüz oy yok. İlk oyu verip liderliği başlat.</li>
+                <li className="text-sm text-muted-foreground">
+                  Henüz oy yok. İlk oyu verip liderliği başlat.
+                </li>
               )}
               {leadingTeams.map(([teamId, provinces], index) => (
                 <li key={teamId} className="flex items-center gap-2 text-sm">
-                  <span className="w-4 text-right font-mono text-xs text-muted-foreground">{index + 1}</span>
+                  <span className="w-4 text-right font-mono text-xs text-muted-foreground">
+                    {index + 1}
+                  </span>
                   <span className="size-2.5 rounded-full" style={{ background: teamColor(teamId) }} />
                   <span className="flex-1 truncate font-semibold">{teamName(teamId)}</span>
                   <span className="font-mono text-xs text-muted-foreground">{provinces} il</span>
                 </li>
               ))}
             </ul>
+          </Card>
+
+          {/* Toplam yüzdeler — ülke geneli takım payları */}
+          <Card className="space-y-3 p-5">
+            <h2 className="font-display text-base font-bold tracking-[-0.02em]">Toplam yüzdeler</h2>
+            {national.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Henüz oy yok. Oylar geldikçe takımların ülke geneli payı burada görünür.
+              </p>
+            ) : (
+              <>
+                <div className="flex h-2.5 w-full overflow-hidden rounded-full ring-1 ring-white/10">
+                  {national.slice(0, 10).map((row) => (
+                    <div
+                      key={row.teamId}
+                      style={{ width: `${row.pct}%`, background: teamColor(row.teamId) }}
+                      title={`${teamName(row.teamId)} ${formatPercent(row.pct)}`}
+                    />
+                  ))}
+                </div>
+                <ul className="space-y-2">
+                  {national.slice(0, 8).map((row, index) => (
+                    <li key={row.teamId} className="flex items-center gap-2 text-sm">
+                      <span className="w-3 text-right font-mono text-[11px] text-muted-foreground">
+                        {index + 1}
+                      </span>
+                      <span className="size-2.5 shrink-0 rounded-full" style={{ background: teamColor(row.teamId) }} />
+                      <span className="min-w-0 flex-1 truncate font-medium">{teamName(row.teamId)}</span>
+                      <span className="font-mono text-xs text-muted-foreground">{row.votes.toLocaleString("tr-TR")}</span>
+                      <span className="w-12 text-right font-mono text-xs font-semibold tabular-nums">
+                        {formatPercent(row.pct)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Card>
+
+          {/* Kendi kulübünü kur — parti kurmayla aynı ücret */}
+          <Card className="p-5">
+            <h2 className="font-display text-base font-bold tracking-[-0.02em]">
+              Kendi kulübünü kur
+            </h2>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+              Haftalık {formatUsd(PARTY_WEEKLY_PRICE)}. Adını, kısaltmanı, logonu ve rengini seç;
+              kulübün tüm illerin pusulasına girsin.
+            </p>
+            <Button variant="primary" className="mt-3.5 w-full" onClick={() => setClubOpen(true)}>
+              <Sparkles />
+              Kulüp kur
+            </Button>
           </Card>
         </aside>
       </div>
@@ -95,6 +167,21 @@ export default function FootballMapPage() {
         nextVoteAt={nextVoteAt}
         onVote={async (provinceId, teamId) => vote(provinceId, teamId).ok}
         onClose={() => setParams({}, { replace: true })}
+        ballotTeams={ballotTeams}
+      />
+
+      <CreateClubDialog
+        open={clubOpen}
+        onOpenChange={setClubOpen}
+        onCreate={(input) => {
+          const result = createClub(input);
+          if (result.ok) {
+            toast.success(`${input.name} kuruldu! Artık tüm illerde oy alabilir.`);
+          } else {
+            toast.error(result.message ?? "Kulüp kurulamadı.");
+          }
+          return result;
+        }}
       />
     </div>
   );

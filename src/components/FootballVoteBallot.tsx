@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Check, Loader2, Search, Vote } from "lucide-react";
 import { useCountdown } from "@/hooks/useCountdown";
-import { FOOTBALL_TEAMS, teamColor, teamName } from "@/data/footballTeams";
+import { FOOTBALL_TEAMS, teamColor, teamName, type FootballTeam } from "@/data/footballTeams";
 import { formatDuration } from "@/lib/game";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,11 +23,13 @@ export function FootballVoteBallot({
   provinceName,
   nextVoteAt,
   onVote,
+  ballotTeams,
 }: {
   provinceId: string;
   provinceName: string;
   nextVoteAt: string | null;
   onVote: (provinceId: string, teamId: string) => Promise<boolean> | boolean;
+  ballotTeams?: FootballTeam[];
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,14 +40,15 @@ export function FootballVoteBallot({
   const locked = cooldown > 0;
 
   const filteredTeams = useMemo(() => {
+    // 4 büyük en üstte, ardından kullanıcı kulüpleri, sonra alfabetik.
+    const base = ballotTeams ?? [...FOOTBALL_TEAMS].sort((a, b) => a.name.localeCompare(b.name, "tr"));
     const q = normalize(query.trim());
-    const base = [...FOOTBALL_TEAMS].sort((a, b) => a.name.localeCompare(b.name, "tr"));
     if (!q) return base;
     return base.filter((team) => {
       const n = normalize(team.name);
       return n.includes(q) || normalize(team.cityName).includes(q);
     });
-  }, [query]);
+  }, [query, ballotTeams]);
 
   const submitVote = async () => {
     if (!selected || locked) return;

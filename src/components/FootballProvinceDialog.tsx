@@ -1,6 +1,7 @@
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import type { ProvinceStanding } from "@/backend/types";
 import { PROVINCE_BY_ID } from "@/data/provinces";
+import type { FootballTeam } from "@/data/footballTeams";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { FootballResultsBoard } from "@/components/FootballResultsBoard";
 import { FootballVoteBallot } from "@/components/FootballVoteBallot";
@@ -11,12 +12,14 @@ export function FootballProvinceDialog({
   nextVoteAt,
   onVote,
   onClose,
+  ballotTeams,
 }: {
   provinceId: string | null;
   standing: ProvinceStanding | null;
   nextVoteAt: string | null;
   onVote: (provinceId: string, teamId: string) => Promise<boolean>;
   onClose: () => void;
+  ballotTeams?: FootballTeam[];
 }) {
   const province = provinceId ? PROVINCE_BY_ID[provinceId] : null;
 
@@ -44,6 +47,7 @@ export function FootballProvinceDialog({
               provinceName={province.name}
               nextVoteAt={nextVoteAt}
               onVote={onVote}
+              ballotTeams={ballotTeams}
             />
           </div>
         )}
