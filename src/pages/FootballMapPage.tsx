@@ -14,6 +14,7 @@ import {
 import { useFootballMapGame } from "@/hooks/useFootballMapGame";
 import { PROVINCE_BY_ID } from "@/data/provinces";
 import { useGame } from "@/backend/GameProvider";
+import { SubscriptionCard } from "@/components/SubscriptionCard";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PARTY_WEEKLY_PRICE, formatPercent, formatUsd } from "@/lib/game";
@@ -223,6 +224,9 @@ export default function FootballMapPage() {
               Kulüp kur
             </Button>
           </Card>
+
+          {/* Hızlı oy aboneliği — aktifse durum + iptal (profildekiyle aynı kart) */}
+          <SubscriptionCard />
         </aside>
       </div>
 

@@ -1,9 +1,16 @@
 import { useMemo, useState } from "react";
-import { Check, Crown, Loader2, Search, Vote } from "lucide-react";
+import { Check, Crown, Loader2, Search, Vote, Zap } from "lucide-react";
 import { useCountdown } from "@/hooks/useCountdown";
+import { useGame } from "@/backend/GameProvider";
 import { FOOTBALL_TEAMS, teamColor, teamName, type FootballTeam } from "@/data/footballTeams";
 import type { FootballSeat } from "@/backend/types";
-import { formatDuration, formatUsd } from "@/lib/game";
+import {
+  FAST_VOTE_COOLDOWN_LABEL,
+  formatDuration,
+  formatUsd,
+  hasFastVotes,
+  hasUnlimitedVotes,
+} from "@/lib/game";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -43,13 +50,27 @@ export function FootballVoteBallot({
   onDailyVotes: (provinceId: string, teamId: string) => Promise<boolean>;
   dailyBusy?: boolean;
 }) {
+  const { profile, startFastVotes, requireAuth } = useGame();
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
+  const [hizliBusy, setHizliBusy] = useState(false);
   const [query, setQuery] = useState("");
 
+  const unlimited = hasUnlimitedVotes(profile);
+  const hizli = hasFastVotes(profile);
   const cooldown = useCountdown(nextVoteAt);
-  const locked = cooldown > 0;
+  const locked = !unlimited && cooldown > 0;
+
+  const hizliAc = async () => {
+    if (!requireAuth("Aboneliğin hesabına bağlanması için önce giriş yap.")) return;
+    setHizliBusy(true);
+    try {
+      await startFastVotes();
+    } finally {
+      setHizliBusy(false);
+    }
+  };
 
   const filteredTeams = useMemo(() => {
     // 4 büyük en üstte, ardından kullanıcı kulüpleri, sonra alfabetik.
@@ -167,6 +188,47 @@ export function FootballVoteBallot({
           </>
         )}
       </Button>
+
+      {/* Hızlı oy — günlük $3 abonelik, bekleme 15 saniyeye düşer */}
+      {!unlimited &&
+        (hizli ? (
+          <div className="flex items-center gap-2 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] px-3 py-2">
+            <Zap className="size-4 shrink-0 fill-amber-300 text-amber-300" />
+            <span className="text-[12px] leading-snug">
+              <strong className="text-foreground">Hızlı oy açık</strong>{" "}
+              <span className="text-muted-foreground">
+                — {FAST_VOTE_COOLDOWN_LABEL}, her gün kendiliğinden yenilenir.
+              </span>
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void hizliAc()}
+            disabled={hizliBusy}
+            className={cn(
+              "group relative isolate w-full overflow-hidden rounded-2xl px-3.5 py-3 text-left",
+              "border border-amber-300/25 bg-[radial-gradient(120%_140%_at_0%_0%,hsl(43_96%_56%_/_0.16)_0%,hsl(43_96%_56%_/_0.05)_45%,transparent_75%)]",
+              "shadow-[inset_0_1px_0_0_hsl(43_96%_80%_/_0.16)]",
+              "transition-all duration-200 hover:border-amber-300/55 hover:shadow-[inset_0_1px_0_0_hsl(43_96%_80%_/_0.28),0_8px_24px_-12px_hsl(43_96%_56%_/_0.5)]",
+              "disabled:pointer-events-none disabled:opacity-60",
+            )}
+          >
+            <span className="flex items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-300/15 text-amber-300">
+                <Zap className="size-4 fill-current" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-bold leading-tight">Hızlı oyu aç</span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                  Günlük abonelik — bekleme süresi{" "}
+                  <s className="opacity-60">1 dk</s> → <strong className="text-amber-300">15 sn</strong>
+                </span>
+              </span>
+              {hizliBusy && <Loader2 className="size-4 animate-spin" />}
+            </span>
+          </button>
+        ))}
 
       {/* Kulüp başkanlığı — $1'den başlar, başkan günde 60 oy atar */}
       {selected && (
