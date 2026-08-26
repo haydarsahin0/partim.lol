@@ -31,6 +31,16 @@ name: Supabase'e uygula
 #                scripts/bot-temizle.sh). VARSAYILAN KURU ÇALIŞMA; silmek
 #                için "uygula" kutusunu işaretleyin. GERİ ALINAMAZ.
 #   buyume-kontrol  "oyuncu sayısı neden artmıyor?" sorusunu ölçer. SALT OKUNUR.
+#
+# API ile tetikleme (repository_dispatch):
+#   curl -X POST -H "Authorization: Bearer <token>" \
+#     https://api.github.com/repos/haydarsahin0/partim.lol/dispatches \
+#     -d '{"event_type":"ayni-saniye-temizle","client_payload":{"uygula":"true"}}'
+#   - "ayni-saniye-temizle": aynı saniyede açılan bot hesaplarını temizler.
+#     client_payload.uygula = "true" ise GERÇEKTEN siler, yoksa kuru çalışır.
+#     client_payload.esik = 2 (varsayılan 3): küme eşiği.
+#   - "gocu-uygula": bekleyen göçleri (migration) veritabanına uygular.
+#     Örn. bot savunması göçü 20260826120000.
 
 on:
   workflow_dispatch:
@@ -63,6 +73,10 @@ on:
         description: "oy-temizle: gerçekten sil (işaretsizken yalnızca rapor)"
         type: boolean
         default: false
+  repository_dispatch:
+    types:
+      - ayni-saniye-temizle
+      - gocu-uygula
 
 permissions:
   contents: read
@@ -84,8 +98,10 @@ jobs:
           eksik=""
           [ -z "$PROJECT_REF" ] && eksik="$eksik SUPABASE_PROJECT_REF(variable)"
           [ -z "$SUPABASE_ACCESS_TOKEN" ] && eksik="$eksik SUPABASE_ACCESS_TOKEN(secret)"
-          case "${{ inputs.hedef }}" in
-            hepsi|veritabani)
+          # Veritabanı parolası: şema uygulayan hedefler + gocu-uygula tetiklemesi.
+          gocu="${{ github.event_name == 'repository_dispatch' && github.event.action == 'gocu-uygula' }}"
+          case "${{ inputs.hedef }}-${gocu}" in
+            hepsi-*|veritabani-*|-true)
               [ -z "$SUPABASE_DB_PASSWORD" ] && eksik="$eksik SUPABASE_DB_PASSWORD(secret)"
               ;;
           esac
@@ -144,6 +160,21 @@ jobs:
           scripts/bot-temizle.sh $bayrak | tee -a "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Aynı saniye botlarını temizle (API tetiklemesi)
+        if: ${{ github.event_name == 'repository_dispatch' && github.event.action == 'ayni-saniye-temizle' }}
+        # client_payload.uygula = "true" ise gerçekten siler; yoksa kuru çalışır.
+        # client_payload.esik = 2 (varsayılan 3): küme eşiği.
+        env:
+          UYGULA: ${{ github.event.client_payload.uygula }}
+          ESIK: ${{ github.event.client_payload.esik }}
+        run: |
+          bayrak=""
+          if [ "$UYGULA" = "true" ]; then bayrak="--uygula"; fi
+          if [ -n "$ESIK" ]; then bayrak="$bayrak --esik $ESIK"; fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          scripts/ayni-saniye-temizle.sh $bayrak | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Büyümeyi kontrol et
         if: ${{ inputs.hedef == 'buyume-kontrol' }}
         run: |
@@ -168,6 +199,20 @@ jobs:
         run: |
           supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
           supabase db push --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Göçü uygula (API tetiklemesi)
+        if: ${{ github.event_name == 'repository_dispatch' && github.event.action == 'gocu-uygula' }}
+        # repository_dispatch ile bekleyen göçleri uygular (bkz. bot savunması).
+        run: |
+          supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --password "$SUPABASE_DB_PASSWORD"
+          {
+            echo "### Göç uygulandı (API tetiklemesi)"
+            echo
+            echo '```'
+            scripts/supabase-query.sh "select version from supabase_migrations.schema_migrations order by version desc limit 5"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Stripe anahtarlarını Supabase'e aktar
         if: ${{ inputs.hedef == 'hepsi' || inputs.hedef == 'fonksiyonlar' }}
