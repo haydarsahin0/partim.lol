@@ -114,6 +114,7 @@ const OTHER_TEAMS: Record<string, { name: string; shortName: string; fullName: s
   sivas: { name: "Sivasspor", shortName: "SİV", fullName: "Sivasspor", color: "#D71920", founded: 1967 },
   rize: { name: "Çaykur Rizespor", shortName: "ÇRZ", fullName: "Çaykur Rizespor", color: "#005C9A", founded: 1953 },
   canakkale: { name: "Çanakkale Dardanelspor", shortName: "ÇD", fullName: "Çanakkale Dardanelspor", color: "#00457C", founded: 1927 },
+  ordu: { name: "Orduspor", shortName: "ORD", fullName: "Orduspor", color: "#6A0DAD", founded: 1967 },
 };
 
 /**
@@ -141,6 +142,16 @@ const EXTRA_TEAMS: Array<{
     color: "#FFB300",
     founded: 1990,
     blurb: "Diyarbakır'ı temsil eder.",
+  },
+  {
+    id: "ft-ankara-genclerbirligi",
+    provinceId: "ankara",
+    name: "Gençlerbirliği",
+    shortName: "GB",
+    fullName: "Gençlerbirliği Spor Kulübü",
+    color: "#DA291C",
+    founded: 1923,
+    blurb: "Ankara'yı temsil eder.",
   },
 ];
 
