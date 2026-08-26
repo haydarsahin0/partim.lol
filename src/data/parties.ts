@@ -73,7 +73,7 @@ export const PARTY_BY_ID: Record<string, Party> = Object.fromEntries(
 export const PARTY_IDS: string[] = BASE_PARTIES.map((p) => p.id);
 
 /** Futbol haritasında kullanılan takım listesi. Party yapısıyla aynıdır. */
-const MAJOR_TEAMS: Record<string, { name: string; shortName: string; fullName: string; color: string }> = {
+const MAJOR_TEAMS: Record<string, { name: string; shortName: string; fullName: string; color: string; founded?: number }> = {
   istanbul: { name: "Galatasaray", shortName: "GS", fullName: "Galatasaray Spor Kulübü", color: "#A32638" },
   ankara: { name: "Ankaragücü", shortName: "AG", fullName: "MKE Ankaragücü", color: "#FDB913" },
   izmir: { name: "Göztepe", shortName: "GÖZ", fullName: "Göztepe Spor Kulübü", color: "#C8102E" },
