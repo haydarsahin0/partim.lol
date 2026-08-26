@@ -13,6 +13,7 @@ import Home from "@/pages/Home";
 
 // Harita ilk ekranda; diğer sayfalar istendiğinde yüklensin.
 const ProvincePage = lazy(() => import("@/pages/ProvincePage"));
+const FootballMapPage = lazy(() => import("@/pages/FootballMapPage"));
 const LeaderboardPage = lazy(() => import("@/pages/LeaderboardPage"));
 const ChairmenPage = lazy(() => import("@/pages/ChairmenPage"));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"));
@@ -85,6 +86,7 @@ export default function App() {
             <Suspense fallback={<PageFallback />}>
               <Routes>
                 <Route path="/" element={<Home />} />
+                <Route path="/futbol-haritasi" element={<FootballMapPage />} />
                 <Route path="/il/:provinceId" element={<ProvincePage />} />
                 <Route path="/siralama" element={<LeaderboardPage />} />
                 <Route path="/baskanlar" element={<ChairmenPage />} />

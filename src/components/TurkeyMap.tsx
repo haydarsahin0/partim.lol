@@ -12,6 +12,9 @@ type Props = {
   selectedId: string | null;
   onSelect: (provinceId: string) => void;
   className?: string;
+  entityColor?: (entityId: string | null | undefined) => string;
+  entityName?: (entityId: string | null | undefined) => string;
+  neutralColor?: string;
 };
 
 /** k = yakınlaştırma, x/y = viewBox biriminde kaydırma */
@@ -69,7 +72,15 @@ function clampView(next: View): View {
   };
 }
 
-export function TurkeyMap({ standings, selectedId, onSelect, className }: Props) {
+export function TurkeyMap({
+  standings,
+  selectedId,
+  onSelect,
+  className,
+  entityColor = partyColor,
+  entityName = partyName,
+  neutralColor = NEUTRAL_COLOR,
+}: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<SVGGElement | null>(null);
@@ -354,7 +365,7 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
             key={province.id}
             d={province.d}
             className="province-path"
-            fill={leading ? partyColor(leading) : NEUTRAL_COLOR}
+            fill={leading ? entityColor(leading) : neutralColor}
             fillOpacity={selected ? 1 : leading ? 0.74 + Math.min(0.26, margin / 60) : 0.3}
             stroke={selected ? "#ffffff" : "rgba(3,7,18,0.75)"}
             strokeWidth={selected ? 2.2 : 0.9}
@@ -362,7 +373,7 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
             strokeLinejoin="round"
             tabIndex={0}
             role="button"
-            aria-label={`${province.name} — ${leading ? `${partyName(leading)} önde` : "henüz oy yok"}`}
+            aria-label={`${province.name} — ${leading ? `${entityName(leading)} önde` : "henüz oy yok"}`}
             style={{ cursor: "pointer" }}
             onPointerEnter={(e) => e.pointerType === "mouse" && setHovered(province)}
             onPointerLeave={() => setHovered((h) => (h?.id === province.id ? null : h))}
@@ -379,7 +390,7 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
           />
         );
       }),
-    [standings, selectedId, onSelect],
+    [standings, selectedId, onSelect, entityColor, entityName, neutralColor],
   );
 
   /**
@@ -495,10 +506,10 @@ export function TurkeyMap({ standings, selectedId, onSelect, className }: Props)
             <div className="mt-1 flex items-center gap-1.5 text-muted-foreground">
               <span
                 className="inline-block size-2.5 rounded-full"
-                style={{ background: partyColor(hoveredStanding.leadingPartyId) }}
+                style={{ background: entityColor(hoveredStanding.leadingPartyId) }}
               />
               <span className="font-semibold text-foreground">
-                {partyName(hoveredStanding.leadingPartyId)}
+                {entityName(hoveredStanding.leadingPartyId)}
               </span>
               <span>{formatPercent(hoveredStanding.tallies[0]?.pct ?? 0)}</span>
               <span className="opacity-60">· {formatNumber(hoveredStanding.totalVotes)} oy</span>

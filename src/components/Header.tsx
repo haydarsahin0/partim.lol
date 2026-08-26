@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { to: "/", label: "Harita", icon: MapIcon },
+  { to: "/futbol-haritasi", label: "Futbol Haritası", icon: MapIcon },
   { to: "/baskanlar", label: "Başkanlar", icon: Crown },
   { to: "/siralama", label: "Sıralama", icon: Trophy },
   { to: "/profil", label: "Profil", icon: User },
