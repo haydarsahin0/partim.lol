@@ -9,11 +9,16 @@ import {
   BOYUTLAR,
   FUTBOL_KAYNAK,
   SIYASI_KAYNAK,
+  STILLER,
+  STIL_LIST,
+  devirHaritasi,
   drawFrame,
   guvenliPay,
   type CizimSecenekleri,
+  type DevirBilgisi,
   type Kalite,
   type Oran,
+  type VideoStil,
 } from "@/lib/timelapseRenderer";
 import { FOOTBALL_TEAMS } from "@/data/footballTeams";
 import { Button } from "@/components/ui/button";
@@ -84,8 +89,15 @@ const KARE_HIZI = 30;
 /**
  * Video sonunda son kare bu kadar duruyor; ani kesme kötü duruyor.
  * Bu süre TOPLAM sürenin içinde: "20 sn" seçen 20 saniyelik dosya alıyor.
+ * Kartlar kapalıyken bitiş yalnızca bu duraklamadır.
  */
 const BITIS_DURAKLAMA_MS = 1200;
+
+/** Açılış kartının süresi (kartlar açıkken). */
+const GIRIS_KARTI_MS = 1400;
+
+/** Kapanış kartının süresi (kartlar açıkken). */
+const BITIS_KARTI_MS = 1600;
 
 /**
  * İlerleme çubuğu bu sıklıkta güncelleniyor.
@@ -243,6 +255,12 @@ export default function TimelapsePage() {
   const [kaynak, setKaynak] = useState<Kaynak>(isDemo ? "ornek" : "gercek");
   /** Hangi haritanın tüneli: siyasi partiler ya da futbol takımları. */
   const [harita, setHarita] = useState<"siyasi" | "futbol">("siyasi");
+  /** Video tarzı: klasik, son dakika, seçim gecesi, minimal. */
+  const [stil, setStil] = useState<VideoStil>("son-dakika");
+  /** Kapak yazısı — boşsa tarza göre otomatik. */
+  const [hookMetni, setHookMetni] = useState("");
+  /** Giriş & bitiş kartları çizilsin mi? */
+  const [kartlar, setKartlar] = useState(true);
   const [oran, setOran] = useState<Oran>("16:9");
   const [kalite, setKalite] = useState<Kalite>("hd");
   const [cozunurluk, setCozunurluk] = useState<VoteHistoryBucket>("10min");
@@ -279,6 +297,9 @@ export default function TimelapsePage() {
   const [odakIl, setOdakIl] = useState("");
   const odakAdi = odakIl ? (PROVINCE_BY_ID[odakIl]?.name ?? null) : null;
   const pay = guvenliPay(oran);
+  /** Kartlar açıkken giriş/bitiş süreleri — toplam sürenin içinden ayrılır. */
+  const girisMs = kartlar ? GIRIS_KARTI_MS : 0;
+  const bitisMs = kartlar ? BITIS_KARTI_MS : BITIS_DURAKLAMA_MS;
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef(0);
@@ -291,8 +312,10 @@ export default function TimelapsePage() {
    * fonksiyonda effect yeniden kurulur ve BAŞLANGIÇ ZAMANI SIFIRLANIRDI —
    * 10 saniyelik video 29 saniye sürüyordu, sebebi buydu.
    */
-  const cizRef = useRef<(f: Frame | null) => void>(() => undefined);
-  const kareUretRef = useRef<(oran: number) => Frame | null>(() => null);
+  const cizRef = useRef<(s: Sahne | null, ekstra?: Partial<CizimSecenekleri>) => void>(
+    () => undefined,
+  );
+  const sahneRef = useRef<(oran: number) => Sahne | null>(() => null);
   const ilerlemeRef = useRef(0);
 
   /* ------------------------------- veri ---------------------------------- */
@@ -354,12 +377,33 @@ export default function TimelapsePage() {
   const kareBasinaKova = frames.length > 1 ? (frames.length - 1) / (sureSn * KARE_HIZI) : 0;
   const sicramaVar = kareBasinaKova > 1.2;
 
+  /*
+   * DEVİR KAYDI
+   *
+   * Hangi veri karesinde hangi il rengini değiştirdi? Video oynatılırken bu
+   * liste "şu an hangi iller parlasın, manşete hangi devir çıksın" sorusunu
+   * yanıtlıyor. Parlama penceresi video süresine göre ~450 ms: ilin çevresi
+   * beyaz çizgiyle vurgulanıyor, göz tam o anı yakalıyor.
+   */
+  type DevirKaydi = { il: string; at: number; enBuyuk: DevirBilgisi["enBuyuk"] };
+  const devirler = useMemo<DevirKaydi[]>(() => {
+    const bilgi = devirHaritasi(frames);
+    const liste: DevirKaydi[] = [];
+    bilgi.forEach((b, i) => {
+      for (const il of b.degisen) liste.push({ il, at: i, enBuyuk: b.enBuyuk });
+    });
+    return liste;
+  }, [frames]);
+
+  /** Çizilecek kare + o anın sahne bilgisi (parlayan iller, manşet devri). */
+  type Sahne = { f: Frame; degisen: string[]; enBuyuk: DevirBilgisi["enBuyuk"] | null };
+
   /**
    * O anki kare. İlerleme kesirli olduğu için iki veri karesinin arası
    * doldurulur — böylece kaç kova olursa olsun görüntü akıcı kalıyor.
    */
-  const kareUret = useCallback(
-    (oran: number): Frame | null => {
+  const sahneUret = useCallback(
+    (oran: number): Sahne | null => {
       if (frames.length === 0) return null;
       let f: Frame;
       if (frames.length === 1) {
@@ -371,22 +415,39 @@ export default function TimelapsePage() {
       }
       // Kapsam daraltması en sonda: harita ve iller olduğu gibi kalıyor,
       // yalnızca tablo ile sayaç seçilen ilin sonuçlarına dönüyor.
-      return odakIl ? scopeFrame(f, odakIl) : f;
-    },
-    [frames, odakIl],
-  );
+      if (odakIl) f = scopeFrame(f, odakIl);
 
-  /*
-   * Oynatma sırasında kareyi döngü kendisi üretip çiziyor. Burada bir kez daha
-   * üretmek, ilerleme çubuğunun her güncellemesinde boşuna bir ara kare
-   * hesabı demek — kayıt sırasında ana iş parçacığından çalıyor.
-   */
-  const frame: Frame | null = useMemo(
-    () => (oynuyor ? null : kareUret(ilerleme)),
-    [oynuyor, kareUret, ilerleme],
+      // Parlama penceresi ~450 ms; gövde süresine oranlanıyor.
+      const hareketMs = Math.max(1000, sureSn * 1000 - girisMs - bitisMs);
+      const span = Math.max(0.15, ((frames.length - 1) * 0.45) / Math.max(1, hareketMs / 1000));
+      const konum = Math.max(0, Math.min(1, oran)) * (frames.length - 1);
+      const gecerli = devirler.filter((d) => d.at > konum - span - 0.5 && d.at <= konum + 0.5);
+      const degisen = [...new Set(gecerli.map((d) => d.il))];
+      let enBuyuk: DevirBilgisi["enBuyuk"] | null = null;
+      let enSon = -Infinity;
+      for (const d of gecerli) {
+        if (d.enBuyuk && d.at > enSon) {
+          enSon = d.at;
+          enBuyuk = d.enBuyuk;
+        }
+      }
+      return { f, degisen, enBuyuk };
+    },
+    [frames, odakIl, devirler, sureSn, girisMs, bitisMs],
   );
 
   /* ------------------------------- çizim --------------------------------- */
+
+  /**
+   * Kapak yazısı: kullanıcı girmediyse tarza göre; il seçiliyse ile göre.
+   * Açılış kartında ve "Son Dakika" manşet bandında kullanılıyor.
+   */
+  const etkinHook = useMemo(() => {
+    const ozel = hookMetni.trim();
+    if (ozel) return ozel;
+    if (odakAdi) return `${odakAdi.toLocaleUpperCase("tr")} BÖYLE DEĞİŞTİ`;
+    return STILLER[stil].varsayilanHook;
+  }, [hookMetni, odakAdi, stil]);
 
   /**
    * Çizim seçenekleri — önizleme ve fotoğraf aynı görünümü paylaşsın diye tek
@@ -400,24 +461,31 @@ export default function TimelapsePage() {
       odakProvinceId: odakIl || null,
       odakAdi,
       kaynak: harita === "futbol" ? FUTBOL_KAYNAK : SIYASI_KAYNAK,
+      stil,
+      hookMetni: etkinHook,
     }),
-    [oran, kalite, kaynak, harita, odakIl, odakAdi],
+    [oran, kalite, kaynak, harita, odakIl, odakAdi, stil, etkinHook],
   );
 
   const ciz = useCallback(
-    (f: Frame | null) => {
+    (s: Sahne | null, ekstra?: Partial<CizimSecenekleri>) => {
       const canvas = canvasRef.current;
-      if (!canvas || !f) return;
+      if (!canvas || !s) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      drawFrame(ctx, f, cizimSecenekleri());
+      drawFrame(ctx, s.f, {
+        ...cizimSecenekleri(),
+        degisenIller: s.degisen,
+        enBuyukDevir: s.enBuyuk,
+        ...ekstra,
+      });
     },
     [cizimSecenekleri],
   );
 
   // Döngünün okuduğu güncel referanslar (bkz. cizRef tanımı).
   cizRef.current = ciz;
-  kareUretRef.current = kareUret;
+  sahneRef.current = sahneUret;
   ilerlemeRef.current = ilerleme;
 
   /*
@@ -434,7 +502,7 @@ export default function TimelapsePage() {
     const { width, height } = BOYUTLAR[kalite][oran];
     canvas.width = width;
     canvas.height = height;
-    cizRef.current(kareUretRef.current(ilerlemeRef.current));
+    cizRef.current(sahneRef.current(ilerlemeRef.current));
     // ilerleme bilerek bağımlılıkta değil: ölçü değişimine tepki veriyoruz.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oran, kalite]);
@@ -443,8 +511,8 @@ export default function TimelapsePage() {
   // oynatma sırasında kareyi döngünün kendisi çiziyor.
   useEffect(() => {
     if (oynuyor) return;
-    ciz(frame);
-  }, [frame, ciz, oynuyor]);
+    ciz(sahneUret(ilerleme));
+  }, [sahneUret, ilerleme, ciz, oynuyor]);
 
   /* ------------------------------ oynatma -------------------------------- */
 
@@ -458,13 +526,15 @@ export default function TimelapsePage() {
    * veri ister 8 kova olsun ister 400.
    *
    * Sonda kısa bir duraklama var: son kare bir anda kesilince video yarıda
-   * kalmış gibi duruyor.
+   * kalmış gibi duruyor. Kartlar açıkken bu duraklama yerine kapanış kartı
+   * beliriyor; başta da açılış kartı var. İkisi de toplam sürenin İÇİNDEN
+   * ayrılıyor — seçilen süre neyse dosya o.
    */
   useEffect(() => {
     if (!oynuyor || frames.length === 0) return;
     const toplamMs = sureSn * 1000;
-    // Bitiş duraklaması toplamın içinden ayrılıyor: seçilen süre neyse dosya o.
-    const hareketMs = Math.max(1000, toplamMs - BITIS_DURAKLAMA_MS);
+    // Giriş ve bitiş kartları toplamın içinden ayrılıyor: seçilen süre neyse dosya o.
+    const hareketMs = Math.max(1000, toplamMs - girisMs - bitisMs);
     const kareAraligi = 1000 / KARE_HIZI;
     let baslangic: number | null = null;
     /*
@@ -500,21 +570,26 @@ export default function TimelapsePage() {
 
       if (kareNo > sonKareNo) {
         sonKareNo = kareNo;
-        const oran = Math.min(1, gecen / hareketMs);
-        /*
-         * Kareyi BURADA, doğrudan çiziyoruz.
-         *
-         * Önce yalnızca React durumunu güncelliyorduk ve çizim ayrı bir
-         * effect'te oluyordu. Bitişteki duraklamada ilerleme değişmediği için
-         * React yeniden çizmiyordu; canvas'tan yeni kare akmayınca kayıt
-         * erken bitiyor ve video istenenden kısa çıkıyordu. Şimdi her tikte
-         * bir kare kesin çiziliyor, duraklama boyunca da son kare tazeleniyor.
-         */
-        cizRef.current(kareUretRef.current(oran));
+        if (gecen < girisMs) {
+          // Açılış kartı: ilk karenin üstünde, sonunda soldurarak haritayı açar.
+          cizRef.current(sahneRef.current(0), {
+            kart: "giris",
+            kartIlerleme: girisMs > 0 ? gecen / girisMs : 1,
+            zoom: 1.04,
+          });
+        } else if (kartlar && gecen >= girisMs + hareketMs) {
+          // Kapanış kartı: son karenin üstünde, yavaşça belirir.
+          const t = Math.min(1, (gecen - girisMs - hareketMs) / bitisMs);
+          cizRef.current(sahneRef.current(1), { kart: "bitis", kartIlerleme: t, zoom: 1.06 });
+        } else {
+          // Gövde: harita akışı, hafif Ken Burns yakınlaşmasıyla.
+          const oran = Math.min(1, (gecen - girisMs) / hareketMs);
+          cizRef.current(sahneRef.current(oran), { zoom: 1 + 0.05 * oran });
+        }
         // Slider'ı sık güncellemeye gerek yok; her tikte React'i yormayalım.
         if (now - sonBildirim >= ILERLEME_BILDIRIM_MS) {
           sonBildirim = now;
-          setIlerleme(oran);
+          setIlerleme(Math.min(1, gecen / toplamMs));
         }
       }
 
@@ -527,7 +602,7 @@ export default function TimelapsePage() {
     };
     rafRef.current = requestAnimationFrame(dongu);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [oynuyor, sureSn, frames.length]);
+  }, [oynuyor, sureSn, frames.length, girisMs, bitisMs, kartlar]);
 
   /* ------------------------------- kayıt --------------------------------- */
 
@@ -601,13 +676,13 @@ export default function TimelapsePage() {
    * harita seçimi ve kapsam hepsi aynen yansıyor.
    */
   const fotografIndir = useCallback(async () => {
-    const f = kareUretRef.current(ilerlemeRef.current);
-    if (!f) return;
+    const s = sahneRef.current(ilerlemeRef.current);
+    if (!s) return;
     setOynuyor(false);
     setHata(null);
     setFotografKaydedildi(null);
     try {
-      const blob = await fotografUret(f, cizimSecenekleri());
+      const blob = await fotografUret(s.f, cizimSecenekleri());
       if (!blob) throw new Error("Fotoğraf üretilemedi.");
       const ad = odakAdi ? slug(odakAdi) : "turkiye";
       const sonuc = await dosyayiKaydet(blob, `partim-lol-${ad}.png`);
@@ -625,8 +700,8 @@ export default function TimelapsePage() {
    * çoklu indirmeyi engelleyebilir — sonuç mesajında söyleniyor.
    */
   const tumIlleriKaydet = useCallback(async () => {
-    const f = kareUretRef.current(ilerlemeRef.current);
-    if (!f || tumleriKaydediyor) return;
+    const s = sahneRef.current(ilerlemeRef.current);
+    if (!s || tumleriKaydediyor) return;
     setOynuyor(false);
     setHata(null);
     setTumleriSonuc(null);
@@ -662,7 +737,7 @@ export default function TimelapsePage() {
       if (typeof secici === "function") {
         const klasor = await secici();
         for (const k of kapsamlar) {
-          const kare = k.id ? scopeFrame(f, k.id) : f;
+          const kare = k.id ? scopeFrame(s.f, k.id) : s.f;
           const blob = await fotografUret(kare, {
             ...secenekler,
             odakProvinceId: k.id,
@@ -681,7 +756,7 @@ export default function TimelapsePage() {
       // Klasör seçimi yok: sırayla indir.
       let kaydedilen = 0;
       for (const k of kapsamlar) {
-        const kare = k.id ? scopeFrame(f, k.id) : f;
+        const kare = k.id ? scopeFrame(s.f, k.id) : s.f;
         const blob = await fotografUret(kare, {
           ...secenekler,
           odakProvinceId: k.id,
@@ -708,6 +783,26 @@ export default function TimelapsePage() {
     }
   }, [cizimSecenekleri, tumleriKaydediyor]);
 
+  /** Reels hazır ayarı: dikey, kısa, haber kuşağı. */
+  const reelsAyar = useCallback(() => {
+    setOynuyor(false);
+    setOran("9:16");
+    setSureSecimi("15");
+    setStil("son-dakika");
+    setKalite("hd");
+    setKartlar(true);
+  }, []);
+
+  /** X hazır ayarı: yatay, orta uzunlukta, canlı yayın. */
+  const xAyar = useCallback(() => {
+    setOynuyor(false);
+    setOran("16:9");
+    setSureSecimi("20");
+    setStil("secim-gecesi");
+    setKalite("hd");
+    setKartlar(true);
+  }, []);
+
   const kovaSayisi = frames.length;
 
   /*
@@ -727,10 +822,12 @@ export default function TimelapsePage() {
       <div>
         <h1 className="font-display text-2xl font-bold tracking-[-0.02em]">Zaman tüneli</h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Oy oranlarının ve haritanın zaman içindeki değişimi, hızlandırılmış olarak. Doğrudan
-          video dosyası olarak indirip tanıtımda kullanabilirsin — ekran kaydı gerekmiyor,
-          görüntü tam istediğin ölçüde çıkıyor. İstersen herhangi bir andaki haritayı, Türkiye
-          geneli ya da tek bir il için, fotoğraf (PNG) olarak da indirebilirsin.
+          Oy oranlarının ve haritanın zaman içindeki değişimi, hızlandırılmış olarak. Dört
+          farklı tarzda doğrudan video dosyası üretip Reels, TikTok ve X'te paylaşabilirsin —
+          ekran kaydı gerekmiyor, görüntü tam istediğin ölçüde çıkıyor. Açılış ve kapanış
+          kartları, devir anlarında il parlaması ve manşet bandı videoyu viral kurguya
+          hazırlar; istersen herhangi bir andaki haritayı, Türkiye geneli ya da tek bir il
+          için, fotoğraf (PNG) olarak da indirebilirsin.
         </p>
       </div>
 
@@ -919,6 +1016,73 @@ export default function TimelapsePage() {
                   }}
                   kilitli={kaydediyor}
                 />
+              </div>
+
+              <StilSecici
+                secili={stil}
+                onSec={(v) => {
+                  setOynuyor(false);
+                  setStil(v);
+                }}
+                kilitli={kaydediyor}
+              />
+
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                <div>
+                  <span className="stat-label">Kapak yazısı</span>
+                  <input
+                    type="text"
+                    value={hookMetni}
+                    onChange={(e) => {
+                      setHookMetni(e.target.value);
+                      setOynuyor(false);
+                    }}
+                    maxLength={64}
+                    disabled={kaydediyor}
+                    placeholder={
+                      odakAdi
+                        ? `${odakAdi.toLocaleUpperCase("tr")} BÖYLE DEĞİŞTİ`
+                        : STILLER[stil].varsayilanHook
+                    }
+                    className="mt-1.5 w-full rounded-xl border border-white/12 bg-[hsl(224_44%_8%)] px-3 py-2 text-sm font-semibold transition-colors hover:border-white/25 focus:border-white/40 focus:outline-none disabled:opacity-50"
+                  />
+                  <p className="pt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    Açılış kartındaki ve manşet bandındaki yazı. Boş bırakılırsa tarza (il
+                    seçiliyse ile) göre otomatik yazılır.
+                  </p>
+                </div>
+                <div className="flex flex-col items-start justify-end gap-2 pb-0.5 sm:items-end">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      className="accent-primary"
+                      checked={kartlar}
+                      onChange={(e) => setKartlar(e.target.checked)}
+                      disabled={kaydediyor}
+                    />
+                    Giriş & bitiş kartları
+                  </label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={reelsAyar}
+                      disabled={kaydediyor}
+                      title="9:16 · 15 sn · Son Dakika tarzı"
+                    >
+                      📱 Reels
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={xAyar}
+                      disabled={kaydediyor}
+                      title="16:9 · 20 sn · Seçim Gecesi tarzı"
+                    >
+                      🐦 X
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {/*
@@ -1116,6 +1280,46 @@ function Secim({
             )}
           >
             {s.etiket}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StilSecici({
+  secili,
+  onSec,
+  kilitli,
+}: {
+  secili: VideoStil;
+  onSec: (deger: VideoStil) => void;
+  kilitli?: boolean;
+}) {
+  return (
+    <div>
+      <span className="stat-label">Tarz</span>
+      <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {STIL_LIST.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            disabled={kilitli}
+            onClick={() => onSec(s.id)}
+            className={cn(
+              "rounded-xl border p-2.5 text-left transition-colors disabled:opacity-50",
+              secili === s.id
+                ? "border-primary/60 bg-primary/10"
+                : "border-white/[0.08] bg-white/[0.03] hover:border-white/25",
+            )}
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="text-base leading-none">{s.ikon}</span>
+              <span className="text-xs font-bold">{s.etiket}</span>
+            </span>
+            <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
+              {s.aciklama}
+            </span>
           </button>
         ))}
       </div>
