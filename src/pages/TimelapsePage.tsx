@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, Loader2, Pause, Play, RotateCcw, Video } from "lucide-react";
+import { Download, ImageDown, Images, Loader2, Pause, Play, RotateCcw, Video } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import type { VoteHistory, VoteHistoryBucket } from "@/backend/types";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
@@ -11,6 +11,7 @@ import {
   SIYASI_KAYNAK,
   drawFrame,
   guvenliPay,
+  type CizimSecenekleri,
   type Kalite,
   type Oran,
 } from "@/lib/timelapseRenderer";
@@ -157,16 +158,30 @@ function paylasimDesteginiOlc(): boolean {
   }
 }
 
+/** Dosyayı tarayıcının indirme akışıyla kaydeder (paylaşım olmayan yolların ortak alt yarısı). */
+function indirmeyiBaslat(blob: Blob, ad: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = ad;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // İndirme başlamadan adresi kapatmak dosyayı bozuyor; tarayıcıya süre tanı.
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 /**
- * Videoyu cihaza kaydet.
+ * Dosyayı cihaza kaydet — video da fotoğraf da buradan geçiyor.
  *
  * iOS Safari `<a download>` başlığını blob adreslerinde yok sayıyor: bağlantıya
  * dokununca dosyayı indirmek yerine adrese gidiyor, bu da boş bir sayfa ya da
  * "WebKitBlobResource" hatası oluyor. Orada tek güvenilir yol paylaşım sayfası
- * — kullanıcı videoyu Fotoğraflar'a ya da Dosyalar'a oradan kaydediyor.
+ * — kullanıcı dosyayı Fotoğraflar'a ya da Dosyalar'a oradan kaydediyor.
  * Masaüstünde paylaşım yoksa klasik indirme bağlantısına düşüyoruz.
  */
-async function videoyuKaydet(blob: Blob, ad: string): Promise<"paylasildi" | "indirildi" | "iptal"> {
+async function dosyayiKaydet(blob: Blob, ad: string): Promise<"paylasildi" | "indirildi" | "iptal"> {
   const dosya = new File([blob], ad, { type: blob.type });
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   if (typeof nav.canShare === "function" && nav.canShare({ files: [dosya] })) {
@@ -179,17 +194,36 @@ async function videoyuKaydet(blob: Blob, ad: string): Promise<"paylasildi" | "in
       // Paylaşım başarısızsa indirmeyi dene.
     }
   }
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = ad;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  // İndirme başlamadan adresi kapatmak dosyayı bozuyor; tarayıcıya süre tanı.
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  indirmeyiBaslat(blob, ad);
   return "indirildi";
+}
+
+/** Dosya adı için sadeleştirilmiş il adı: "İstanbul" -> "istanbul", "Çanakkale" -> "canakkale". */
+const TURKCE_SLUG: Record<string, string> = { ç: "c", ğ: "g", ı: "i", ö: "o", ş: "s", ü: "u" };
+function slug(ad: string): string {
+  return ad
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[çğıöşü]/g, (c) => TURKCE_SLUG[c] ?? c)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Bir kareyi fotoğraf boyutunda (Full HD) bağımsız bir canvas'a çizip PNG yapar.
+ *
+ * Önizleme canvas'ına dokunmuyor: kayıt sırasında çizim akışını kesmemek için
+ * fotoğraf kendi kanvasında üretiliyor. Kalite her zaman fullhd — video için
+ * seçilen 720p/1080p ayarı fotoğrafı etkilemiyor.
+ */
+async function fotografUret(f: Frame, secenekler: CizimSecenekleri): Promise<Blob | null> {
+  const kanvas = document.createElement("canvas");
+  const { width, height } = BOYUTLAR.fullhd[secenekler.oran];
+  kanvas.width = width;
+  kanvas.height = height;
+  const ctx = kanvas.getContext("2d");
+  if (!ctx) return null;
+  drawFrame(ctx, f, { ...secenekler, kalite: "fullhd" });
+  return new Promise((coz) => kanvas.toBlob(coz, "image/png"));
 }
 
 /**
@@ -229,6 +263,14 @@ export default function TimelapsePage() {
     null,
   );
   const [kaydedildi, setKaydedildi] = useState<"paylasildi" | "indirildi" | null>(null);
+  /** Fotoğraf (tek kare) kaydedildi mi? Video kaydından ayrı tutuluyor. */
+  const [fotografKaydedildi, setFotografKaydedildi] = useState<"paylasildi" | "indirildi" | null>(
+    null,
+  );
+  /** "Tüm illeri indir" toplu kaydı çalışıyor mu? */
+  const [tumleriKaydediyor, setTumleriKaydediyor] = useState(false);
+  /** Toplu kaydın sonuç mesajı (kaç fotoğraf, nereye yazıldı). */
+  const [tumleriSonuc, setTumleriSonuc] = useState<string | null>(null);
   const [hata, setHata] = useState<string | null>(null);
   const paylasimVar = useMemo(paylasimDesteginiOlc, []);
   /** Sosyal medya güvenli alan kılavuzu — yalnızca önizlemede, kayda girmiyor. */
@@ -346,22 +388,31 @@ export default function TimelapsePage() {
 
   /* ------------------------------- çizim --------------------------------- */
 
+  /**
+   * Çizim seçenekleri — önizleme ve fotoğraf aynı görünümü paylaşsın diye tek
+   * yerden geliyor. Fotoğraf yalnızca kaliteyi fullhd'ye sabitliyor.
+   */
+  const cizimSecenekleri = useCallback(
+    (): CizimSecenekleri => ({
+      oran,
+      kalite,
+      ornek: kaynak === "ornek",
+      odakProvinceId: odakIl || null,
+      odakAdi,
+      kaynak: harita === "futbol" ? FUTBOL_KAYNAK : SIYASI_KAYNAK,
+    }),
+    [oran, kalite, kaynak, harita, odakIl, odakAdi],
+  );
+
   const ciz = useCallback(
     (f: Frame | null) => {
       const canvas = canvasRef.current;
       if (!canvas || !f) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      drawFrame(ctx, f, {
-        oran,
-        kalite,
-        ornek: kaynak === "ornek",
-        odakProvinceId: odakIl || null,
-        odakAdi,
-        kaynak: harita === "futbol" ? FUTBOL_KAYNAK : SIYASI_KAYNAK,
-      });
+      drawFrame(ctx, f, cizimSecenekleri());
     },
-    [oran, kalite, kaynak, harita, odakIl, odakAdi],
+    [cizimSecenekleri],
   );
 
   // Döngünün okuduğu güncel referanslar (bkz. cizRef tanımı).
@@ -534,7 +585,7 @@ export default function TimelapsePage() {
     if (!video) return;
     setHata(null);
     try {
-      const sonuc = await videoyuKaydet(video.blob, `partim-lol-zaman-tuneli.${video.uzanti}`);
+      const sonuc = await dosyayiKaydet(video.blob, `partim-lol-zaman-tuneli.${video.uzanti}`);
       if (sonuc !== "iptal") setKaydedildi(sonuc);
     } catch {
       setHata(
@@ -543,6 +594,119 @@ export default function TimelapsePage() {
       );
     }
   }, [video]);
+
+  /**
+   * O anki kareyi fotoğraf olarak indir — seçili kapsamla (Türkiye geneli ya
+   * da tek il). Önizlemede ne görünüyorsa o çıkıyor: kaydırıcının zamanı,
+   * harita seçimi ve kapsam hepsi aynen yansıyor.
+   */
+  const fotografIndir = useCallback(async () => {
+    const f = kareUretRef.current(ilerlemeRef.current);
+    if (!f) return;
+    setOynuyor(false);
+    setHata(null);
+    setFotografKaydedildi(null);
+    try {
+      const blob = await fotografUret(f, cizimSecenekleri());
+      if (!blob) throw new Error("Fotoğraf üretilemedi.");
+      const ad = odakAdi ? slug(odakAdi) : "turkiye";
+      const sonuc = await dosyayiKaydet(blob, `partim-lol-${ad}.png`);
+      if (sonuc !== "iptal") setFotografKaydedildi(sonuc);
+    } catch (e) {
+      setHata(e instanceof Error ? e.message : "Fotoğraf kaydedilemedi.");
+    }
+  }, [cizimSecenekleri, odakAdi]);
+
+  /**
+   * Türkiye geneli + 81 ilin tamamı için o anki kareyi ayrı ayrı fotoğraflar.
+   *
+   * Chromium/Edge klasör seçtirip dosyaları oraya yazar; diğer tarayıcılarda
+   * kısa aralıklarla indirme başlatılır. 82 dosya birden isteyince tarayıcı
+   * çoklu indirmeyi engelleyebilir — sonuç mesajında söyleniyor.
+   */
+  const tumIlleriKaydet = useCallback(async () => {
+    const f = kareUretRef.current(ilerlemeRef.current);
+    if (!f || tumleriKaydediyor) return;
+    setOynuyor(false);
+    setHata(null);
+    setTumleriSonuc(null);
+
+    const secenekler = cizimSecenekleri();
+    const kapsamlar: Array<{ id: string | null; ad: string }> = [
+      { id: null, ad: "turkiye" },
+      ...PROVINCES.map((p) => ({ id: p.id, ad: slug(p.name) })),
+    ];
+    const dosyaAdi = (k: (typeof kapsamlar)[number]) => `partim-lol-${k.ad}.png`;
+
+    setTumleriKaydediyor(true);
+    try {
+      const pencerem = window as unknown as {
+        showDirectoryPicker?: () => Promise<{
+          getFileHandle: (
+            ad: string,
+            secenek: { create: boolean },
+          ) => Promise<{
+            createWritable: () => Promise<{
+              write: (veri: Blob) => Promise<void>;
+              close: () => Promise<void>;
+            }>;
+          }>;
+        }>;
+      };
+      const secici = pencerem.showDirectoryPicker;
+
+      /*
+       * Klasör seçimi işin EN BAŞINDA isteniyor: geçerli bir kullanıcı
+       * hareketi gerektiriyor, 82 kare üretildikten sonra sorulursa izin düşer.
+       */
+      if (typeof secici === "function") {
+        const klasor = await secici();
+        for (const k of kapsamlar) {
+          const kare = k.id ? scopeFrame(f, k.id) : f;
+          const blob = await fotografUret(kare, {
+            ...secenekler,
+            odakProvinceId: k.id,
+            odakAdi: k.id ? (PROVINCE_BY_ID[k.id]?.name ?? null) : null,
+          });
+          if (!blob) continue;
+          const dosya = await klasor.getFileHandle(dosyaAdi(k), { create: true });
+          const yazici = await dosya.createWritable();
+          await yazici.write(blob);
+          await yazici.close();
+        }
+        setTumleriSonuc(`${kapsamlar.length} fotoğraf klasöre yazıldı.`);
+        return;
+      }
+
+      // Klasör seçimi yok: sırayla indir.
+      let kaydedilen = 0;
+      for (const k of kapsamlar) {
+        const kare = k.id ? scopeFrame(f, k.id) : f;
+        const blob = await fotografUret(kare, {
+          ...secenekler,
+          odakProvinceId: k.id,
+          odakAdi: k.id ? (PROVINCE_BY_ID[k.id]?.name ?? null) : null,
+        });
+        if (!blob) continue;
+        indirmeyiBaslat(blob, dosyaAdi(k));
+        kaydedilen += 1;
+        // İndirmeleri tek tek başlatmak, tarayıcının "çoklu indirme" korumasını
+        // tetikleme şansını artırıyor; küçük bir boşluk bırakıyoruz.
+        await new Promise((r) => window.setTimeout(r, 400));
+      }
+      setTumleriSonuc(
+        kaydedilen > 0
+          ? `${kaydedilen} fotoğraf için indirme başlatıldı. Tarayıcı çoklu indirmeyi engellediyse izin verin; Chrome/Edge'de "Tüm illeri indir" bunun yerine doğrudan klasöre yazar.`
+          : "Fotoğraflar üretilemedi.",
+      );
+    } catch (e) {
+      // Kullanıcı klasör seçimini kapattıysa hata değil.
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      setHata(e instanceof Error ? e.message : "Fotoğraflar kaydedilemedi.");
+    } finally {
+      setTumleriKaydediyor(false);
+    }
+  }, [cizimSecenekleri, tumleriKaydediyor]);
 
   const kovaSayisi = frames.length;
 
@@ -565,7 +729,8 @@ export default function TimelapsePage() {
         <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           Oy oranlarının ve haritanın zaman içindeki değişimi, hızlandırılmış olarak. Doğrudan
           video dosyası olarak indirip tanıtımda kullanabilirsin — ekran kaydı gerekmiyor,
-          görüntü tam istediğin ölçüde çıkıyor.
+          görüntü tam istediğin ölçüde çıkıyor. İstersen herhangi bir andaki haritayı, Türkiye
+          geneli ya da tek bir il için, fotoğraf (PNG) olarak da indirebilirsin.
         </p>
       </div>
 
@@ -652,6 +817,15 @@ export default function TimelapsePage() {
                 <Button variant="secondary" onClick={kaydet} disabled={kaydediyor || frames.length === 0}>
                   {kaydediyor ? <Loader2 className="animate-spin" /> : <Video />}
                   {kaydediyor ? "Kaydediliyor…" : "Video oluştur"}
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  onClick={() => void fotografIndir()}
+                  disabled={kaydediyor || tumleriKaydediyor || frames.length === 0}
+                >
+                  <ImageDown />
+                  {paylasimVar ? "Fotoğrafı kaydet" : "Fotoğraf indir"}
                 </Button>
 
                 {video && (
@@ -749,28 +923,45 @@ export default function TimelapsePage() {
 
               {/*
                 Kapsam 81 seçenek: düğme sırası olmaz, yerel açılır liste hem
-                aramayı hem klavyeyi bedavaya getiriyor.
+                aramayı hem klavyeyi bedavaya getiriyor. Yanındaki düğme tek
+                tek seçmeden hepsini fotoğraflıyor.
               */}
               <div className="space-y-1.5">
                 <span className="stat-label">Kapsam</span>
-                <select
-                  value={odakIl}
-                  onChange={(e) => {
-                    setOynuyor(false);
-                    setOdakIl(e.target.value);
-                  }}
-                  disabled={kaydediyor}
-                  className="w-full rounded-xl border border-white/12 bg-[hsl(224_44%_8%)] px-3 py-2 text-sm font-semibold transition-colors hover:border-white/25 focus:border-white/40 focus:outline-none disabled:opacity-50 sm:max-w-xs"
-                >
-                  <option value="">Türkiye geneli</option>
-                  {[...PROVINCES]
-                    .sort((a, b) => a.name.localeCompare(b.name, "tr"))
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {String(p.plate).padStart(2, "0")} · {p.name}
-                      </option>
-                    ))}
-                </select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={odakIl}
+                    onChange={(e) => {
+                      setOynuyor(false);
+                      setOdakIl(e.target.value);
+                    }}
+                    disabled={kaydediyor || tumleriKaydediyor}
+                    className="min-w-0 flex-1 rounded-xl border border-white/12 bg-[hsl(224_44%_8%)] px-3 py-2 text-sm font-semibold transition-colors hover:border-white/25 focus:border-white/40 focus:outline-none disabled:opacity-50 sm:max-w-xs"
+                  >
+                    <option value="">Türkiye geneli</option>
+                    {[...PROVINCES]
+                      .sort((a, b) => a.name.localeCompare(b.name, "tr"))
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {String(p.plate).padStart(2, "0")} · {p.name}
+                        </option>
+                      ))}
+                  </select>
+                  <Button
+                    variant="outline"
+                    onClick={() => void tumIlleriKaydet()}
+                    disabled={kaydediyor || tumleriKaydediyor || frames.length === 0}
+                    title="Türkiye geneli ve 81 ilin tamamı için o anki haritayı ayrı ayrı fotoğraflar"
+                  >
+                    {tumleriKaydediyor ? <Loader2 className="animate-spin" /> : <Images />}
+                    {tumleriKaydediyor ? "Hazırlanıyor…" : "Tüm illeri indir"}
+                  </Button>
+                </div>
+                {tumleriSonuc && (
+                  <p className="pt-1 text-[13px] leading-relaxed text-muted-foreground">
+                    {tumleriSonuc}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -861,6 +1052,19 @@ export default function TimelapsePage() {
               {kaydedildi === "indirildi" && (
                 <p className="text-[13px] leading-relaxed text-muted-foreground">
                   Video indirilenler klasörüne kaydedildi.
+                </p>
+              )}
+
+              {fotografKaydedildi === "paylasildi" && (
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  Fotoğraf paylaşım sayfasına gönderildi —{" "}
+                  <strong className="text-foreground">Fotoğrafı Kaydet</strong> ile Fotoğraflar'a
+                  alabilirsin.
+                </p>
+              )}
+              {fotografKaydedildi === "indirildi" && (
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  Fotoğraf indirilenler klasörüne kaydedildi.
                 </p>
               )}
 
