@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Radio, TrendingUp } from "lucide-react";
+import { Crown, Radio, TrendingUp } from "lucide-react";
 import { useGame } from "@/backend/GameProvider";
 import type { LiveVote } from "@/backend/types";
-import { PARTY_BY_ID, partyColor, partyShortName } from "@/data/parties";
+import { PARTY_BY_ID, partyColor, partyName, partyShortName } from "@/data/parties";
 import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
 import { useCountUp } from "@/hooks/useCountUp";
 import { formatNumber, formatPercent } from "@/lib/game";
@@ -30,7 +30,7 @@ export function ElectionNight({
   onSelectProvince?: (id: string) => void;
   className?: string;
 }) {
-  const { national, totalVotes, standings, loading } = useGame();
+  const { national, totalVotes, standings, loading, seatCountsByParty } = useGame();
 
   const oyVerilen = useMemo(
     () => PROVINCES.filter((p) => (standings[p.id]?.totalVotes ?? 0) > 0).length,
@@ -111,7 +111,12 @@ export function ElectionNight({
         <span className="stat-label">Parti yarışı</span>
         <ul className="mt-2 space-y-2">
           {national.slice(0, 8).map((row, index) => (
-            <PartyRow key={row.partyId} row={row} index={index} />
+            <PartyRow
+              key={row.partyId}
+              row={row}
+              index={index}
+              seatCount={seatCountsByParty[row.partyId] ?? 0}
+            />
           ))}
         </ul>
       </div>
@@ -134,9 +139,12 @@ function Stat({ label, value }: { label: string; value: string }) {
 function PartyRow({
   row,
   index,
+  seatCount,
 }: {
   row: { partyId: string; votes: number; pct: number; provinces: number };
   index: number;
+  /** Partinin sahip olduğu il başkanlığı (koltuk) sayısı */
+  seatCount: number;
 }) {
   const oy = useCountUp(row.votes, 800);
   return (
@@ -155,11 +163,20 @@ function PartyRow({
           {formatPercent(row.pct)}
         </span>
       </div>
-      <div className="ml-5 mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
-        <div
-          className="h-full rounded-full transition-[width] duration-700 ease-out"
-          style={{ width: `${Math.max(1, row.pct)}%`, background: partyColor(row.partyId) }}
-        />
+      <div className="ml-5 mt-1 flex items-center gap-2">
+        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+          <div
+            className="h-full rounded-full transition-[width] duration-700 ease-out"
+            style={{ width: `${Math.max(1, row.pct)}%`, background: partyColor(row.partyId) }}
+          />
+        </div>
+        <span
+          className="flex shrink-0 items-center gap-1 text-[10px] font-bold tabular-nums text-amber-200/85"
+          title={`${partyName(row.partyId)}'in tuttuğu il başkanlığı sayısı`}
+        >
+          <Crown className="size-2.5" />
+          {seatCount}
+        </span>
       </div>
     </li>
   );

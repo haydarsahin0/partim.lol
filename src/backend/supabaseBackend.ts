@@ -550,6 +550,16 @@ export class SupabaseBackend implements Backend {
     };
   }
 
+  async getSeatCountsByParty(): Promise<Record<string, number>> {
+    const { data, error } = await this.db.from("leader_seats").select("party_id");
+    if (error) throw error;
+    const counts: Record<string, number> = {};
+    for (const row of (data ?? []) as Array<{ party_id: string }>) {
+      counts[row.party_id] = (counts[row.party_id] ?? 0) + 1;
+    }
+    return counts;
+  }
+
   async getLiveVotes(limit = 14): Promise<LiveVote[]> {
     const { data, error } = await this.db
       .from("recent_votes")

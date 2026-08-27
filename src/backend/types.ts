@@ -294,6 +294,11 @@ export interface Backend {
    * Oyunun para kazandıran kısmı bu; ana sayfada görünür olması gerekiyor.
    */
   getSeatMarket(limit?: number): Promise<SeatMarketSummary>;
+  /**
+   * Parti başına tutulan il başkanlığı (koltuk) sayısı. Seçim gecesi
+   * listesinde "bu partinin kaç başkanı var" diye gösterilir.
+   */
+  getSeatCountsByParty(): Promise<Record<string, number>>;
   /** Ülke genelinde en son kullanılan oylar (canlı akış şeridi için) */
   getLiveVotes(limit?: number): Promise<LiveVote[]>;
   /**

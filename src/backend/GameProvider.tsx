@@ -40,6 +40,8 @@ type GameContextValue = {
   stats: SiteStats;
   /** Ülke geneli parti toplamları, oy sırasına göre */
   national: Array<{ partyId: string; votes: number; pct: number; provinces: number }>;
+  /** Parti başına tutulan il başkanlığı (koltuk) sayısı */
+  seatCountsByParty: Record<string, number>;
   totalVotes: number;
   loading: boolean;
   error: string | null;
@@ -90,6 +92,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [standings, setStandings] = useState<Record<string, ProvinceStanding>>({});
+  const [seatCountsByParty, setSeatCountsByParty] = useState<Record<string, number>>({});
   const [parties, setParties] = useState<Party[]>(PARTIES);
   const [mapKind, setMapKind] = useState<"siyasi" | "futbol">("siyasi");
   const [stats, setStats] = useState<SiteStats>({ online: 0, total: 0 });
@@ -116,6 +119,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (mounted.current) setError(err instanceof Error ? err.message : "Veriler alınamadı.");
     } finally {
       if (mounted.current) setLoading(false);
+    }
+    // Başkanlık sayıları haritanın devamı için kritik değil; ayrı denetlenir.
+    try {
+      const counts = await backend.getSeatCountsByParty();
+      if (mounted.current) setSeatCountsByParty(counts);
+    } catch {
+      /* sayılar gelmezse seçim gecesi yalnızca sayıyı boş gösterir */
     }
   }, [backend]);
 
@@ -467,6 +477,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     user,
     profile,
     standings,
+    seatCountsByParty,
     parties,
     stats,
     national,

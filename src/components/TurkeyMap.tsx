@@ -573,10 +573,11 @@ export function TurkeyMap({
           wy += p.cy * p.area;
           wa += p.area;
         }
-        // Etiket boyutu grup büyüklüğüne göre: 2 il küçük yazar (il adlarıyla
-        // yarışmaz), 30 il alan takımın adı büyür ama taşmadan.
+        // Etiket boyutu grup büyüklüğüne göre ama ALÇAK PROFİLLİ: en büyük
+        // grup bile ~19px'i geçmez (il adı ~15px), yoksa haritanın büyük
+        // bölümünü kaplayıp devasa görünüyordu.
         const n = component.length;
-        const px = Math.min(32, Math.max(14, 14 + 0.75 * (n - 2) + 0.02 * Math.sqrt(wa)));
+        const px = Math.min(19, Math.max(13, 13 + 0.3 * (n - 2) + 0.01 * Math.sqrt(wa)));
         out.push({ entityId, cx: wx / wa, cy: wy / wa, px });
       }
     }
@@ -587,10 +588,10 @@ export function TurkeyMap({
     if (!clusters || clusters.length === 0 || !fitScale) return null;
     const compact = box.width < 520;
     return clusters.map((c) => {
-      // Küçük gruplar küçük, 30 il alan takımın etiketi büyük olur; kontur da
-      // puntoyla birlikte büyür ki okunaklı kalsın.
+      // Küçük gruplar ~13-14px, 30 il alan takımın etiketi en fazla ~19px;
+      // kontur de puntoyla birlikte ölçeklenir.
       const px = compact ? c.px * 0.92 : c.px;
-      const stroke = Math.min(7, Math.max(2.5, px * 0.22));
+      const stroke = Math.min(5, Math.max(2.5, px * 0.2));
       return (
         <text
           key={`${c.entityId}@${c.cx.toFixed(1)},${c.cy.toFixed(1)}`}

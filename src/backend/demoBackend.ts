@@ -474,9 +474,11 @@ export class DemoBackend implements Backend {
     };
   }
 
-  async getSeatMarket(limit = 8): Promise<SeatMarketSummary> {
-    // Demo modda dolu koltuklar tohum verisinden ve kullanıcının aldıklarından
-    // geliyor; ikisini birleştirip en pahalıları öne alıyoruz.
+  /**
+   * Dolu koltuklar: kullanıcının aldıkları + tohum verisi (devredilenler
+   * hariç). Vitrin ve parti başına başkanlık sayısı buradan beslenir.
+   */
+  private heldSeatRows(): LeaderSeat[] {
     const rows: LeaderSeat[] = [];
     const seen = new Set<string>();
     for (const [provinceId, parties] of Object.entries(this.state.mySeats)) {
@@ -492,12 +494,26 @@ export class DemoBackend implements Backend {
         rows.push(this.seatFor(provinceId, partyId));
       }
     }
-    rows.sort((a, b) => b.price - a.price);
+    return rows;
+  }
+
+  async getSeatMarket(limit = 8): Promise<SeatMarketSummary> {
+    // Demo modda dolu koltuklar tohum verisinden ve kullanıcının aldıklarından
+    // geliyor; ikisini birleştirip en pahalıları öne alıyoruz.
+    const rows = this.heldSeatRows().sort((a, b) => b.price - a.price);
     return {
       held: rows.length,
       volume: rows.reduce((a, r) => a + r.price, 0),
       hot: rows.slice(0, limit),
     };
+  }
+
+  async getSeatCountsByParty(): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+    for (const row of this.heldSeatRows()) {
+      counts[row.partyId] = (counts[row.partyId] ?? 0) + 1;
+    }
+    return counts;
   }
 
   /**
