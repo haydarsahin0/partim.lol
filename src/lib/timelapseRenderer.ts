@@ -27,7 +27,7 @@ import {
   teamColor,
   teamShortName,
 } from "@/data/footballTeams";
-import { PROVINCES, PROVINCE_BY_ID } from "@/data/provinces";
+import { PROVINCES } from "@/data/provinces";
 import type { Frame } from "@/lib/timelapse";
 
 /**
@@ -281,10 +281,13 @@ export type CizimSecenekleri = {
   kart?: "giris" | "bitis" | null;
   /** Kart içi ilerleme 0–1 (soldurma/solma için). */
   kartIlerleme?: number;
-  /** Bu anda rengi değişen iller — parlama ile vurgulanır. */
+  /**
+   * Bu anda rengi değişen iller — parlama ile vurgulanır.
+   *
+   * Yalnızca GÖRSEL vurgu: ilin çevresi beyaz çizgiyle parlar, ama "şu il
+   * şundan şuna geçti" diye hiçbir yazı basılmaz.
+   */
   degisenIller?: string[];
-  /** En büyük devir — manşet ve çağrı etiketi için. */
-  enBuyukDevir?: DevirBilgisi["enBuyuk"] | null;
   /** Ken Burns: harita büyütme oranı (1 = yok). */
   zoom?: number;
 };
@@ -602,16 +605,14 @@ function sayacCiz(
 /* ------------------------- viral yardımcılar ----------------------------- */
 
 /**
- * Devir bilgisi: hangi iller rengini değiştirdi, en büyük devir hangisi.
+ * Devir bilgisi: hangi iller rengini değiştirdi.
  *
  * `devirHaritasi(frames)` her veri karesi arasındaki değişimi önceden hesaplar;
- * video oynatılırken "şu an parlayacak iller" buradan seçilir. En büyük devir
- * yüzölçümüyle ölçülür — küçük bir il değil, gözle görünen bir il manşete
- * çıkar.
+ * video oynatılırken "şu an parlayacak iller" buradan seçilir. Devirler
+ * yalnızca GÖRSEL vurgudur; videoya "şu il şundan şuna geçti" yazısı basılmaz.
  */
 export type DevirBilgisi = {
   degisen: string[];
-  enBuyuk: { ilId: string; onceki: string | null; simdi: string } | null;
 };
 
 export function devirHaritasi(frames: Frame[]): DevirBilgisi[] {
@@ -620,22 +621,10 @@ export function devirHaritasi(frames: Frame[]): DevirBilgisi[] {
     const onceki = frames[i - 1].leaders;
     const simdi = frames[i].leaders;
     const degisen: string[] = [];
-    let enBuyuk: DevirBilgisi["enBuyuk"] = null;
-    let enBuyukAlan = 0;
     for (const p of PROVINCES) {
-      const a = onceki[p.id];
-      const b = simdi[p.id];
-      if (a !== b) {
-        degisen.push(p.id);
-        const kutu = ilKutusu(p.id);
-        const alan = kutu ? kutu.w * kutu.h : 0;
-        if (b && alan > enBuyukAlan) {
-          enBuyukAlan = alan;
-          enBuyuk = { ilId: p.id, onceki: a, simdi: b };
-        }
-      }
+      if (onceki[p.id] !== simdi[p.id]) degisen.push(p.id);
     }
-    out.push({ degisen, enBuyuk });
+    out.push({ degisen });
   }
   return out;
 }
@@ -735,44 +724,6 @@ function rozetCiz(
   ctx.restore();
 }
 
-/** Devir çağrı etiketi: "İSTANBUL → AK" pilli, parti rengi aksanlı. */
-function devirEtiketiCiz(
-  ctx: CanvasRenderingContext2D,
-  sagaYaslaX: number,
-  y: number,
-  devir: DevirBilgisi["enBuyuk"] | null | undefined,
-  boy: number,
-  kaynak: HaritaKaynagi,
-  vurgu: string,
-): void {
-  if (!devir) return;
-  const ilAdi = (PROVINCE_BY_ID[devir.ilId]?.name ?? devir.ilId).toLocaleUpperCase("tr");
-  const metin = `${ilAdi} → ${kaynak.kisaAd(devir.simdi)}`;
-  const h = boy * 1.5;
-  ctx.font = `800 ${boy}px "SF Pro Display", Inter, sans-serif`;
-  const w = ctx.measureText(metin).width + h * 1.7;
-  const cx = sagaYaslaX - w;
-  const cy = y + h * 0.2;
-
-  kutu(ctx, cx, cy, w, h, h / 2);
-  ctx.fillStyle = "rgba(3,7,18,0.74)";
-  ctx.fill();
-  ctx.strokeStyle = vurgu;
-  ctx.lineWidth = 1.5;
-  kutu(ctx, cx, cy, w, h, h / 2);
-  ctx.stroke();
-
-  // Sol aksan: yeni liderin rengi
-  ctx.fillStyle = kaynak.renk(devir.simdi);
-  kutu(ctx, cx + 2, cy + 2, h - 4, h - 4, (h - 4) / 2);
-  ctx.fill();
-
-  ctx.textAlign = "left";
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `800 ${boy}px "SF Pro Display", Inter, sans-serif`;
-  ctx.fillText(metin, cx + h * 0.5, cy + h * 0.66);
-}
-
 /** "Seçim Gecesi" sandık sayacı: yüzde + ince ilerleme çubuğu. */
 function sandikCiz(
   ctx: CanvasRenderingContext2D,
@@ -799,22 +750,22 @@ function sandikCiz(
   ctx.fill();
 }
 
-/** Haber bandı: kırmızı zemin, büyük manşet, altında eski → yeni parti. */
+/**
+ * Haber bandı: kırmızı zemin, büyük manşet.
+ *
+ * Bant yalnızca kapak yazısını gösterir; "şu il şundan şuna geçti" gibi bir
+ * devir metni BASILMAZ — devirler yalnızca haritada görsel parlama olarak
+ * vurgulanır.
+ */
 function altBantCiz(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
-  devir: DevirBilgisi["enBuyuk"] | null | undefined,
-  varsayilan: string,
-  kaynak: HaritaKaynagi,
+  metin: string,
   stil: StilTanim,
 ): void {
-  const metin = devir
-    ? `${(PROVINCE_BY_ID[devir.ilId]?.name ?? devir.ilId).toLocaleUpperCase("tr")} EL DEĞİŞTİRDİ`
-    : varsayilan.toLocaleUpperCase("tr");
-
   ctx.save();
   kutu(ctx, x, y, w, h, h * 0.18);
   ctx.fillStyle = stil.vurgu;
@@ -823,16 +774,7 @@ function altBantCiz(
   ctx.textAlign = "left";
   ctx.font = `900 ${Math.round(h * 0.46)}px "SF Pro Display", Inter, sans-serif`;
   ctx.fillStyle = "#ffffff";
-  ctx.fillText(metniBol(ctx, metin, w - h * 0.8, ctx.font)[0] ?? metin, x + h * 0.5, y + h * 0.62);
-
-  if (devir && devir.onceki) {
-    ctx.font = `700 ${Math.round(h * 0.28)}px "SF Pro Text", Inter, sans-serif`;
-    ctx.fillText(
-      `${kaynak.tamAd(devir.onceki)} → ${kaynak.tamAd(devir.simdi)}`,
-      x + h * 0.5,
-      y + h * 0.88,
-    );
-  }
+  ctx.fillText(metniBol(ctx, metin.toLocaleUpperCase("tr"), w - h * 0.8, ctx.font)[0] ?? metin, x + h * 0.5, y + h * 0.66);
   ctx.restore();
 }
 
@@ -1010,7 +952,7 @@ type KareSecenekleri = Omit<CizimSecenekleri, "stil"> & {
 
 /** Yatay yerleşim: marka + sayaç üstte, harita solda, tablo sağda. */
 function yatayCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekleri): void {
-  const { width, alan, stil, ornek, odakProvinceId, odakAdi, kaynak, hookMetni, degisenIller, enBuyukDevir, zoom } = o;
+  const { width, alan, stil, ornek, odakProvinceId, odakAdi, kaynak, hookMetni, degisenIller, zoom } = o;
   const baslikBoy = Math.round(width * 0.032);
   const damgaBoy = Math.round(width * 0.012);
   const baslikY = alan.y + baslikBoy;
@@ -1085,9 +1027,6 @@ function yatayCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekler
     parlama: 1,
     vurgu: stil.vurgu,
   });
-  if (enBuyukDevir) {
-    devirEtiketiCiz(ctx, alan.x + haritaW, icerikY, enBuyukDevir, Math.round(width * 0.017), kaynak, stil.vurgu);
-  }
 
   const tabloX = alan.x + haritaW + sutunAra;
   const tabloW = alan.x + alan.w - tabloX;
@@ -1104,7 +1043,7 @@ function yatayCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekler
   if (stil.altBant) {
     const bantH = Math.round(width * 0.045);
     const bantY = alan.y + alan.h - bantH - Math.round(width * 0.018);
-    altBantCiz(ctx, alan.x, bantY, alan.w, bantH, enBuyukDevir, hookMetni ?? stil.varsayilanHook, kaynak, stil);
+    altBantCiz(ctx, alan.x, bantY, alan.w, bantH, hookMetni ?? stil.varsayilanHook, stil);
     damgaY = bantY - Math.round(damgaBoy * 0.5);
   }
 
@@ -1125,7 +1064,7 @@ function yatayCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekler
 
 /** Dikey yerleşim: rozet satırı, manşet, sayaç, harita, tablo, alt bant. */
 function dikeyCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekleri): void {
-  const { width, alan, stil, ornek, odakProvinceId, odakAdi, kaynak, hookMetni, degisenIller, enBuyukDevir, zoom } = o;
+  const { width, alan, stil, ornek, odakProvinceId, odakAdi, kaynak, hookMetni, degisenIller, zoom } = o;
   const merkez = width / 2;
   const adet = stil.tabloSatir;
   const hook = (hookMetni ?? stil.varsayilanHook).trim() || stil.varsayilanHook;
@@ -1227,9 +1166,6 @@ function dikeyCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekler
     parlama: 1,
     vurgu: stil.vurgu,
   });
-  if (enBuyukDevir) {
-    devirEtiketiCiz(ctx, alan.x + alan.w, y, enBuyukDevir, Math.round(m.satir * 0.6), kaynak, stil.vurgu);
-  }
   y += m.harita + m.araB;
 
   y += tabloCiz(ctx, frame, kaynak, {
@@ -1244,7 +1180,7 @@ function dikeyCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekler
 
   y += m.araB;
   if (stil.altBant) {
-    altBantCiz(ctx, alan.x, y, alan.w, m.altBant, enBuyukDevir, hook, kaynak, stil);
+    altBantCiz(ctx, alan.x, y, alan.w, m.altBant, hook, stil);
     y += m.altBant + m.araK;
   }
 
@@ -1282,7 +1218,6 @@ function kareCiz(ctx: CanvasRenderingContext2D, frame: Frame, opts: CizimSecenek
     alan,
     hookMetni: opts.hookMetni ?? stil.varsayilanHook,
     degisenIller: opts.degisenIller ?? [],
-    enBuyukDevir: opts.enBuyukDevir ?? null,
     zoom: opts.zoom ?? 1,
   };
 

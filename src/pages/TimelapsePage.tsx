@@ -15,7 +15,6 @@ import {
   drawFrame,
   guvenliPay,
   type CizimSecenekleri,
-  type DevirBilgisi,
   type Kalite,
   type Oran,
   type VideoStil,
@@ -386,22 +385,23 @@ export default function TimelapsePage() {
    * DEVİR KAYDI
    *
    * Hangi veri karesinde hangi il rengini değiştirdi? Video oynatılırken bu
-   * liste "şu an hangi iller parlasın, manşete hangi devir çıksın" sorusunu
-   * yanıtlıyor. Parlama penceresi video süresine göre ~450 ms: ilin çevresi
-   * beyaz çizgiyle vurgulanıyor, göz tam o anı yakalıyor.
+   * liste "şu an hangi iller parlasın" sorusunu yanıtlıyor. Parlama penceresi
+   * video süresine göre ~450 ms: ilin çevresi beyaz çizgiyle vurgulanıyor,
+   * göz tam o anı yakalıyor. Vurgu yalnızca GÖRSEL — videoya "şu il şundan
+   * şuna geçti" yazısı basılmaz.
    */
-  type DevirKaydi = { il: string; at: number; enBuyuk: DevirBilgisi["enBuyuk"] };
+  type DevirKaydi = { il: string; at: number };
   const devirler = useMemo<DevirKaydi[]>(() => {
     const bilgi = devirHaritasi(frames);
     const liste: DevirKaydi[] = [];
     bilgi.forEach((b, i) => {
-      for (const il of b.degisen) liste.push({ il, at: i, enBuyuk: b.enBuyuk });
+      for (const il of b.degisen) liste.push({ il, at: i });
     });
     return liste;
   }, [frames]);
 
-  /** Çizilecek kare + o anın sahne bilgisi (parlayan iller, manşet devri). */
-  type Sahne = { f: Frame; degisen: string[]; enBuyuk: DevirBilgisi["enBuyuk"] | null };
+  /** Çizilecek kare + o anın sahne bilgisi (parlayan iller). */
+  type Sahne = { f: Frame; degisen: string[] };
 
   /**
    * O anki kare. İlerleme kesirli olduğu için iki veri karesinin arası
@@ -428,15 +428,7 @@ export default function TimelapsePage() {
       const konum = Math.max(0, Math.min(1, oran)) * (frames.length - 1);
       const gecerli = devirler.filter((d) => d.at > konum - span - 0.5 && d.at <= konum + 0.5);
       const degisen = [...new Set(gecerli.map((d) => d.il))];
-      let enBuyuk: DevirBilgisi["enBuyuk"] | null = null;
-      let enSon = -Infinity;
-      for (const d of gecerli) {
-        if (d.enBuyuk && d.at > enSon) {
-          enSon = d.at;
-          enBuyuk = d.enBuyuk;
-        }
-      }
-      return { f, degisen, enBuyuk };
+      return { f, degisen };
     },
     [frames, odakIl, devirler, sureSn, girisMs, bitisMs],
   );
@@ -481,7 +473,6 @@ export default function TimelapsePage() {
       drawFrame(ctx, s.f, {
         ...cizimSecenekleri(),
         degisenIller: s.degisen,
-        enBuyukDevir: s.enBuyuk,
         ...ekstra,
       });
     },

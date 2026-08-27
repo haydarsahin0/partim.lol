@@ -66,8 +66,9 @@ Video tek bir görünümden ibaret değil; her tarzda şunlar var:
 - **Kapanış kartı** — son ~1,6 saniye: "partim.lol — Sen de oy ver, ilini
   boya" çağrısı. Videoyu sonuna kadar izleyen herkes markayı görür.
 - **Devir parlaması** — bir ilin rengi değiştiği anda o il ~450 ms beyaz
-  çizgiyle parlar; "Son Dakika" tarzında alttaki kırmızı bant "İSTANBUL EL
-  DEĞİŞTİRDİ" yazar ve eski → yeni partiyi gösterir.
+  çizgiyle parlar. Vurgu yalnızca GÖRSELdir: videoya "şu il şundan şuna
+  geçti" gibi hiçbir devir yazısı basılmaz; "Son Dakika" bandında her zaman
+  yalnızca kapak yazısı görünür.
 - **Ken Burns** — harita video boyunca yavaşça yakınlaşır; düz veri
   görüntüsüne hareket ve dram katar.
 - **Giriş & bitiş kartları** kapatılabilir ("Giriş & bitiş kartları"
@@ -112,9 +113,9 @@ yapıp oynatın.
 - **Ses**: dosyada ses yok. Kurguda müzik ekleyin.
 - **Yazı**: videoda oyun adı, tarih, toplam oy, manşet ve devir yazıları
   zaten var; üstüne yazı eklemek gerekmiyor.
-- **Kapak yazısını kısa ve merak uyandırıcı tutun** — manşet bandındaki
-  "… EL DEĞİŞTİRDİ" yazısı bir devir olduğunda kendiliğinden çıkar, o yüzden
-  kapak yazısında il adı kullanmayın ("TÜRKİYE BÖYLE OY VERDİ" gibi).
+- **Kapak yazısını kısa ve merak uyandırıcı tutun** — manşet bandı yalnızca
+  bu yazıyı gösterir (devirler videoya yazı olarak girmez), o yüzden il adı
+  kullanmadan genel bir manşet yazın ("TÜRKİYE BÖYLE OY VERDİ" gibi).
 - **Tek il videosu**: "Kapsam"dan bir il seçersen manşet o ilin adıyla
   üretilir ve harita o ile yakınlaşır — memleket gururu içerikleri en çok
   paylaşılanlardır.
