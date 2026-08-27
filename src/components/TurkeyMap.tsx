@@ -542,7 +542,7 @@ export function TurkeyMap({
       else byEntity.set(leading, [province]);
     }
 
-    const out: Array<{ entityId: string; cx: number; cy: number }> = [];
+    const out: Array<{ entityId: string; cx: number; cy: number; px: number }> = [];
     for (const [entityId, group] of byEntity) {
       if (group.length < 2) continue;
       // Yalnızca sınır komşuluğuyla bağlantılı parçalar ("yan yana" iller).
@@ -573,7 +573,11 @@ export function TurkeyMap({
           wy += p.cy * p.area;
           wa += p.area;
         }
-        out.push({ entityId, cx: wx / wa, cy: wy / wa });
+        // Etiket boyutu grup büyüklüğüne göre: 2 il küçük yazar (il adlarıyla
+        // yarışmaz), 30 il alan takımın adı büyür ama taşmadan.
+        const n = component.length;
+        const px = Math.min(32, Math.max(14, 14 + 0.75 * (n - 2) + 0.02 * Math.sqrt(wa)));
+        out.push({ entityId, cx: wx / wa, cy: wy / wa, px });
       }
     }
     return out;
@@ -582,19 +586,29 @@ export function TurkeyMap({
   const clusterLabelsEls = useMemo(() => {
     if (!clusters || clusters.length === 0 || !fitScale) return null;
     const compact = box.width < 520;
-    return clusters.map((c) => (
-      <text
-        key={`${c.entityId}@${c.cx.toFixed(1)},${c.cy.toFixed(1)}`}
-        x={c.cx}
-        y={c.cy}
-        textAnchor="middle"
-        dominantBaseline="central"
-        className="map-label map-label-team"
-        data-compact={compact ? "true" : undefined}
-      >
-        {entityName(c.entityId)}
-      </text>
-    ));
+    return clusters.map((c) => {
+      // Küçük gruplar küçük, 30 il alan takımın etiketi büyük olur; kontur da
+      // puntoyla birlikte büyür ki okunaklı kalsın.
+      const px = compact ? c.px * 0.92 : c.px;
+      const stroke = Math.min(7, Math.max(2.5, px * 0.22));
+      return (
+        <text
+          key={`${c.entityId}@${c.cx.toFixed(1)},${c.cy.toFixed(1)}`}
+          x={c.cx}
+          y={c.cy}
+          textAnchor="middle"
+          dominantBaseline="central"
+          className="map-label map-label-team"
+          data-compact={compact ? "true" : undefined}
+          style={{
+            fontSize: `calc(${px}px / var(--map-k))`,
+            strokeWidth: `calc(${stroke}px / var(--map-k))`,
+          }}
+        >
+          {entityName(c.entityId)}
+        </text>
+      );
+    });
   }, [clusters, entityName, fitScale, box.width]);
 
   const hoveredStanding = hovered ? standings[hovered.id] : undefined;

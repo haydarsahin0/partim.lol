@@ -175,16 +175,17 @@
 }
 
 /* Küme etiketi (futbol): bir takımın yan yana aldığı illerin ortasında takım
-   adı — il adlarından biraz daha büyük ve kalın. */
+   adı. Boyut artık JS'te grup büyüklüğüne göre hesaplanıp satır içi veriliyor
+   (2 il → ~15px, 30 il → ~32px); buradaki değer yalnızca varsayılan. */
 .map-label-team {
-  font-size: calc(21px / var(--map-k));
-  stroke-width: calc(5px / var(--map-k));
+  font-size: calc(16px / var(--map-k));
+  stroke-width: calc(4px / var(--map-k));
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 
 .map-label[data-compact="true"].map-label-team {
-  font-size: calc(19px / var(--map-k));
+  font-size: calc(15px / var(--map-k));
 }
 
 /* Harita etkileşimi */
@@ -214,5 +215,81 @@
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+/* ------------------- başkan rozeti (futbol) --------------------------------
+ * Takım satırlarındaki "başkan + devral/başkan ol" bloğu. Amaç küçük ama
+ * davetkâr olmak: rozet yumuşakça belirir, taç hafifçe nabız gibi atar, boş
+ * koltuğun düğmesi takım rengiyle parlar ve üzerine gelince ışık süpürür.
+ * -------------------------------------------------------------------------- */
+@keyframes president-pop {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.president-chip {
+  animation: president-pop 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes crown-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgb(252 211 77 / 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 4px rgb(252 211 77 / 0.6));
+  }
+}
+.president-crown {
+  animation: crown-pulse 2.6s ease-in-out infinite;
+}
+
+/* Devral / Başkan ol düğmesi: hover'da soldan sağa ışık süpürmesi */
+.president-claim {
+  position: relative;
+  overflow: hidden;
+}
+.president-claim::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgb(255 255 255 / 0.3) 50%,
+    transparent 60%
+  );
+  transform: translateX(-130%);
+  transition: transform 650ms ease;
+  pointer-events: none;
+}
+.president-claim:hover::after {
+  transform: translateX(130%);
+}
+
+/* Boş koltuk: takım rengiyle kenarlık + yumuşak nabız — "tıkla" daveti */
+.president-claim--invite {
+  border-color: color-mix(in srgb, var(--tint, #b96fff) 55%, transparent);
+  background: color-mix(in srgb, var(--tint, #b96fff) 12%, transparent);
+  color: color-mix(in srgb, var(--tint, #b96fff) 88%, white);
+  animation: claim-nudge 2.4s ease-in-out infinite;
+}
+.president-claim--invite:hover {
+  border-color: color-mix(in srgb, var(--tint, #b96fff) 90%, transparent);
+  background: color-mix(in srgb, var(--tint, #b96fff) 22%, transparent);
+}
+@keyframes claim-nudge {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--tint, #b96fff) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 14px -1px color-mix(in srgb, var(--tint, #b96fff) 45%, transparent);
   }
 }

@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { Trophy } from "lucide-react";
-import type { ProvinceStanding } from "@/backend/types";
+import type { FootballSeat, ProvinceStanding } from "@/backend/types";
 import { FOOTBALL_TEAMS, teamColor, teamName } from "@/data/footballTeams";
 import { PROVINCES } from "@/data/provinces";
 import { useCountUp } from "@/hooks/useCountUp";
 import { formatNumber, formatPercent } from "@/lib/game";
 import { Card } from "@/components/ui/card";
+import { FootballPresident } from "@/components/FootballPresident";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,18 +15,25 @@ import { cn } from "@/lib/utils";
  * Partiler haritasındaki ElectionNight'ın futbol karşılığı: en üstte canlı
  * sayılan oy, altında takımların ülke geneli oy oranları (sayı + yüzde),
  * ardından başa baş iller. Lider takımlar ve toplam yüzdeler ayrı kartlarda
- * yan panelde durur; bu kart gecenin nabzını özetler.
+ * yan panelde durur; bu kart gecenin nabzını özetler. Her takımın yanında
+ * o takımın (kendi ilindeki koltuğun) başkanı ve devral/başkan ol düğmesi
+ * durur.
  */
 export function FootballElectionNight({
   standings,
   national,
   totalVotes,
+  seats,
+  onClaimSeat,
   onSelectProvince,
   className,
 }: {
   standings: Record<string, ProvinceStanding>;
   national: Array<{ teamId: string; votes: number; pct: number }>;
   totalVotes: number;
+  /** Tüm illerdeki başkanlık koltukları — takımın başkanı kendi ilinden bulunur */
+  seats: FootballSeat[];
+  onClaimSeat: (provinceId: string, clubId: string) => Promise<boolean>;
   onSelectProvince?: (id: string) => void;
   className?: string;
 }) {
@@ -95,7 +103,13 @@ export function FootballElectionNight({
         <span className="stat-label">Takım yarışı</span>
         <ul className="mt-2 space-y-2">
           {national.slice(0, 8).map((row, index) => (
-            <TeamRow key={row.teamId} row={row} index={index} />
+            <TeamRow
+              key={row.teamId}
+              row={row}
+              index={index}
+              seats={seats}
+              onClaimSeat={onClaimSeat}
+            />
           ))}
           {national.length === 0 && (
             <li className="text-sm text-muted-foreground">
@@ -122,11 +136,26 @@ function Stat({ label, value }: { label: string; value: string }) {
 function TeamRow({
   row,
   index,
+  seats,
+  onClaimSeat,
 }: {
   row: { teamId: string; votes: number; pct: number };
   index: number;
+  seats: FootballSeat[];
+  onClaimSeat: (provinceId: string, clubId: string) => Promise<boolean>;
 }) {
   const oy = useCountUp(row.votes, 800);
+  const team = FOOTBALL_TEAMS.find((t) => t.id === row.teamId);
+  // Takımın "başkanı": kendi ilindeki koltuğun sahibi. Kullanıcı kulüplerinin
+  // memleketi olmadığı için ilk sahip oldukları koltuğa bakarız.
+  const homeSeat = team?.provinceId
+    ? seats.find((s) => s.clubId === row.teamId && s.provinceId === team.provinceId) ?? null
+    : null;
+  const fallbackSeat = !team?.provinceId
+    ? seats.find((s) => s.clubId === row.teamId) ?? null
+    : null;
+  const seat = homeSeat ?? fallbackSeat;
+
   return (
     <li>
       <div className="flex items-baseline gap-2 text-xs">
@@ -143,10 +172,19 @@ function TeamRow({
           {formatPercent(row.pct)}
         </span>
       </div>
-      <div className="ml-5 mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
-        <div
-          className="h-full rounded-full transition-[width] duration-700 ease-out"
-          style={{ width: `${Math.max(1, row.pct)}%`, background: teamColor(row.teamId) }}
+      <div className="ml-5 mt-1 flex items-center gap-2">
+        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/[0.05]">
+          <div
+            className="h-full rounded-full transition-[width] duration-700 ease-out"
+            style={{ width: `${Math.max(1, row.pct)}%`, background: teamColor(row.teamId) }}
+          />
+        </div>
+        <FootballPresident
+          provinceId={team?.provinceId ?? ""}
+          clubId={row.teamId}
+          seat={seat}
+          onClaimSeat={onClaimSeat}
+          tint={teamColor(row.teamId)}
         />
       </div>
     </li>

@@ -13,6 +13,7 @@ import {
 } from "@/lib/game";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FootballPresident } from "@/components/FootballPresident";
 import { cn } from "@/lib/utils";
 
 const normalize = (text: string) =>
@@ -53,7 +54,6 @@ export function FootballVoteBallot({
   const { profile, startFastVotes, requireAuth } = useGame();
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [claimBusy, setClaimBusy] = useState(false);
   const [hizliBusy, setHizliBusy] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -94,16 +94,6 @@ export function FootballVoteBallot({
     }
   };
 
-  const claim = async () => {
-    if (!selected || claimBusy) return;
-    setClaimBusy(true);
-    try {
-      await onClaimSeat(provinceId, selected);
-    } finally {
-      setClaimBusy(false);
-    }
-  };
-
   const daily = async () => {
     if (!selected || dailyBusy) return;
     try {
@@ -114,7 +104,6 @@ export function FootballVoteBallot({
   };
 
   const selectedSeat = selected ? (seats ?? []).find((s) => s.clubId === selected) ?? null : null;
-  const selectedSeatPrice = selectedSeat?.nextPrice ?? 1;
 
   return (
     <div className="space-y-3">
@@ -133,37 +122,54 @@ export function FootballVoteBallot({
         />
       </div>
 
-      <div className="thin-scroll grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+      <ul className="thin-scroll grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
         {filteredTeams.map((team) => {
           const isSelected = selected === team.id;
+          const seat = (seats ?? []).find(
+            (s) => s.clubId === team.id && s.provinceId === provinceId,
+          );
           return (
-            <button
+            <li
               key={team.id}
-              type="button"
-              onClick={() => setSelected(isSelected ? null : team.id)}
-              aria-pressed={isSelected}
               className={cn(
-                "group relative flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-all",
+                "flex items-center gap-1.5 rounded-lg border px-2 py-2 transition-all",
                 isSelected
                   ? "border-white/40 bg-white/[0.09] shadow-lg"
                   : "border-white/10 bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.06]",
               )}
             >
-              <span
-                aria-hidden="true"
-                className="grid size-7 shrink-0 place-items-center rounded-lg text-white"
-                style={{ background: teamColor(team.id) }}
+              <button
+                type="button"
+                onClick={() => setSelected(isSelected ? null : team.id)}
+                aria-pressed={isSelected}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
-                {isSelected ? <Check className="size-3.5" /> : <span className="size-2.5 rounded-full bg-white/90" />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-semibold">{team.name}</span>
-                <span className="block truncate text-[11px] text-muted-foreground">{team.cityName}</span>
-              </span>
-            </button>
+                <span
+                  aria-hidden="true"
+                  className="grid size-7 shrink-0 place-items-center rounded-lg text-white"
+                  style={{ background: teamColor(team.id) }}
+                >
+                  {isSelected ? <Check className="size-3.5" /> : <span className="size-2.5 rounded-full bg-white/90" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold">{team.name}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{team.cityName}</span>
+                </span>
+              </button>
+
+              {/* Başkan + devral/başkan ol — takımın hemen yanında */}
+              <FootballPresident
+                provinceId={provinceId}
+                clubId={team.id}
+                seat={seat}
+                onClaimSeat={onClaimSeat}
+                tint={teamColor(team.id)}
+                stacked
+              />
+            </li>
           );
         })}
-      </div>
+      </ul>
 
       {query.trim() && filteredTeams.length === 0 && (
         <p className="text-xs text-muted-foreground">Aramana uyan takım bulunamadı.</p>
@@ -230,7 +236,8 @@ export function FootballVoteBallot({
           </button>
         ))}
 
-      {/* Kulüp başkanlığı — $1'den başlar, başkan günde 60 oy atar */}
+      {/* Kulüp başkanlığı — devralma her takım satırındaki düğmeden yapılır;
+          seçili takımın başkanı günde 60 oy ekler */}
       {selected && (
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3.5">
           <div className="flex items-center gap-2">
@@ -239,20 +246,10 @@ export function FootballVoteBallot({
           </div>
           <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
             {teamName(selected)} kulübünün {provinceName} başkanı ol; her gün kulübüne 60 oy
-            ekle. Boş koltuk {formatUsd(1)}'dan başlar, dolu koltuğu üstüne çıkarak devral.
+            ekle. Devralma düğmesi her takımın yanında durur — boş koltuk {formatUsd(1)}'dan
+            başlar, dolu koltuğu üstüne çıkarak devral.
           </p>
-          <div className="mt-3 space-y-2">
-            <Button
-              className="w-full"
-              variant="outline"
-              disabled={claimBusy}
-              onClick={() => void claim()}
-            >
-              {claimBusy ? <Loader2 className="animate-spin" /> : <Crown className="size-4" />}
-              {selectedSeat
-                ? `Başkanlığı devral — ${formatUsd(selectedSeatPrice)}`
-                : `Başkan ol — ${formatUsd(selectedSeatPrice)}`}
-            </Button>
+          <div className="mt-3">
             <Button
               className="w-full"
               variant="secondary"

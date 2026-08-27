@@ -135,6 +135,8 @@ export default function FootballMapPage() {
             standings={standings}
             national={national}
             totalVotes={totalVotes}
+            seats={seats}
+            onClaimSeat={claimFootballSeat}
             onSelectProvince={selectAndFocus}
           />
 

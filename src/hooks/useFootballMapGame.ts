@@ -95,9 +95,12 @@ export function useFootballMapGame() {
   /** Kulüp başkanlığı satın alır; gerçek modda Stripe'a yönlendirir. */
   const claimSeat = useCallback(
     async (provinceId: string, clubId: string, amount?: number) => {
-      return backend.claimFootballSeat(provinceId, clubId, amount);
+      const result = await backend.claimFootballSeat(provinceId, clubId, amount);
+      // Demo modunda koltuk anında sahiplenilir: başkan etiketleri tazelensin.
+      if (result.kind === "done") void refresh();
+      return result;
     },
-    [backend],
+    [backend, refresh],
   );
 
   /** Kulüp başkanı günde 1 kez kulübüne 60 oy ekler. */
