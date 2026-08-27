@@ -13,6 +13,8 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # Takılı deployment'ları "inactive" yapabilmek için (bkz. deploy adımı)
+  deployments: write
 
 # Aynı anda tek dağıtım; sıradaki iş devam edenin bitmesini bekler.
 concurrency:
@@ -97,25 +99,49 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Takılı Pages deployment'larını iptal et
+      - name: Takılı Pages deployment'larını iptal et (engellemez)
         # deploy-pages zaman aşımına takılıp yarım kalan bir deployment
         # bırakabilir ("Timeout reached, aborting!"). Pages aynı anda tek
         # deployment kabul ettiği için yenisi şu hatayla reddedilir:
         #   "Deployment request failed ... due to in progress deployment"
-        # Kuyruktaki tamamlanmamış çalışmaları önce iptal edip sonra dağıt.
+        # Bu adım kuyruktaki takılı çalışmaları temizlemeyi DENER ama asla
+        # dağıtımı engellemez; bir şey olursa deploy-pages kendi şansını
+        # dener. Çıktı iş özetine yazılır ki bir dahaki sefere ne olduğu
+        # görülsün.
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ids=$(gh api "/repos/${{ github.repository }}/pages/deployments?per_page=100" \
-            --jq '.[] | select(.status != "deployed" and .status != "cancelled") | .id')
-          if [ -n "$ids" ]; then
-            echo "$ids" | while read -r id; do
-              echo "iptal ediliyor: Pages deployment $id"
-              gh api --method POST "/repos/${{ github.repository }}/pages/deployments/$id/cancel" --silent \
-                || echo "iptal başarısız (büyük olasılıkla çoktan temizlendi): $id"
+          set +e
+          {
+            echo "### Takılı deployment temizliği"
+            # 1) Pages deployment'ları — cancel uç noktası (pages: write)
+            echo "1) pages/deployments listesi:"
+            gh api "/repos/${{ github.repository }}/pages/deployments?per_page=100" 2>&1 | head -c 1200
+            echo
+            gh api "/repos/${{ github.repository }}/pages/deployments?per_page=100" \
+              --jq '.[] | select(.status != "deployed" and .status != "cancelled") | .id' 2>/dev/null \
+              | while read -r id; do
+                  [ -z "$id" ] && continue
+                  echo "iptal ediliyor: Pages deployment $id"
+                  gh api --method POST "/repos/${{ github.repository }}/pages/deployments/$id/cancel" --silent 2>&1 \
+                    || echo "iptal başarısız: $id"
+                done
+            # 2) Deployments API yedeği — bitmemiş durumları "inactive" yap
+            #    (deployments: write yetkisi bu yüzden eklendi)
+            echo "2) deployments API taraması:"
+            for dep in $(gh api "/repos/${{ github.repository }}/deployments?environment=github-pages&per_page=100" \
+              --jq '.[].id' 2>/dev/null); do
+              states=$(gh api "/repos/${{ github.repository }}/deployments/$dep/statuses" \
+                --jq '[.[].state] | join(",")' 2>/dev/null)
+              case "$states" in
+                *in_progress*|*queued*|*waiting*)
+                  echo "inactive: deployment $dep ($states)"
+                  gh api --method POST "/repos/${{ github.repository }}/deployments/$dep/statuses" \
+                    -f state=inactive --silent 2>&1 || echo "inactive başarısız: $dep"
+                  ;;
+              esac
             done
-          else
-            echo "iptal edilecek Pages deployment yok"
-          fi
+          } 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
       - id: deployment
         uses: actions/deploy-pages@v4
