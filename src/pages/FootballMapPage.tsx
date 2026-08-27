@@ -122,6 +122,7 @@ export default function FootballMapPage() {
               entityColor={teamColor}
               entityName={teamName}
               neutralColor={FOOTBALL_NEUTRAL_COLOR}
+              clusterLabels
             />
           </div>
         </section>

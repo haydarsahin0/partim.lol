@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Minus, Plus, Locate } from "lucide-react";
-import { MAP_VIEWBOX, PROVINCES, type Province } from "@/data/provinces";
+import { MAP_VIEWBOX, PROVINCES, PROVINCE_BY_ID, type Province } from "@/data/provinces";
 import { NEUTRAL_COLOR, partyColor, partyName } from "@/data/parties";
 import type { ProvinceStanding } from "@/backend/types";
 import { formatNumber, formatPercent } from "@/lib/game";
@@ -15,6 +15,13 @@ type Props = {
   entityColor?: (entityId: string | null | undefined) => string;
   entityName?: (entityId: string | null | undefined) => string;
   neutralColor?: string;
+  /**
+   * Aynı kazananın yan yana 2+ ilini tek etikette birleştirir: illerin
+   * ağırlık merkezine takım adını (biraz daha büyük puntoyla) yazar.
+   * Futbol haritasında kullanılır (ör. Trabzonspor Trabzon+Rize'yi alınca
+   * iki şehrin ortasında "Trabzonspor" görünür).
+   */
+  clusterLabels?: boolean;
 };
 
 /** k = yakınlaştırma, x/y = viewBox biriminde kaydırma */
@@ -25,6 +32,88 @@ const MAX_K = 14;
 const { width: W, height: H } = MAP_VIEWBOX;
 const CX = W / 2;
 const CY = H / 2;
+
+/**
+ * Komşuluk haritası: illerin ÇİZİLEN sınır noktalarının yakınlığından çıkarılır
+ * (modül yüklenirken bir kez). Sadeleştirme bazı kısa sınırları yuttuğu için
+ * "ortak kenar" değil "ortak nokta" eşiği kullanılıyor: iki ilin path'lerinde
+ * 2 birimden yakın nokta varsa komşu sayılır. Bu eşikte 81 il için yanlış
+ * pozitif çıkmıyor (tüm çiftler doğrulandı); tek kayıp, sadeleştirmede
+ * tamamen silinen birkaç kısa sınır (ör. Kayseri–Malatya).
+ */
+const PROVINCE_NEIGHBORS: ReadonlyMap<string, ReadonlyArray<string>> = (() => {
+  type Pt = [number, number];
+  const pathPoints = (d: string): Pt[] => {
+    const tokens = d.match(/[MLZ]|-?\d+(?:\.\d+)?/g) ?? [];
+    const pts: Pt[] = [];
+    let x = 0;
+    let y = 0;
+    let expectX = true;
+    for (const tok of tokens) {
+      if (tok === "M" || tok === "L" || tok === "Z") {
+        expectX = true;
+        continue;
+      }
+      const v = parseFloat(tok);
+      if (expectX) {
+        x = v;
+        expectX = false;
+      } else {
+        y = v;
+        expectX = true;
+        pts.push([x, y]);
+      }
+    }
+    return pts;
+  };
+
+  const CELL = 4;
+  const cellKey = (x: number, y: number) => `${Math.floor(x / CELL)}:${Math.floor(y / CELL)}`;
+  const grid = new Map<string, Array<{ id: string; x: number; y: number }>>();
+  for (const province of PROVINCES) {
+    for (const [x, y] of pathPoints(province.d)) {
+      const k = cellKey(x, y);
+      const list = grid.get(k);
+      if (list) list.push({ id: province.id, x, y });
+      else grid.set(k, [{ id: province.id, x, y }]);
+    }
+  }
+
+  const pairs = new Set<string>();
+  for (const province of PROVINCES) {
+    const found = new Set<string>();
+    for (const [x, y] of pathPoints(province.d)) {
+      const cx = Math.floor(x / CELL);
+      const cy = Math.floor(y / CELL);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const list = grid.get(`${cx + dx}:${cy + dy}`);
+          if (!list) continue;
+          for (const q of list) {
+            if (q.id === province.id || found.has(q.id)) continue;
+            if (Math.hypot(x - q.x, y - q.y) <= 2) {
+              found.add(q.id);
+              const key = province.id < q.id ? `${province.id}|${q.id}` : `${q.id}|${province.id}`;
+              pairs.add(key);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const map = new Map<string, string[]>();
+  for (const key of pairs) {
+    const [a, b] = key.split("|");
+    const la = map.get(a) ?? [];
+    la.push(b);
+    map.set(a, la);
+    const lb = map.get(b) ?? [];
+    lb.push(a);
+    map.set(b, lb);
+  }
+  return map;
+})();
 
 /**
  * PERFORMANS NOTU — bu dosyanın yapısını belirleyen şey.
@@ -80,6 +169,7 @@ export function TurkeyMap({
   entityColor = partyColor,
   entityName = partyName,
   neutralColor = NEUTRAL_COLOR,
+  clusterLabels = false,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -434,6 +524,79 @@ export function TurkeyMap({
     });
   }, [fitScale, zoomStep, box.width]);
 
+  /**
+   * Küme etiketleri (futbol haritası): aynı takımın komşu illerden oluşan her
+   * bağlantılı grubu için alan ağırlıklı merkez hesaplanır ve takım adı oraya
+   * yazılır. Örnek: Göztepe Ege'de İzmir+Manisa+Aydın+Muğla'yı alınca o
+   * grubun ortasında "Göztepe" görünür; Trabzonspor Trabzon+Rize'yi alınca
+   * iki şehrin ortasında "Trabzonspor".
+   */
+  const clusters = useMemo(() => {
+    if (!clusterLabels) return null;
+    const byEntity = new Map<string, Province[]>();
+    for (const province of PROVINCES) {
+      const leading = standings[province.id]?.leadingPartyId;
+      if (!leading) continue;
+      const list = byEntity.get(leading);
+      if (list) list.push(province);
+      else byEntity.set(leading, [province]);
+    }
+
+    const out: Array<{ entityId: string; cx: number; cy: number }> = [];
+    for (const [entityId, group] of byEntity) {
+      if (group.length < 2) continue;
+      // Yalnızca sınır komşuluğuyla bağlantılı parçalar ("yan yana" iller).
+      const remaining = new Set(group);
+      for (const start of group) {
+        if (!remaining.has(start)) continue;
+        const component: Province[] = [];
+        const queue = [start];
+        remaining.delete(start);
+        while (queue.length) {
+          const p = queue.pop()!;
+          component.push(p);
+          for (const nid of PROVINCE_NEIGHBORS.get(p.id) ?? []) {
+            const n = PROVINCE_BY_ID[nid];
+            if (n && remaining.has(n)) {
+              remaining.delete(n);
+              queue.push(n);
+            }
+          }
+        }
+        if (component.length < 2) continue;
+        // Alan ağırlıklı merkez: büyük iller ortalamayı kendine çeker.
+        let wx = 0;
+        let wy = 0;
+        let wa = 0;
+        for (const p of component) {
+          wx += p.cx * p.area;
+          wy += p.cy * p.area;
+          wa += p.area;
+        }
+        out.push({ entityId, cx: wx / wa, cy: wy / wa });
+      }
+    }
+    return out;
+  }, [standings, clusterLabels]);
+
+  const clusterLabelsEls = useMemo(() => {
+    if (!clusters || clusters.length === 0 || !fitScale) return null;
+    const compact = box.width < 520;
+    return clusters.map((c) => (
+      <text
+        key={`${c.entityId}@${c.cx.toFixed(1)},${c.cy.toFixed(1)}`}
+        x={c.cx}
+        y={c.cy}
+        textAnchor="middle"
+        dominantBaseline="central"
+        className="map-label map-label-team"
+        data-compact={compact ? "true" : undefined}
+      >
+        {entityName(c.entityId)}
+      </text>
+    ));
+  }, [clusters, entityName, fitScale, box.width]);
+
   const hoveredStanding = hovered ? standings[hovered.id] : undefined;
   const currentK = ZOOM_STEPS[zoomStep] ?? 1;
 
@@ -458,6 +621,7 @@ export function TurkeyMap({
           <g>{paths}</g>
           <g aria-hidden="true" pointerEvents="none">
             {labels}
+            {clusterLabelsEls}
           </g>
         </g>
       </svg>

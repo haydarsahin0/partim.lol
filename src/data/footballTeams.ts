@@ -57,7 +57,8 @@ const MAJOR_TEAMS: Array<{
     name: "Galatasaray",
     shortName: "GS",
     fullName: "Galatasaray Spor Kulübü",
-    color: "#A32638",
+    // Parlak kırmızı: bordo (Trabzonspor) ve koyu kırmızıdan (Göztepe) net ayrışır.
+    color: "#E4002B",
     founded: 1905,
     blurb: "İstanbul'un Avrupa yakasını temsil eder.",
   },
@@ -89,7 +90,8 @@ const MAJOR_TEAMS: Array<{
     name: "Trabzonspor",
     shortName: "TS",
     fullName: "Trabzonspor Kulübü",
-    color: "#81007F",
+    // Bordo — kulübün resmî rengi; mor (#81007F) yerine artık gerçek bordo.
+    color: "#7A1F3C",
     founded: 1967,
     blurb: "Karadeniz'in en büyük kulübü.",
   },
@@ -97,24 +99,28 @@ const MAJOR_TEAMS: Array<{
 
 /** Dört büyük dışında tanınan kulüpler (il başına bir tane). */
 const OTHER_TEAMS: Record<string, { name: string; shortName: string; fullName: string; color: string; founded?: number }> = {
-  ankara: { name: "Ankaragücü", shortName: "AG", fullName: "MKE Ankaragücü", color: "#FDB913", founded: 1910 },
-  izmir: { name: "Göztepe", shortName: "GÖZ", fullName: "Göztepe Spor Kulübü", color: "#C8102E", founded: 1925 },
-  bursa: { name: "Bursaspor", shortName: "BUR", fullName: "Bursaspor Kulübü", color: "#008000", founded: 1963 },
-  kocaeli: { name: "Kocaelispor", shortName: "KOC", fullName: "Kocaelispor", color: "#0066B3", founded: 1966 },
-  eskisehir: { name: "Eskişehirspor", shortName: "ES", fullName: "Eskişehirspor", color: "#D71920", founded: 1965 },
-  samsun: { name: "Samsunspor", shortName: "SAM", fullName: "Samsunspor", color: "#C8102E", founded: 1965 },
+  // Renkler haritada yan yana gelince karışmasın diye algısal uzaklığa göre
+  // seçildi (OKLab): kırmızı ailesi parlak kırmızı (GS) / koyu kırmızı (Göztepe)
+  // / bordo (Trabzonspor) olarak üçe bölündü, maviler koyudan açığa merdiven
+  // kurdu, sarılar/yeşiller/morlar tek bir kulüpte kaldı.
+  ankara: { name: "Ankaragücü", shortName: "AG", fullName: "MKE Ankaragücü", color: "#FF9800", founded: 1910 },
+  izmir: { name: "Göztepe", shortName: "GÖZ", fullName: "Göztepe Spor Kulübü", color: "#A61B29", founded: 1925 },
+  bursa: { name: "Bursaspor", shortName: "BUR", fullName: "Bursaspor Kulübü", color: "#00A859", founded: 1963 },
+  kocaeli: { name: "Kocaelispor", shortName: "KOC", fullName: "Kocaelispor", color: "#1E88E5", founded: 1966 },
+  eskisehir: { name: "Eskişehirspor", shortName: "ES", fullName: "Eskişehirspor", color: "#5D4037", founded: 1965 },
+  samsun: { name: "Samsunspor", shortName: "SAM", fullName: "Samsunspor", color: "#C2185B", founded: 1965 },
   malatya: { name: "Yeni Malatyaspor", shortName: "YMS", fullName: "Yeni Malatyaspor", color: "#FFD100", founded: 1986 },
-  diyarbakir: { name: "Diyarbakırspor", shortName: "DİY", fullName: "Diyarbakırspor", color: "#FF0000", founded: 1968 },
-  adana: { name: "Adana Demirspor", shortName: "ADS", fullName: "Adana Demirspor", color: "#0066B3", founded: 1940 },
-  antalya: { name: "Antalyaspor", shortName: "ANT", fullName: "Antalyaspor", color: "#C8102E", founded: 1966 },
-  gaziantep: { name: "Gaziantep FK", shortName: "GAF", fullName: "Gaziantep Futbol Kulübü", color: "#E30A17", founded: 1988 },
+  diyarbakir: { name: "Diyarbakırspor", shortName: "DİY", fullName: "Diyarbakırspor", color: "#2E7D32", founded: 1968 },
+  adana: { name: "Adana Demirspor", shortName: "ADS", fullName: "Adana Demirspor", color: "#42A5F5", founded: 1940 },
+  antalya: { name: "Antalyaspor", shortName: "ANT", fullName: "Antalyaspor", color: "#F4511E", founded: 1966 },
+  gaziantep: { name: "Gaziantep FK", shortName: "GAF", fullName: "Gaziantep Futbol Kulübü", color: "#C2410C", founded: 1988 },
   hatay: { name: "Hatayspor", shortName: "HAT", fullName: "Hatayspor", color: "#4B0082", founded: 1967 },
-  kayseri: { name: "Kayserispor", shortName: "KAY", fullName: "Kayserispor", color: "#FF0000", founded: 1966 },
-  konya: { name: "Konyaspor", shortName: "KON", fullName: "Konyaspor", color: "#006600", founded: 1922 },
-  sivas: { name: "Sivasspor", shortName: "SİV", fullName: "Sivasspor", color: "#D71920", founded: 1967 },
-  rize: { name: "Çaykur Rizespor", shortName: "ÇRZ", fullName: "Çaykur Rizespor", color: "#005C9A", founded: 1953 },
-  canakkale: { name: "Çanakkale Dardanelspor", shortName: "ÇD", fullName: "Çanakkale Dardanelspor", color: "#00457C", founded: 1927 },
-  ordu: { name: "Orduspor", shortName: "ORD", fullName: "Orduspor", color: "#6A0DAD", founded: 1967 },
+  kayseri: { name: "Kayserispor", shortName: "KAY", fullName: "Kayserispor", color: "#5C6BC0", founded: 1966 },
+  konya: { name: "Konyaspor", shortName: "KON", fullName: "Konyaspor", color: "#1B5E20", founded: 1922 },
+  sivas: { name: "Sivasspor", shortName: "SİV", fullName: "Sivasspor", color: "#D26B6B", founded: 1967 },
+  rize: { name: "Çaykur Rizespor", shortName: "ÇRZ", fullName: "Çaykur Rizespor", color: "#00838F", founded: 1953 },
+  canakkale: { name: "Çanakkale Dardanelspor", shortName: "ÇD", fullName: "Çanakkale Dardanelspor", color: "#1565C0", founded: 1927 },
+  ordu: { name: "Orduspor", shortName: "ORD", fullName: "Orduspor", color: "#7E57C2", founded: 1967 },
 };
 
 /**
@@ -139,7 +145,7 @@ const EXTRA_TEAMS: Array<{
     name: "Amedspor",
     shortName: "AMED",
     fullName: "Amedspor",
-    color: "#FFB300",
+    color: "#9CCC65",
     founded: 1990,
     blurb: "Diyarbakır'ı temsil eder.",
   },
@@ -149,7 +155,7 @@ const EXTRA_TEAMS: Array<{
     name: "Gençlerbirliği",
     shortName: "GB",
     fullName: "Gençlerbirliği Spor Kulübü",
-    color: "#DA291C",
+    color: "#9C27B0",
     founded: 1923,
     blurb: "Ankara'yı temsil eder.",
   },
@@ -182,7 +188,7 @@ export function buildFootballTeams(): FootballTeam[] {
     const name = other?.name ?? `${province.name} FK`;
     const shortName = other?.shortName ?? `${province.name.slice(0, 3).toLocaleUpperCase("tr")}`;
     const fullName = other?.fullName ?? `${province.name} Futbol Kulübü`;
-    const color = other?.color ?? "#3A7D44";
+    const color = other?.color ?? "#90A4AE";
     listed.push({
       id: `ft-${province.id}`,
       name,
