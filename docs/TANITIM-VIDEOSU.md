@@ -60,11 +60,13 @@ görüntüye girmiyor, çözünürlük tam istenen ölçüde oluyor.
 
 Video tek bir görünümden ibaret değil; her tarzda şunlar var:
 
-- **Açılış kartı** — ilk ~1,4 saniye tam ekran manşet (kapak yazısı) +
+- **Açılış kartı** — ilk ~1,4 saniye: ince, harf aralıklı (letter-spacing)
+  ve ölçülü bir manşet, üstünde vurgu renginde ince aksan çizgisi ve
   "partim.lol" markası. Reels'te ilk iki saniye izleyiciyi durduran kısım
   budur; sonunda soldurarak haritayı açar.
-- **Kapanış kartı** — son ~1,6 saniye: "partim.lol — Sen de oy ver, ilini
-  boya" çağrısı. Videoyu sonuna kadar izleyen herkes markayı görür.
+- **Kapanış kartı** — son ~2,4 saniye: "partim.lol — Sen de oy ver, ilini
+  boya" çağrısı. Marka izleyicide kalır; videoyu sonuna kadar izleyen herkes
+  adresi görür.
 - **Devir parlaması** — bir ilin rengi değiştiği anda o il ~450 ms beyaz
   çizgiyle parlar. Vurgu yalnızca GÖRSELdir: videoya "şu il şundan şuna
   geçti" gibi hiçbir devir yazısı basılmaz; "Son Dakika" bandında her zaman

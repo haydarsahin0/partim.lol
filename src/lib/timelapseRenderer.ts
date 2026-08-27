@@ -630,15 +630,24 @@ export function devirHaritasi(frames: Frame[]): DevirBilgisi[] {
 }
 
 /** Metni kelime kelime satırlara böler; taşan satır "…" ile kırpılır. */
-function metniBol(ctx: CanvasRenderingContext2D, metin: string, maxW: number, font: string): string[] {
+function metniBol(
+  ctx: CanvasRenderingContext2D,
+  metin: string,
+  maxW: number,
+  font: string,
+  track = 0,
+): string[] {
   ctx.font = font;
+  // Harf aralıklı yazımda gerçek genişlik, karakter sayısına göre büyür.
+  const genislik = (s: string) =>
+    ctx.measureText(s).width + track * Math.max(0, [...s].length - 1);
   const kelimeler = metin.split(/\s+/).filter(Boolean);
   if (kelimeler.length === 0) return [];
   const satirlar: string[] = [];
   let satir = kelimeler[0];
   for (let i = 1; i < kelimeler.length; i++) {
     const deneme = `${satir} ${kelimeler[i]}`;
-    if (ctx.measureText(deneme).width > maxW) {
+    if (genislik(deneme) > maxW) {
       satirlar.push(satir);
       satir = kelimeler[i];
     } else {
@@ -649,17 +658,45 @@ function metniBol(ctx: CanvasRenderingContext2D, metin: string, maxW: number, fo
   if (satirlar.length > 2) {
     const birlesik = satirlar.slice(1).join(" ");
     let k = birlesik.length;
-    while (k > 1 && ctx.measureText(`${birlesik.slice(0, k)}…`).width > maxW) k -= 1;
+    while (k > 1 && genislik(`${birlesik.slice(0, k)}…`) > maxW) k -= 1;
     return [satirlar[0], `${birlesik.slice(0, k)}…`];
   }
   return satirlar;
 }
 
 /**
- * Büyük manşet — en fazla iki satır, bloğa dikeyde ortalanmış.
+ * Harf aralıklı (letter-spacing) metin.
  *
- * Yazı boyu önce bloğun yarısı kadar denenir; iki satıra sığmıyorsa küçültülür.
- * Viral reels açılışlarının olmazsa olmazı: koca harfler, tek bakışta okunur.
+ * `ctx.letterSpacing` her tarayıcıda yok; sonuç tutarlı olsun diye harfler
+ * elle, araya eşit boşluk konarak çizilir. Şık tipografinin temelidir:
+ * büyük harfler aralıklı okunduğunda "elit" bir görünüm verir.
+ */
+function aralikliYaz(
+  ctx: CanvasRenderingContext2D,
+  metin: string,
+  x: number,
+  y: number,
+  track: number,
+  hizala: "sol" | "orta" = "orta",
+): number {
+  const harfler = [...metin];
+  if (harfler.length === 0) return 0;
+  let w = 0;
+  for (const ch of harfler) w += ctx.measureText(ch).width + track;
+  w -= track;
+  let cx = hizala === "orta" ? x - w / 2 : x;
+  for (const ch of harfler) {
+    ctx.fillText(ch, cx, y);
+    cx += ctx.measureText(ch).width + track;
+  }
+  return w;
+}
+
+/**
+ * Şık başlık — en fazla iki satır, orta kalın (700) ve HARF ARALIKLI büyük
+ * harf. `blokH` içinde dikeyde ortalanır; yazı iki satıra sığmazsa küçülür.
+ * Devasa blok yazı yerine ince, ölçülü bir manşet: videoya "elit" havayı
+ * veren kısım budur.
  */
 function mansetCiz(
   ctx: CanvasRenderingContext2D,
@@ -669,22 +706,23 @@ function mansetCiz(
   maxW: number,
   blokH: number,
   renk: string,
+  track: number,
 ): void {
-  const font = (px: number) => `900 ${px}px "SF Pro Display", Inter, system-ui, sans-serif`;
-  let px = blokH * 0.46;
+  const font = (px: number) => `700 ${px}px "SF Pro Display", Inter, system-ui, sans-serif`;
+  let px = blokH * 0.32;
   let satirlar: string[] = [];
-  for (; px > blokH * 0.3; px -= 0.5) {
-    satirlar = metniBol(ctx, metin, maxW, font(px));
+  for (; px > blokH * 0.18; px -= 0.5) {
+    satirlar = metniBol(ctx, metin, maxW, font(px), track);
     if (satirlar.length <= 2) break;
   }
   if (satirlar.length === 0) return;
-  const satirYuk = px * 1.04;
-  let sy = y + (blokH - satirYuk * satirlar.length) / 2 + px * 0.86;
+  const satirYuk = px * 1.45;
+  const toplam = satirYuk * satirlar.length;
+  let sy = y + (blokH - toplam) / 2 + px * 0.88;
   ctx.font = font(px);
   ctx.fillStyle = renk;
-  ctx.textAlign = "center";
   for (const s of satirlar) {
-    ctx.fillText(s, merkez, sy);
+    aralikliYaz(ctx, s, merkez, sy, track);
     sy += satirYuk;
   }
 }
@@ -771,10 +809,11 @@ function altBantCiz(
   ctx.fillStyle = stil.vurgu;
   ctx.fill();
 
-  ctx.textAlign = "left";
-  ctx.font = `900 ${Math.round(h * 0.46)}px "SF Pro Display", Inter, sans-serif`;
+  const track = Math.max(1, Math.round(w * 0.0018));
+  ctx.font = `800 ${Math.round(h * 0.42)}px "SF Pro Display", Inter, sans-serif`;
   ctx.fillStyle = "#ffffff";
-  ctx.fillText(metniBol(ctx, metin.toLocaleUpperCase("tr"), w - h * 0.8, ctx.font)[0] ?? metin, x + h * 0.5, y + h * 0.66);
+  const satir = metniBol(ctx, metin.toLocaleUpperCase("tr"), w - h * 0.8, ctx.font, track)[0] ?? metin;
+  aralikliYaz(ctx, satir, x + h * 0.5, y + h * 0.62, track, "sol");
   ctx.restore();
 }
 
@@ -857,25 +896,39 @@ function girisKartiCiz(
   // Manşet — hafif ölçeklenerek girer.
   // Ölçek uygulanmışken elle geri translate etmek doğru olmaz (ölçek
   // translate'i de büyütür); save/restore ile dönülüyor.
+  //
+  // ŞIK VE ÖLÇÜLÜ: devasa blok harfler yerine ince, harf aralıklı bir başlık
+  // ve üstünde vurgu renginde ince bir aksan çizgisi.
   const gecis = Math.min(1, ilerleme / 0.7);
-  const olcek = 0.94 + 0.06 * gecis;
+  const olcek = 0.96 + 0.04 * gecis;
+  const hookBlok = width * 0.15;
+  const track = Math.max(1, Math.round(width * 0.003));
   ctx.save();
-  ctx.translate(width / 2, height * 0.46);
+  ctx.translate(width / 2, height * 0.44);
   ctx.scale(olcek, olcek);
-  const blokH = Math.min(height * 0.3, width * 0.22);
-  mansetCiz(ctx, hook, 0, -blokH / 2, width * 0.9, blokH, stil.vurgu);
+
+  // Aksan çizgisi — başlığın üstünde, kısa ve ince.
+  const cizgiW = width * 0.05;
+  ctx.strokeStyle = stil.vurgu;
+  ctx.lineWidth = Math.max(1, Math.round(width * 0.0015));
+  ctx.beginPath();
+  ctx.moveTo(-cizgiW / 2, -hookBlok / 2 - width * 0.02);
+  ctx.lineTo(cizgiW / 2, -hookBlok / 2 - width * 0.02);
+  ctx.stroke();
+
+  mansetCiz(ctx, hook, 0, -hookBlok / 2, width * 0.85, hookBlok, TEXT, track);
   ctx.restore();
 
   // Alt satır
   const alt = odakAdi ? `${odakAdi} — 81 il içinden` : "81 il · 1 dakikada 1 oy";
   ctx.textAlign = "center";
-  ctx.font = `600 ${Math.round(width * 0.026)}px "SF Pro Text", Inter, sans-serif`;
+  ctx.font = `600 ${Math.round(width * 0.022)}px "SF Pro Text", Inter, sans-serif`;
   ctx.fillStyle = MUTED;
-  ctx.fillText(alt, width / 2, height * 0.46 + blokH / 2 + width * 0.055);
+  ctx.fillText(alt, width / 2, height * 0.44 + hookBlok / 2 + width * 0.045);
 
   // Oynat üçgeni
-  const triY = height * 0.74;
-  const triS = width * 0.024;
+  const triY = height * 0.72;
+  const triS = width * 0.022;
   ctx.beginPath();
   ctx.moveTo(width / 2 - triS, triY - triS);
   ctx.lineTo(width / 2 - triS, triY + triS);
@@ -903,7 +956,7 @@ function bitisKartiCiz(
   odakAdi: string | null,
   ornek: boolean,
 ): void {
-  const alfa = Math.min(1, ilerleme / 0.8);
+  const alfa = Math.min(1, ilerleme / 0.55);
   if (alfa <= 0.01) return;
 
   ctx.save();
@@ -1076,7 +1129,8 @@ function dikeyCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekler
    */
   const ham = {
     ustSatir: width * 0.05,
-    hook: width * 0.105,
+    // Şık ve ölçülü: manşet artık iki satırlık küçük bir blok (devasa değil).
+    hook: width * 0.15,
     sayi: width * 0.085,
     birim: width * 0.032,
     tarih: width * 0.027,
@@ -1085,7 +1139,7 @@ function dikeyCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekler
     satir: width * 0.052,
     araK: width * 0.02,
     araB: width * 0.035,
-    harita: Math.min(alan.w * (H / W), alan.h * 0.36),
+    harita: Math.min(alan.w * (H / W), alan.h * 0.38),
     altBant: width * 0.085,
     damga: width * 0.02,
   };
@@ -1093,7 +1147,7 @@ function dikeyCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekler
   const yukseklik = (m: typeof ham) =>
     m.ustSatir +
     m.araK +
-    m.hook * 2.08 +
+    m.hook +
     m.araK +
     m.sayi +
     m.araK +
@@ -1133,9 +1187,9 @@ function dikeyCiz(ctx: CanvasRenderingContext2D, frame: Frame, o: KareSecenekler
   ustSatirCiz(ctx, alan.x, y, alan.w, m.ustSatir, stil);
   y += m.ustSatir + m.araK;
 
-  // Manşet
-  mansetCiz(ctx, hook, merkez, y, alan.w, m.hook * 2.08, stil.vurgu);
-  y += m.hook * 2.08 + m.araK;
+  // Manşet — şık, harf aralıklı ve ölçülü (devasa blok değil).
+  mansetCiz(ctx, hook, merkez, y, alan.w * 0.92, m.hook, TEXT, Math.max(1, Math.round(width * 0.003)));
+  y += m.hook + m.araK;
 
   // Sayaç
   y += m.sayi;

@@ -95,8 +95,8 @@ const BITIS_DURAKLAMA_MS = 1200;
 /** Açılış kartının süresi (kartlar açıkken). */
 const GIRIS_KARTI_MS = 1400;
 
-/** Kapanış kartının süresi (kartlar açıkken). */
-const BITIS_KARTI_MS = 1600;
+/** Kapanış kartının süresi (kartlar açıkken) — marka izleyicide kalsın. */
+const BITIS_KARTI_MS = 2400;
 
 /**
  * İlerleme çubuğu bu sıklıkta güncelleniyor.
