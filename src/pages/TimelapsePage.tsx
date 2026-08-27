@@ -261,6 +261,8 @@ export default function TimelapsePage() {
   const [hookMetni, setHookMetni] = useState("");
   /** Giriş & bitiş kartları çizilsin mi? */
   const [kartlar, setKartlar] = useState(true);
+  /** Aralık (dakika cinsinden; boş = tüm geçmiş). */
+  const [pencere, setPencere] = useState("");
   const [oran, setOran] = useState<Oran>("16:9");
   const [kalite, setKalite] = useState<Kalite>("hd");
   const [cozunurluk, setCozunurluk] = useState<VoteHistoryBucket>("10min");
@@ -358,7 +360,10 @@ export default function TimelapsePage() {
     };
   }, [backend, kaynak, cozunurluk, harita]);
 
-  const frames: Frame[] = useMemo(() => (history ? buildFrames(history) : []), [history]);
+  const frames: Frame[] = useMemo(
+    () => (history ? buildFrames(history, undefined, pencere ? Number(pencere) * 60_000 : undefined) : []),
+    [history, pencere],
+  );
 
   /** Video süresi: seçiliyse o, değilse veri miktarına göre. */
   const sureSn = useMemo(
@@ -1086,46 +1091,75 @@ export default function TimelapsePage() {
               </div>
 
               {/*
+                Aralık: video yalnızca seçilen son süreyi gösterir.
                 Kapsam 81 seçenek: düğme sırası olmaz, yerel açılır liste hem
                 aramayı hem klavyeyi bedavaya getiriyor. Yanındaki düğme tek
                 tek seçmeden hepsini fotoğraflıyor.
               */}
-              <div className="space-y-1.5">
-                <span className="stat-label">Kapsam</span>
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <span className="stat-label">Aralık</span>
                   <select
-                    value={odakIl}
+                    value={pencere}
                     onChange={(e) => {
                       setOynuyor(false);
-                      setOdakIl(e.target.value);
+                      setPencere(e.target.value);
                     }}
                     disabled={kaydediyor || tumleriKaydediyor}
-                    className="min-w-0 flex-1 rounded-xl border border-white/12 bg-[hsl(224_44%_8%)] px-3 py-2 text-sm font-semibold transition-colors hover:border-white/25 focus:border-white/40 focus:outline-none disabled:opacity-50 sm:max-w-xs"
+                    className="w-full rounded-xl border border-white/12 bg-[hsl(224_44%_8%)] px-3 py-2 text-sm font-semibold transition-colors hover:border-white/25 focus:border-white/40 focus:outline-none disabled:opacity-50"
                   >
-                    <option value="">Türkiye geneli</option>
-                    {[...PROVINCES]
-                      .sort((a, b) => a.name.localeCompare(b.name, "tr"))
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {String(p.plate).padStart(2, "0")} · {p.name}
-                        </option>
-                      ))}
+                    <option value="">Tüm geçmiş</option>
+                    <option value="1440">Son 24 saat</option>
+                    <option value="360">Son 6 saat</option>
+                    <option value="120">Son 2 saat</option>
+                    <option value="60">Son 1 saat</option>
+                    <option value="30">Son 30 dk</option>
+                    <option value="15">Son 15 dk</option>
                   </select>
-                  <Button
-                    variant="outline"
-                    onClick={() => void tumIlleriKaydet()}
-                    disabled={kaydediyor || tumleriKaydediyor || frames.length === 0}
-                    title="Türkiye geneli ve 81 ilin tamamı için o anki haritayı ayrı ayrı fotoğraflar"
-                  >
-                    {tumleriKaydediyor ? <Loader2 className="animate-spin" /> : <Images />}
-                    {tumleriKaydediyor ? "Hazırlanıyor…" : "Tüm illeri indir"}
-                  </Button>
-                </div>
-                {tumleriSonuc && (
-                  <p className="pt-1 text-[13px] leading-relaxed text-muted-foreground">
-                    {tumleriSonuc}
+                  <p className="pt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    Video yalnızca seçilen son süreyi gösterir; harita aralığın
+                    başlangıcındaki hâliyle açılır. Az veri için{" "}
+                    <strong className="text-foreground">Zaman dilimi</strong>'ni 5 dk ya da
+                    10 dk yap.
                   </p>
-                )}
+                </div>
+                <div className="space-y-1.5">
+                  <span className="stat-label">Kapsam</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={odakIl}
+                      onChange={(e) => {
+                        setOynuyor(false);
+                        setOdakIl(e.target.value);
+                      }}
+                      disabled={kaydediyor || tumleriKaydediyor}
+                      className="min-w-0 flex-1 rounded-xl border border-white/12 bg-[hsl(224_44%_8%)] px-3 py-2 text-sm font-semibold transition-colors hover:border-white/25 focus:border-white/40 focus:outline-none disabled:opacity-50"
+                    >
+                      <option value="">Türkiye geneli</option>
+                      {[...PROVINCES]
+                        .sort((a, b) => a.name.localeCompare(b.name, "tr"))
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {String(p.plate).padStart(2, "0")} · {p.name}
+                          </option>
+                        ))}
+                    </select>
+                    <Button
+                      variant="outline"
+                      onClick={() => void tumIlleriKaydet()}
+                      disabled={kaydediyor || tumleriKaydediyor || frames.length === 0}
+                      title="Türkiye geneli ve 81 ilin tamamı için o anki haritayı ayrı ayrı fotoğraflar"
+                    >
+                      {tumleriKaydediyor ? <Loader2 className="animate-spin" /> : <Images />}
+                      {tumleriKaydediyor ? "Hazırlanıyor…" : "Tüm illeri indir"}
+                    </Button>
+                  </div>
+                  {tumleriSonuc && (
+                    <p className="pt-1 text-[13px] leading-relaxed text-muted-foreground">
+                      {tumleriSonuc}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -1167,6 +1201,16 @@ export default function TimelapsePage() {
                   <strong className="text-amber-100">Süre</strong>'yi uzat ya da{" "}
                   <strong className="text-amber-100">Zaman dilimi</strong>'ni büyüt (30 dk, 1 saat) —
                   ikisi de saniyede geçen kare sayısını düşürür.
+                </p>
+              )}
+
+              {pencere && frames.length <= 3 && (
+                <p className="rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2 text-[13px] leading-relaxed text-amber-200">
+                  Seçtiğin aralıkta{" "}
+                  <strong className="text-amber-100">{kovaSayisi} veri karesi</strong> var: video
+                  çoğunlukla durağan olur. Daha akıcı bir video için{" "}
+                  <strong className="text-amber-100">Zaman dilimi</strong>'ni 5 dk ya da 10 dk yap
+                  ya da aralığı genişlet.
                 </p>
               )}
 

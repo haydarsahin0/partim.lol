@@ -40,9 +40,15 @@ görüntüye girmiyor, çözünürlük tam istenen ölçüde oluyor.
    `1:1` (akış gönderisi).
 6. **Çözünürlük** — kaç dakikada bir kare alınacağı. `10 dk` en akıcısı;
    geçmiş uzadıkça `1 saat` yeter.
-7. **Süre** — videonun kaç saniye olacağı: `10`, `15`, `20`, `30`. Veri kaç
+7. **Aralık** — video yalnızca son süreyi göstersin: `Son 24 saat`,
+   `Son 6 saat`, `Son 2 saat`, `Son 1 saat`, `Son 30 dk`, `Son 15 dk`.
+   Varsayılan **Tüm geçmiş**. Aralık seçildiğinde video, o aralığın
+   başlangıcındaki harita durumuyla açılır (öncesindeki oylar sessizce
+   işlenir). Kısa aralıklarda akıcılık için **Zaman dilimi**'ni 5 dk ya da
+   10 dk yapın; az kare varsa sayfa bunu söyler.
+8. **Süre** — videonun kaç saniye olacağı: `10`, `15`, `20`, `30`. Veri kaç
    kare olursa olsun seçilen süreye yayılır; aradaki kareler üretilir.
-8. **Video oluştur** → oynatma başlar, bitince **Videoyu indir** düğmesi çıkar.
+9. **Video oluştur** → oynatma başlar, bitince **Videoyu indir** düğmesi çıkar.
 
 ### Hazır ayarlar
 

@@ -100,20 +100,53 @@ function summarize(at: string, tallies: Tallies): Frame {
  * İlk kare açılış tablosunun kendisi: oyun başladığı andaki harita. Sonraki
  * her kare bir öncekinin üstüne o kovadaki oyları ekler — yani hiçbir kare
  * baştan hesaplanmıyor, video kaç kare olursa olsun maliyet aynı kalıyor.
+ *
+ * `pencereMs` verilirse video yalnızca son o kadar süreyi gösterir: pencerenin
+ * başlangıcına kadarki kovalar SESSİZCE uygulanır (haritanın o andaki hâli
+ * açılış karesi olur), penceredeki kovalar normal akar. "Son 1 saat" gibi
+ * aralık seçimleri buradan geçer.
  */
-export function buildFrames(history: VoteHistory, sonAn?: string): Frame[] {
+export function buildFrames(history: VoteHistory, sonAn?: string, pencereMs?: number): Frame[] {
   const running = clone(history.seed);
-  const first = history.buckets[0]?.at ?? new Date().toISOString();
+  const sinir = pencereMs && pencereMs > 0 ? Date.now() - pencereMs : null;
 
-  const frames: Frame[] = [summarize(first, clone(running))];
-  for (const bucket of history.buckets) {
-    for (const [provinceId, row] of Object.entries(bucket.delta)) {
+  const kovalariUygula = (delta: Tallies) => {
+    for (const [provinceId, row] of Object.entries(delta)) {
       const target = (running[provinceId] ??= {});
       for (const [partyId, votes] of Object.entries(row)) {
         target[partyId] = (target[partyId] ?? 0) + votes;
       }
     }
-    frames.push(summarize(bucket.at, clone(running)));
+  };
+
+  const frames: Frame[] = [];
+  if (sinir) {
+    // Pencerenin başlangıcına kadar olan kovalar kare üretmeden uygulanır.
+    let basladi = false;
+    for (const bucket of history.buckets) {
+      if (Date.parse(bucket.at) < sinir) {
+        kovalariUygula(bucket.delta);
+        continue;
+      }
+      if (!basladi) {
+        // Açılış karesi: pencerenin başladığı andaki harita.
+        frames.push(summarize(new Date(sinir).toISOString(), clone(running)));
+        basladi = true;
+      }
+      kovalariUygula(bucket.delta);
+      frames.push(summarize(bucket.at, clone(running)));
+    }
+    if (!basladi) {
+      // Pencerede hiç kova yok: haritanın pencere başındaki hâli tek kare.
+      frames.push(summarize(new Date(sinir).toISOString(), clone(running)));
+    }
+  } else {
+    const first = history.buckets[0]?.at ?? new Date().toISOString();
+    frames.push(summarize(first, clone(running)));
+    for (const bucket of history.buckets) {
+      kovalariUygula(bucket.delta);
+      frames.push(summarize(bucket.at, clone(running)));
+    }
   }
 
   /*
