@@ -295,6 +295,15 @@ export interface Backend {
    */
   getSeatMarket(limit?: number): Promise<SeatMarketSummary>;
   /**
+   * En son alınan il başkanlıkları (held_since'e göre yeni→eski).
+   *
+   * Ana sayfadaki "en son başkan olanlar" kayan bandını besler: kim hangi
+   * ilde hangi partinin başkanı oldu ve kaç dakika/saat önce aldı.
+   * Oyun hesaplarının (bot) koltukları hariç tutulur — bant gerçek
+   * kullanıcı alımlarını göstersin.
+   */
+  getRecentSeatClaims(limit?: number): Promise<SeatMarketRow[]>;
+  /**
    * Parti başına tutulan il başkanlığı (koltuk) sayısı. Seçim gecesi
    * listesinde "bu partinin kaç başkanı var" diye gösterilir.
    */

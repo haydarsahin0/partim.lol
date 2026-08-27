@@ -8,6 +8,7 @@ import { ProvinceSearch } from "@/components/ProvinceSearch";
 import { PartyLegend } from "@/components/PartyLegend";
 import { StatsPill } from "@/components/StatsPill";
 import { SeatMarket } from "@/components/SeatMarket";
+import { ChairmanTicker } from "@/components/ChairmanTicker";
 import { CreatePartyDialog } from "@/components/CreatePartyDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,6 +60,9 @@ export default function Home() {
     <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-3 p-3 sm:p-4">
       {/* Canlı sayaç hapı — sitenin üstünde ortalanmış */}
       <StatsPill />
+
+      {/* En son başkan olanlar — satın alma akışını gösteren kayan bant */}
+      <ChairmanTicker />
 
       {/*
         Mobil sıralama, düğmelerin göze çarpma sırasıyla aynı: harita →

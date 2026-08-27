@@ -65,6 +65,7 @@ import type {
   RallyResult,
   VoteHistory,
   VoteHistoryBucket,
+  SeatMarketRow,
   SeatMarketSummary,
   VoteResult,
 } from "./types";
@@ -514,6 +515,27 @@ export class DemoBackend implements Backend {
       counts[row.partyId] = (counts[row.partyId] ?? 0) + 1;
     }
     return counts;
+  }
+
+  /**
+   * En son alınan il başkanlıkları.
+   *
+   * Demo modda gerçek satın alma akışı yok; tohum koltukları (son 96 saate
+   * yayılmış heldSince'leriyle) ve kullanıcının kendi aldıkları birleştirilip
+   * yeniden eskiye sıralanır. Bant böylece her açılışta akıyormuş gibi görünür.
+   */
+  async getRecentSeatClaims(limit = 12): Promise<SeatMarketRow[]> {
+    return this.heldSeatRows()
+      .map((row) => ({
+        provinceId: row.provinceId,
+        partyId: row.partyId,
+        holder: row.holder,
+        price: row.price,
+        nextPrice: row.nextPrice,
+        heldSince: row.heldSince,
+      }))
+      .sort((a, b) => Date.parse(b.heldSince ?? "0") - Date.parse(a.heldSince ?? "0"))
+      .slice(0, limit);
   }
 
   /**

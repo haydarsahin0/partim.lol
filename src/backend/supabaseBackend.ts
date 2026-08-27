@@ -40,6 +40,7 @@ import type {
   VoteHistoryBucket,
   FastVotesResult,
   RallyResult,
+  SeatMarketRow,
   SeatMarketSummary,
   VoteResult,
 } from "./types";
@@ -548,6 +549,35 @@ export class SupabaseBackend implements Backend {
       volume: prices.reduce((a, b) => a + b, 0),
       hot: ((hotRes.data ?? []) as unknown as SeatRow[]).map(seatFromRow),
     };
+  }
+
+  async getRecentSeatClaims(limit = 12): Promise<SeatMarketRow[]> {
+    /*
+     * Kayan bant verisi: en son devredilen koltuklar. `held_since` koltuğun
+     * son el değiştirdiği an — yani "kaç dakika/saat önce alındı" sorusunun
+     * cevabı. Oyunun kendi hesaplarının (bot) koltukları tohum verisidir,
+     * satın alma değildir; bant gerçek kullanıcıları göstermeli.
+     */
+    const { data, error } = await this.db
+      .from("leader_seats")
+      .select(
+        "province_id,party_id,price,held_since,takeovers,last_rally_at,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)",
+      )
+      .not("holder.is_bot", "is", true)
+      .order("held_since", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return ((data ?? []) as unknown as SeatRow[]).map((row) => {
+      const price = Number(row.price ?? 0);
+      return {
+        provinceId: row.province_id,
+        partyId: row.party_id,
+        holder: authUserFromRow(row.holder),
+        price,
+        nextPrice: minLeaderPrice(price),
+        heldSince: row.held_since,
+      };
+    });
   }
 
   async getSeatCountsByParty(): Promise<Record<string, number>> {

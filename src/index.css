@@ -293,3 +293,25 @@
     box-shadow: 0 0 14px -1px color-mix(in srgb, var(--tint, #b96fff) 45%, transparent);
   }
 }
+
+/* ----------------------- kayan bant ("en son başkan olanlar") ------------------
+ * Track iki özdeş grup taşır ve -%50'ye kayar: bitince aynı görüntü başa döner,
+ * yani kesintisiz akar. İçerik uzadıkça hız sabit kalsın diye süre 45s.
+ * ------------------------------------------------------------------------------ */
+@keyframes kayan-bant-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.kayan-bant-track {
+  display: flex;
+  width: max-content;
+  animation: kayan-bant-scroll 45s linear infinite;
+  will-change: transform;
+}
+.kayan-bant-track:hover {
+  animation-play-state: paused;
+}
