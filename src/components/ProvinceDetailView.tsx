@@ -39,7 +39,7 @@ export function ProvinceDetailView({
   onClose?: () => void;
 }) {
   const province = PROVINCE_BY_ID[provinceId];
-  const { standings, refresh, user } = useGame();
+  const { standings, refresh, user, claimSeat, requireAuth } = useGame();
   // Sekme adres çubuğunda tutulur: bir ilin "Başkanlar" görünümü paylaşılabilir olsun.
   const [params, setParams] = useSearchParams();
   const tab = params.get("sekme") ?? "sonuclar";
@@ -49,6 +49,24 @@ export function ProvinceDetailView({
     void reload();
     void refresh();
   }, [reload, refresh]);
+
+  /**
+   * Sonuçlar listesindeki "İl başkanı ol / Başkanlığı devral" kısayolu.
+   * Gerçek modda Stripe Checkout'a yönlendirir; dönüşte usePaymentReturn
+   * koltuğu yoklayıp tazeler. Demo modda koltuk anında devredilir.
+   */
+  const claimPartySeat = useCallback(
+    async (pid: string, partyId: string) => {
+      if (!requireAuth("Koltuğun sana geçebilmesi için önce giriş yap.")) return false;
+      const seat = await claimSeat(pid, partyId);
+      if (seat) {
+        afterAction();
+        return true;
+      }
+      return false;
+    },
+    [requireAuth, claimSeat, afterAction],
+  );
 
   // Stripe Checkout dönüşünde koltuk devredilene kadar yokla.
   usePaymentReturn(provinceId, afterAction);
@@ -189,7 +207,13 @@ export function ProvinceDetailView({
             />
 
             {standing ? (
-              <ResultsBoard standing={standing} max={8} />
+              <ResultsBoard
+                standing={standing}
+                max={8}
+                provinceId={province.id}
+                seats={detail?.seats ?? null}
+                onClaimSeat={claimPartySeat}
+              />
             ) : (
               <Skeleton className="h-40 w-full" />
             )}

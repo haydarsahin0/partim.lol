@@ -1,21 +1,32 @@
 import { PARTY_BY_ID, partyColor, partyTextColor } from "@/data/parties";
 import { PartyMark } from "@/components/PartyMark";
-import type { ProvinceStanding } from "@/backend/types";
+import { PartyPresident } from "@/components/PartyPresident";
+import type { LeaderSeat, ProvinceStanding } from "@/backend/types";
 import { formatNumber, formatPercent } from "@/lib/game";
 import { cn } from "@/lib/utils";
 
 /**
  * Seçim gecesi tarzı sonuç tablosu: üstte tek parça yüzde şeridi,
- * altta parti parti dökümü.
+ * altta parti parti dökümü. Her partinin yanında il başkanlığı kısayolu
+ * durur (başkanın kullanıcı adı + "İl başkanı ol" / "Başkanlığı devral").
  */
 export function ResultsBoard({
   standing,
   max = 8,
   className,
+  provinceId,
+  seats,
+  onClaimSeat,
 }: {
   standing: ProvinceStanding;
   max?: number;
   className?: string;
+  /** Koltuk kısayolları için il kimliği */
+  provinceId?: string;
+  /** Bu ildeki tüm parti koltukları (boşlar dâhil); verilmezse düğme çıkmaz */
+  seats?: LeaderSeat[] | null;
+  /** İl başkanlığı satın alma — Stripe'a yönlendirmeyi üst bileşen yapar */
+  onClaimSeat?: (provinceId: string, partyId: string) => Promise<boolean>;
 }) {
   if (standing.totalVotes === 0) {
     return (
@@ -56,29 +67,45 @@ export function ResultsBoard({
       <ul className="space-y-1.5">
         {shown.map((tally, index) => {
           const party = PARTY_BY_ID[tally.partyId];
+          const seat = provinceId && seats
+            ? seats.find((s) => s.partyId === tally.partyId) ?? null
+            : null;
           return (
-            <li key={tally.partyId} className="flex items-center gap-3">
-              <span
-                className={cn(
-                  "w-4 text-right font-mono text-[11px]",
-                  index === 0 ? "text-foreground" : "text-muted-foreground",
-                )}
-              >
-                {index + 1}
-              </span>
-              <PartyMark partyId={tally.partyId} size={24} />
-              <span
-                className={cn("min-w-0 flex-1 truncate text-sm", index === 0 && "font-semibold")}
-                title={party?.fullName}
-              >
-                {party?.name ?? tally.partyId}
-              </span>
-              <span className="font-mono text-xs text-muted-foreground">
-                {formatNumber(tally.votes)}
-              </span>
-              <span className="w-14 text-right font-mono text-sm font-semibold tabular-nums">
-                {formatPercent(tally.pct)}
-              </span>
+            <li key={tally.partyId} className="space-y-1">
+              <div className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    "w-4 text-right font-mono text-[11px]",
+                    index === 0 ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {index + 1}
+                </span>
+                <PartyMark partyId={tally.partyId} size={24} />
+                <span
+                  className={cn("min-w-0 flex-1 truncate text-sm", index === 0 && "font-semibold")}
+                  title={party?.fullName}
+                >
+                  {party?.name ?? tally.partyId}
+                </span>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {formatNumber(tally.votes)}
+                </span>
+                <span className="w-14 text-right font-mono text-sm font-semibold tabular-nums">
+                  {formatPercent(tally.pct)}
+                </span>
+              </div>
+
+              {/* İl başkanlığı kısayolu — partinin hemen yanında */}
+              {seat && onClaimSeat && (
+                <div className="flex items-center justify-between gap-2 pl-16">
+                  <PartyPresident
+                    seat={seat}
+                    onClaim={onClaimSeat}
+                    tint={partyColor(tally.partyId)}
+                  />
+                </div>
+              )}
             </li>
           );
         })}
