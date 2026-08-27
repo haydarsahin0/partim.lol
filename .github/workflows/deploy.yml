@@ -97,5 +97,25 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Takılı Pages deployment'larını iptal et
+        # deploy-pages zaman aşımına takılıp yarım kalan bir deployment
+        # bırakabilir ("Timeout reached, aborting!"). Pages aynı anda tek
+        # deployment kabul ettiği için yenisi şu hatayla reddedilir:
+        #   "Deployment request failed ... due to in progress deployment"
+        # Kuyruktaki tamamlanmamış çalışmaları önce iptal edip sonra dağıt.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids=$(gh api "/repos/${{ github.repository }}/pages/deployments?per_page=100" \
+            --jq '.[] | select(.status != "deployed" and .status != "cancelled") | .id')
+          if [ -n "$ids" ]; then
+            echo "$ids" | while read -r id; do
+              echo "iptal ediliyor: Pages deployment $id"
+              gh api --method POST "/repos/${{ github.repository }}/pages/deployments/$id/cancel" --silent \
+                || echo "iptal başarısız (büyük olasılıkla çoktan temizlendi): $id"
+            done
+          else
+            echo "iptal edilecek Pages deployment yok"
+          fi
       - id: deployment
         uses: actions/deploy-pages@v4
