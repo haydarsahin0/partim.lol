@@ -304,6 +304,14 @@ export interface Backend {
    */
   getRecentSeatClaims(limit?: number): Promise<SeatMarketRow[]>;
   /**
+   * Futbol haritasındaki en son alınan kulüp başkanlıkları
+   * (football_seats.held_since'e göre yeni→eski).
+   *
+   * Futbol haritasının üstündeki kayan bant bunu okur; siyasi tarafın
+   * getRecentSeatClaims'iyle aynı şekil, clubId partyId alanında gelir.
+   */
+  getRecentFootballSeatClaims(limit?: number): Promise<SeatMarketRow[]>;
+  /**
    * Parti başına tutulan il başkanlığı (koltuk) sayısı. Seçim gecesi
    * listesinde "bu partinin kaç başkanı var" diye gösterilir.
    */

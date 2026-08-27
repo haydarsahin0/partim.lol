@@ -539,6 +539,28 @@ export class DemoBackend implements Backend {
   }
 
   /**
+   * Futbol haritasındaki son kulüp başkanlıkları.
+   *
+   * Demo modda futbol koltukları yalnızca kullanıcının aldıklarıdır (futbolun
+   * tohum koltukları yok); liste bu yüzden boş da dönebilir — bant o zaman
+   * görünmez, satın alınınca akar.
+   */
+  async getRecentFootballSeatClaims(limit = 12): Promise<SeatMarketRow[]> {
+    const rows = await this.getFootballSeats();
+    return rows
+      .map((s) => ({
+        provinceId: s.provinceId,
+        partyId: s.clubId,
+        holder: s.holder,
+        price: s.price,
+        nextPrice: s.nextPrice,
+        heldSince: s.heldSince,
+      }))
+      .sort((a, b) => Date.parse(b.heldSince ?? "0") - Date.parse(a.heldSince ?? "0"))
+      .slice(0, limit);
+  }
+
+  /**
    * Canlı oy akışı.
    *
    * Demo modda başka oyuncu yok, ama şerit boş dururken "seçim gecesi" hissi

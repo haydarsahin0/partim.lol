@@ -16,6 +16,7 @@ import { FootballElectionNight } from "@/components/FootballElectionNight";
 import { PROVINCE_BY_ID } from "@/data/provinces";
 import { useGame } from "@/backend/GameProvider";
 import { SubscriptionCard } from "@/components/SubscriptionCard";
+import { ChairmanTicker } from "@/components/ChairmanTicker";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PARTY_WEEKLY_PRICE, formatUsd } from "@/lib/game";
@@ -97,6 +98,9 @@ export default function FootballMapPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-3 p-3 sm:p-4">
+      {/* En son kulüp başkanları — ana haritadaki kayan bantın aynısı */}
+      <ChairmanTicker map="futbol" />
+
       <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_minmax(0,1fr)]">
         <section className="order-1 flex flex-col gap-3 lg:order-none lg:col-start-1 lg:row-start-1 lg:row-span-2">
           {/*

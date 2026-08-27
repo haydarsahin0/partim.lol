@@ -580,6 +580,39 @@ export class SupabaseBackend implements Backend {
     });
   }
 
+  async getRecentFootballSeatClaims(limit = 12): Promise<SeatMarketRow[]> {
+    /*
+     * Futbol koltukları ayrı tabloda (football_seats); siyasi tarafın
+     * kayan bandıyla aynı kural: bot hesaplar hariç, en yeni devralmalar.
+     */
+    const { data, error } = await this.db
+      .from("football_seats")
+      .select(
+        "province_id,club_id,price,held_since,takeovers,last_daily_at,holder:profiles(id,handle,display_name,avatar_url,x_handle,is_bot)",
+      )
+      .not("holder.is_bot", "is", true)
+      .order("held_since", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return ((data ?? []) as unknown as Array<{
+      province_id: string;
+      club_id: string;
+      price: number | string;
+      held_since: string | null;
+      holder: SeatRow["holder"];
+    }>).map((row) => {
+      const price = Number(row.price ?? 0);
+      return {
+        provinceId: row.province_id,
+        partyId: row.club_id,
+        holder: authUserFromRow(row.holder),
+        price,
+        nextPrice: price + 1,
+        heldSince: row.held_since,
+      };
+    });
+  }
+
   async getSeatCountsByParty(): Promise<Record<string, number>> {
     const { data, error } = await this.db.from("leader_seats").select("party_id");
     if (error) throw error;
