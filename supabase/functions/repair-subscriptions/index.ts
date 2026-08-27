@@ -53,8 +53,14 @@ Deno.serve(async (req) => {
   const rapor: Array<Record<string, unknown>> = [];
   let taranan = 0;
 
-  // Etkin ve ödemesi gecikmiş olanlar; iptal edilmişler zaten hak vermiyor.
-  for (const durum of ["active", "trialing", "past_due"] as const) {
+  // Etkin ve deneme abonelikleri; iptal edilmişler zaten hak vermiyor.
+  //
+  // past_due BİLEREK YOK: yenileme ödenemediyse içinde bulunulan dönem
+  // ödenmemiş demektir. past_due aboneliğin dönem sonu gelecekte olduğu için
+  // hak vermek, bankası ödemeyi engelleyen kullanıcıya ("3$ blockiert")
+  // ÖDENMEMİŞ dönemin hakkını bedavaya verirdi. Ödenen dönemin hakkı zaten
+  // invoice.paid ile işleniyor; onarımın orada yapacak bir şeyi yok.
+  for (const durum of ["active", "trialing"] as const) {
     for await (const sub of stripe.subscriptions.list({ status: durum, limit: 100 })) {
       taranan++;
       const meta = (sub.metadata ?? {}) as Record<string, string>;

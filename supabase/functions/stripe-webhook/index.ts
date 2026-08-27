@@ -17,12 +17,14 @@
  */
 import Stripe from "https://esm.sh/stripe@17.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.47.10";
 import {
   donemSonu,
   faturaAboneligi,
   hizliOyUygula,
   kulupUygula,
   musteriKimligi,
+  odenmemisHakkiKaldir,
   oturumuUygula,
   partiUygula,
   sahibiBul,
@@ -40,6 +42,28 @@ const admin = createClient(
 );
 
 const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
+
+/**
+ * İadesi yapılmış / itiraz edilmiş bir ödemenin hızlı oy hakkını kaldır.
+ *
+ * Harita: charge → invoice → subscription. Fatura ya da abonelik bulunamazsa
+ * (koltuk alımı gibi abonelik dışı ödemeler) sessizce geçilir. Yalnızca
+ * fast_votes aboneliğine dokunur ve yalnızca hakkı KALDIRIR.
+ */
+async function iadeItirazHakkiKaldir(admin: SupabaseClient, charge: Stripe.Charge): Promise<void> {
+  const invoiceId = typeof charge.invoice === "string" ? charge.invoice : null;
+  if (!invoiceId) return;
+  const invoice = await stripe.invoices.retrieve(invoiceId);
+  const subscriptionId = faturaAboneligi(invoice);
+  if (!subscriptionId) return;
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const meta = (subscription.metadata ?? {}) as Record<string, string>;
+  if (meta.kind !== "fast_votes") return;
+  const { error } = await admin.rpc("cancel_fast_votes_subscription", {
+    p_subscription_id: subscriptionId,
+  });
+  if (error) console.error("cancel_fast_votes_subscription (iade/itiraz) hatası", error);
+}
 
 Deno.serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
@@ -164,6 +188,93 @@ Deno.serve(async (req) => {
     }
 
     return ok({ received: true, ignored: "bilinmeyen abonelik" });
+  }
+
+  /* --------------------- ödeme alınamadı / geri döndü --------------------- */
+  /*
+   * Ödeme ALINAMAYINCA hakkı geri al (yalnızca kaldırır, asla vermez).
+   *
+   * - İlk ödeme (incomplete): kart reddedildi / banka engelledi. Oturum
+   *   "complete + processing" bitmişse hak verilmemiştir (bkz. oturumuUygula),
+   *   ama eski sürümler ya da asenkron yöntemler hakkı vermiş olabilir —
+   *   burada temizlenir.
+   * - Yenileme (past_due): ödenen dönemin hakkı dönem sonuna kadar sürer;
+   *   odenmemisHakkiKaldir past_due'ya dokunmaz, yalnızca uzatma olmaz.
+   */
+  if (event.type === "invoice.payment_failed") {
+    const invoice = event.data.object as Stripe.Invoice;
+    const subscriptionId = faturaAboneligi(invoice);
+    if (!subscriptionId) return ok({ received: true, ignored: "abonelik yok" });
+    try {
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      await odenmemisHakkiKaldir(admin, subscription);
+    } catch (err) {
+      console.error("invoice.payment_failed işlenemedi", err);
+    }
+    return ok({ received: true });
+  }
+
+  if (event.type === "checkout.session.async_payment_failed") {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const subId =
+      typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+    if (!subId) return ok({ received: true, ignored: "abonelik yok" });
+    try {
+      const subscription = await stripe.subscriptions.retrieve(subId);
+      await odenmemisHakkiKaldir(admin, subscription);
+    } catch (err) {
+      console.error("checkout.session.async_payment_failed işlenemedi", err);
+    }
+    return ok({ received: true });
+  }
+
+  /*
+   * Asenkron ödeme (SEPA vb.) YERLEŞİNCE hak verilir: ancak o anda para
+   * gerçekten alınmıştır. Oturum bu olayda payment_status=paid taşır.
+   */
+  if (event.type === "checkout.session.async_payment_succeeded") {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const sonuc = await oturumuUygula(stripe, admin, session);
+    if (!sonuc.ok) {
+      console.error("checkout.session.async_payment_succeeded uygulanamadı", {
+        id: session.id,
+        sonuc,
+      });
+      if (sonuc.message && /permission|connection|timeout|deadlock/i.test(sonuc.message)) {
+        return new Response(sonuc.message, { status: 500 });
+      }
+    }
+    return ok({ received: true, result: sonuc });
+  }
+
+  /*
+   * Para GERİ ALINDIYSA (iade / itiraz) hakkı kaldır: "öde, kullan, sonra geri
+   * al" döngüsünü kapatır. Yine yalnızca kaldırır, asla vermez.
+   */
+  if (event.type === "charge.dispute.created") {
+    const dispute = event.data.object as Stripe.Dispute;
+    try {
+      const charge = await stripe.charges.retrieve(
+        typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id ?? "",
+      );
+      await iadeItirazHakkiKaldir(admin, charge);
+    } catch (err) {
+      console.error("charge.dispute.created işlenemedi", err);
+    }
+    return ok({ received: true });
+  }
+
+  if (event.type === "charge.refunded") {
+    const charge = event.data.object as Stripe.Charge;
+    try {
+      // Kısmi iadeler hakkı kaldırmaz; yalnızca tam iade.
+      if (charge.amount_refunded >= charge.amount) {
+        await iadeItirazHakkiKaldir(admin, charge);
+      }
+    } catch (err) {
+      console.error("charge.refunded işlenemedi", err);
+    }
+    return ok({ received: true });
   }
 
   /* ----------------------------- iptaller -------------------------------- */

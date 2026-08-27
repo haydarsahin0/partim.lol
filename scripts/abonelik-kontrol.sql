@@ -9,7 +9,7 @@
 --   yüzden "şu e-postanın hesabı ne durumda" sorusunu elle sormak kolay değil;
 --   sorgu burada hazır dursun.
 
-\set eposta 'asafbaydemir36@gmail.com'
+\set eposta 'baranbalci530@gmail.com'
 
 with hedef as (
   select p.*

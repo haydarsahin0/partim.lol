@@ -233,8 +233,22 @@ export async function oturumuUygula(
   const meta = (session.metadata ?? {}) as Record<string, string>;
 
   if (session.mode === "subscription") {
-    // Abonelik ödemesi tamamlanmadıysa hak verilmez.
-    if (session.status !== "complete" || session.payment_status === "unpaid") {
+    /*
+     * Hak yalnızca PARA ALINDIKTAN SONRA verilir.
+     *
+     * Stripe oturumunun payment_status'u dört değer alabilir: paid, unpaid,
+     * no_payment_required, processing. "unpaid değilse hak ver" demek iki
+     * açık bırakıyordu:
+     *   - processing: ödeme henüz TAHSİL EDİLMEDİ (SEPA gibi asenkron
+     *     yöntem). Oturum "tamamlandı" der ama para gelmemiştir; hak hemen
+     *     verilirse, tahsilat sonradan başarısız olunca (banka engeli, yetersiz
+     *     bakiye) kullanıcı bedavaya hak kazanmış olur.
+     *   - no_payment_required: hiç ödeme yok (deneme süresi, sıfır tutar).
+     * Yalnızca "paid" paranın alındığını söyler. Asenkron yöntemde hak,
+     * checkout.session.async_payment_succeeded ya da invoice.paid olayıyla,
+     * para gerçekten yerleşince verilir.
+     */
+    if (session.status !== "complete" || session.payment_status !== "paid") {
       return { ok: false, kind: meta.kind, message: "Ödeme tamamlanmamış." };
     }
 
@@ -243,6 +257,16 @@ export async function oturumuUygula(
     if (!subId) return { ok: false, kind: meta.kind, message: "Abonelik bulunamadı." };
 
     const subscription = await stripe.subscriptions.retrieve(subId);
+    /*
+     * Aboneliğin kendisi de canlı olmalı. Oturum "paid" dese bile abonelik
+     * incomplete (ilk ödeme hiç alınmadı), past_due (yenileme ödenmedi) ya da
+     * canceled (iptal edildi) olabilir — o durumlarda hak verilmez. Bu üründe
+     * deneme süresi yok; "active" ve "trialing" yine de kabul edilir ki ileride
+     * deneme açılırsa sessizce bozulmasın.
+     */
+    if (subscription.status !== "active" && subscription.status !== "trialing") {
+      return { ok: false, kind: meta.kind, message: "Abonelik etkin değil." };
+    }
     const abonelikMeta = { ...meta, ...(subscription.metadata ?? {}) } as Record<string, string>;
     const periodEnd = donemSonu(subscription, abonelikMeta.kind === "custom_party" || abonelikMeta.kind === "custom_club" ? 7 : 1);
 
@@ -287,4 +311,31 @@ export async function oturumuUygula(
     return { ok: false, kind: "seat", message: "Ödeme tamamlanmamış." };
   }
   return koltukUygula(admin, session);
+}
+
+/**
+ * Ödemesi ALINAMAMIŞ bir hızlı oy aboneliğinin hakkını kaldır.
+ *
+ * `invoice.payment_failed` ve `checkout.session.async_payment_failed`
+ * olayları burayı çağırır. Amaç: ödemesi tamamlanmadan (ya da sonradan
+ * bozularak) verilmiş bir hakkı geri almak — "ödeme yapmadan hak" açığı.
+ *
+ * - active: ödemesi alınmış, dokunulmaz.
+ * - past_due: yenileme ödenemedi AMA içinde bulunulan dönem ödendi; kullanıcı
+ *   o dönemin hakkını sonuna kadar kullanır, uzatma olmaz. Dokunulmaz.
+ * - Diğerleri (incomplete, incomplete_expired, unpaid, canceled): ödeme hiç
+ *   alınmadı — verilmişse hak kaldırılır.
+ */
+export async function odenmemisHakkiKaldir(
+  admin: SupabaseClient,
+  subscription: Stripe.Subscription,
+): Promise<void> {
+  const meta = (subscription.metadata ?? {}) as Record<string, string>;
+  if (meta.kind !== "fast_votes") return;
+  if (subscription.status === "active" || subscription.status === "past_due") return;
+
+  const { error } = await admin.rpc("cancel_fast_votes_subscription", {
+    p_subscription_id: subscription.id,
+  });
+  if (error) console.error("cancel_fast_votes_subscription (ödeme alınamadı) hatası", error);
 }
